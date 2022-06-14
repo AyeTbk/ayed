@@ -1,8 +1,6 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+pub mod arena;
+pub mod buffer;
+pub mod command;
+pub mod editor;
+pub mod input;
+pub mod input_mapper;

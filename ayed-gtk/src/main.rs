@@ -3,7 +3,14 @@ use gtk4 as gtk;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
 
+use ayed_core::editor::Editor;
+
+mod core_facade;
+use core_facade::CoreFacade;
+
 fn main() {
+    let core_facade = CoreFacade::new(Editor::new());
+
     let app = Application::builder().application_id("ay.ed").build();
 
     app.connect_activate(move |app| {
@@ -14,16 +21,9 @@ fn main() {
             .title("Ayed")
             .build();
 
-        // guistate.init();
+        core_facade.init();
 
-        let text_view = gtk::TextView::new();
-        text_view.set_editable(false);
-        text_view.set_cursor_visible(false);
-        text_view.set_monospace(true);
-        let text_buffer = gtk::TextBuffer::new(None);
-        text_buffer.set_text("this is monospace!");
-        text_view.set_buffer(Some(&text_buffer));
-        window.set_child(Some(&text_view));
+        window.set_child(Some(&core_facade.gui_widget()));
 
         window.show();
     });
