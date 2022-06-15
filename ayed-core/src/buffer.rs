@@ -15,12 +15,37 @@ impl Buffer {
         }
     }
 
-    pub fn viewport_content_string(&self, output: &mut String, viewport_size: (u32, u32)) {
-        *output = self.content.inner.clone();
-        todo!() // Also maybe change viewport_size parameter for a context
+    pub fn viewport_content_string<'a>(
+        &'a self,
+        output: &mut Vec<&'a str>,
+        viewport_size: (u32, u32),
+    ) {
+        let start_line_index = self.viewport_top_left_position.line_index;
+        let end_line_index = start_line_index + viewport_size.1;
+        let start_column_index = self.viewport_top_left_position.column_index;
+        let line_slice_max_len = viewport_size.0;
+
+        output.clear();
+
+        for line_index in start_line_index..=end_line_index {
+            let full_line = if let Some(line) = self.content.line(line_index) {
+                line
+            } else {
+                break;
+            };
+            let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
+                (0, 0)
+            } else {
+                let expected_end = start_column_index as usize + line_slice_max_len as usize;
+                let end = expected_end.min(full_line.len());
+                (start_column_index as usize, end)
+            };
+            let sliced_line = &full_line[start_column..end_column];
+            output.push(sliced_line);
+        }
     }
 
-    pub fn execute_command(&mut self, command: Command, viewport_size: (u32, u32)) {
+    pub fn execute_command(&mut self, command: Command, _viewport_size: (u32, u32)) {
         match command {
             Command::Insert(c) => self.insert_char(c),
             Command::MoveSelectionUp => self.move_selection(-1, 0),
@@ -53,6 +78,32 @@ struct BufferContent {
 }
 
 impl BufferContent {
+    pub fn line(&self, line_index: u32) -> Option<&str> {
+        let mut current_line_index = 0;
+        let mut line_start_idx = None;
+        let mut line_end_idx = None;
+        for (idx, ch) in self.inner.char_indices() {
+            if line_start_idx.is_none() && current_line_index == line_index {
+                line_start_idx = Some(idx);
+            }
+            if ch == '\n' {
+                current_line_index += 1;
+
+                if current_line_index == line_index + 1 {
+                    line_end_idx = Some(idx);
+                    break;
+                }
+            }
+        }
+
+        match (line_start_idx, line_end_idx) {
+            (None, None) => None,
+            (Some(start_idx), None) => Some(&self.inner[start_idx..]),
+            (Some(start_idx), Some(end_idx)) => Some(&self.inner[start_idx..end_idx]),
+            (None, Some(_)) => unreachable!(),
+        }
+    }
+
     pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<Position, ()> {
         if let Some(idx) = self.position_to_content_index(position) {
             self.inner.insert(idx, ch);
@@ -156,14 +207,14 @@ impl Selections {
 #[derive(Debug, Clone, Copy)]
 struct Selection {
     position: Position,
-    extra_length: u32,
+    _extra_length: u32,
 }
 
 impl Selection {
     pub fn new() -> Self {
         Self {
             position: Position::ZERO,
-            extra_length: 0,
+            _extra_length: 0,
         }
     }
 }

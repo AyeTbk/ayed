@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, Copy)]
 pub enum Input {
     Char(char),
+    Return,
     Up,
     Down,
     Left,

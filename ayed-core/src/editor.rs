@@ -45,11 +45,10 @@ impl Editor {
     }
 
     pub fn set_viewport_size(&mut self, viewport_size: (u32, u32)) {
-        dbg!(viewport_size);
         self.viewport_size = viewport_size;
     }
 
-    pub fn active_buffer_viewport_content(&self, content: &mut String) {
+    pub fn active_buffer_viewport_content<'a>(&'a self, content: &mut Vec<&'a str>) {
         self.active_buffer()
             .viewport_content_string(content, self.viewport_size);
     }

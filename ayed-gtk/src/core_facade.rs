@@ -11,7 +11,7 @@ use ayed_core::input::Input;
 pub struct CoreFacade {
     self_rc: RefCell<Option<Rc<Self>>>,
     core: RefCell<Editor>,
-    gui_widget: RefCell<Option<gtk::ScrolledWindow>>,
+    gui_widget: RefCell<Option<gtk::Overlay>>,
     text_view_widget: RefCell<Option<gtk::TextView>>,
 }
 
@@ -34,7 +34,7 @@ impl CoreFacade {
 
     pub fn init(&self) {
         let text_view = gtk::TextView::new();
-        text_view.set_size_request(1, 1);
+        text_view.set_vexpand(true);
         text_view.set_editable(false);
         text_view.set_cursor_visible(false);
         text_view.set_monospace(true);
@@ -55,14 +55,24 @@ impl CoreFacade {
         let scrolled_window = gtk::ScrolledWindow::new();
         scrolled_window.set_child(Some(&text_view));
 
+        // This drawing area only exists because it's the only way I've found to
+        // track window resize events.
+        let drawing_area = gtk::DrawingArea::new();
+        drawing_area.set_size_request(1, 1);
+        drawing_area.connect_resize({
+            let facade = self.self_rc();
+            move |_, _, _| {
+                facade.on_window_resize();
+            }
+        });
+
+        let overlay_container = gtk::Overlay::new();
+        overlay_container.set_child(Some(&drawing_area));
+        overlay_container.add_overlay(&scrolled_window);
+
         let this = self.self_rc();
         this.text_view_widget.replace(Some(text_view));
-        this.gui_widget.replace(Some(scrolled_window));
-
-        // TODO Setup a DrawingArea to be able to receive resize events
-        // to be able to adjust the viewport size
-
-        self.refresh_display();
+        this.gui_widget.replace(Some(overlay_container));
     }
 
     pub fn gui_widget(&self) -> impl IsA<gtk4::Widget> {
@@ -70,34 +80,62 @@ impl CoreFacade {
     }
 
     pub fn input_key(&self, key: gtk4::gdk::Key) {
-        if let Some(ch) = key.to_unicode() {
-            self.core.borrow_mut().input(Input::Char(ch));
-            self.refresh_display();
-            return;
-        }
         use gtk4::gdk::Key;
         let input = match key {
+            Key::Return => Input::Return,
             Key::Up => Input::Up,
             Key::Down => Input::Down,
             Key::Left => Input::Left,
             Key::Right => Input::Right,
-            _ => return,
+            _ => {
+                if let Some(ch) = key.to_unicode() {
+                    Input::Char(ch)
+                } else {
+                    return;
+                }
+            }
         };
         self.core.borrow_mut().input(input);
         self.refresh_display();
     }
 
     pub fn on_window_resize(&self) {
-        dbg!("Wpppp");
+        let text_view = self.text_view_widget.borrow().as_ref().unwrap().clone();
+        let rect = text_view.visible_rect();
+
+        // FIXME stop assuming character size
+        let char_pixel_width = 8;
+        let char_pixel_height = 18;
+
+        // FIXME stop assuming starting window size
+        // Workaround for Gtk not telling what size the fucking drawing area is, drawing area
+        // which only exists because gtk wont tell me when stuff gets fucking resized
+        let (rect_width, rect_height) = if rect.width() == 0 {
+            (799, 639)
+        } else {
+            (rect.width(), rect.height())
+        };
+
+        let width = (rect_width / char_pixel_width) as _;
+        let height = (rect_height / char_pixel_height - 1) as _;
+        self.core.borrow_mut().set_viewport_size((width, height));
+        self.refresh_display();
     }
 
     pub fn refresh_display(&self) {
         let text_buffer = self.text_view_widget.borrow().as_ref().unwrap().buffer();
-        let mut content = String::new();
-        self.core
-            .borrow()
-            .active_buffer_viewport_content(&mut content);
-        text_buffer.set_text(&content);
+
+        let core = self.core.borrow();
+        let mut content = Vec::new();
+        core.active_buffer_viewport_content(&mut content);
+
+        let mut string_content = String::new();
+        for line in content {
+            string_content.push_str(&line);
+            string_content.push('\n');
+        }
+
+        text_buffer.set_text(&string_content);
 
         self.refresh_content_tags();
     }

@@ -18,6 +18,7 @@ impl InputMapper for InputMapperImpl {
     fn convert_input_to_command(&self, input: Input, _ctx: &InputContext) -> Command {
         match input {
             Input::Char(ch) => Command::Insert(ch),
+            Input::Return => Command::Insert('\n'),
             Input::Up => Command::MoveSelectionUp,
             Input::Down => Command::MoveSelectionDown,
             Input::Left => Command::MoveSelectionLeft,
