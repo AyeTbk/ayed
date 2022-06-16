@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 
 use ayed_core::buffer::SelectionBounds;
@@ -100,6 +101,10 @@ impl CoreFacade {
         };
         self.core.borrow_mut().input(input);
         self.refresh_display();
+    }
+
+    pub fn open_file(&self, path: &Path) {
+        self.core.borrow_mut().create_file_buffer(path);
     }
 
     pub fn on_window_resize(&self) {

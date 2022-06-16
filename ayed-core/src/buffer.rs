@@ -1,9 +1,12 @@
+use std::path::{Path, PathBuf};
+
 use crate::command::Command;
 
 pub struct Buffer {
     content: BufferContent,
     selections: Selections,
     viewport_top_left_position: Position,
+    _filepath: Option<PathBuf>,
 }
 
 impl Buffer {
@@ -12,6 +15,17 @@ impl Buffer {
             content: BufferContent::default(),
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
+            _filepath: None,
+        }
+    }
+
+    pub fn from_filepath(filepath: &Path) -> Self {
+        let content = std::fs::read_to_string(filepath).expect("TODO error handling");
+        Self {
+            content: BufferContent::from(content),
+            selections: Selections::new(),
+            viewport_top_left_position: Position::ZERO,
+            _filepath: Some(filepath.to_owned()),
         }
     }
 
@@ -134,6 +148,10 @@ struct BufferContent {
 }
 
 impl BufferContent {
+    pub fn from(inner: String) -> Self {
+        Self { inner }
+    }
+
     pub fn line(&self, line_index: u32) -> Option<&str> {
         let mut current_line_index = 0;
         let mut line_start_idx = None;

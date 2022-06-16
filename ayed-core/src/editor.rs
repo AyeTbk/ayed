@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::arena::{Arena, Handle};
 use crate::buffer::{Buffer, SelectionBounds};
 use crate::command::Command;
@@ -22,6 +24,10 @@ impl Editor {
             input_mapper: Default::default(),
             viewport_size: (80, 25),
         }
+    }
+
+    pub fn create_file_buffer(&mut self, path: &Path) -> Handle<Buffer> {
+        self.buffers.allocate(Buffer::from_filepath(path))
     }
 
     pub fn create_scratch_buffer(&mut self) -> Handle<Buffer> {

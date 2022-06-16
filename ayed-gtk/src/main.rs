@@ -11,7 +11,10 @@ use core_facade::CoreFacade;
 fn main() {
     let core_facade = CoreFacade::new(Editor::new());
 
-    let app = Application::builder().application_id("ay.ed").build();
+    let app = Application::builder()
+        .application_id("ay.ed")
+        .flags(gtk::gio::ApplicationFlags::HANDLES_OPEN)
+        .build();
 
     app.connect_activate(move |app| {
         let window = ApplicationWindow::builder()
@@ -22,6 +25,11 @@ fn main() {
             .build();
 
         core_facade.init();
+
+        for arg in /*std::env::args().skip(1)*/ Some("Cargo.toml") {
+            app.open(&[gtk::gio::File::for_path(&arg)], "");
+            core_facade.open_file(std::path::Path::new(&arg));
+        }
 
         window.set_child(Some(&core_facade.gui_widget()));
 
