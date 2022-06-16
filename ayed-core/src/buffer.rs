@@ -50,10 +50,10 @@ impl Buffer {
             Command::Insert(c) => self.insert_char(c),
             Command::DeleteBeforeSelection => self.delete_before_selection(),
             Command::DeleteSelection => self.delete_selection(),
-            Command::MoveSelectionUp => self.move_selection(-1, 0),
-            Command::MoveSelectionDown => self.move_selection(1, 0),
-            Command::MoveSelectionLeft => self.move_selection(0, -1),
-            Command::MoveSelectionRight => self.move_selection(0, 1),
+            Command::MoveSelectionUp => self.move_selection_vertically(-1),
+            Command::MoveSelectionDown => self.move_selection_vertically(1),
+            Command::MoveSelectionLeft => self.move_selection_horizontally(-1),
+            Command::MoveSelectionRight => self.move_selection_horizontally(1),
         }
     }
 
@@ -67,13 +67,13 @@ impl Buffer {
 
     pub fn delete_before_selection(&mut self) {
         for selection in self.selections.iter_mut() {
-            if selection.position == Position::ZERO {
+            if selection.position == self.content.start_of_content_position() {
                 // Can't delete before the beginning!
                 continue;
             }
             let before_selection = self
                 .content
-                .moved_position(selection.position, -1)
+                .moved_position_horizontally(selection.position, -1)
                 .expect("wow?");
             self.content
                 .delete_selection(Selection::new().with_position(before_selection));
@@ -90,14 +90,32 @@ impl Buffer {
         }
     }
 
-    pub fn move_selection(&mut self, line_offset: i32, column_offset: i32) {
-        // FIXME this is incorrect, it doesnt handle moving across lines by horizontal movement
+    pub fn move_selection_horizontally(&mut self, column_offset: i32) {
         for selection in self.selections.iter_mut() {
-            let moved_position = selection
-                .position
-                .with_moved_indices(line_offset, column_offset);
-            let clamped_moved_position = self.content.clamped_position(moved_position);
-            selection.position = clamped_moved_position;
+            let new_position = if let Some(moved_position) = self
+                .content
+                .moved_position_horizontally(selection.position, column_offset)
+            {
+                moved_position
+            } else {
+                if column_offset < 0 {
+                    self.content.start_of_content_position()
+                } else {
+                    self.content.end_of_content_position()
+                }
+            };
+            selection.position = new_position;
+        }
+    }
+
+    pub fn move_selection_vertically(&mut self, line_offset: i32) {
+        for selection in self.selections.iter_mut() {
+            if let Some(moved_position) = self
+                .content
+                .moved_position_vertically(selection.position, line_offset)
+            {
+                selection.position = moved_position;
+            }
         }
     }
 
@@ -171,30 +189,64 @@ impl BufferContent {
         }
     }
 
-    pub fn clamped_position(&self, position: Position) -> Position {
-        if self.position_to_content_index(position).is_some() {
-            position
-        } else {
-            self.end_of_content_position()
-        }
-    }
-
-    pub fn moved_position(&self, position: Position, column_offset: i32) -> Option<Position> {
+    pub fn moved_position_horizontally(
+        &self,
+        position: Position,
+        column_offset: i32,
+    ) -> Option<Position> {
         if let Some(position_idx) = self.position_to_content_index(position) {
-            // FIXME this line below might cause problem for files bigger than 4GB
-            let moved_idx = saturating_add_signed(position_idx as u32, column_offset) as usize;
-            self.content_index_to_position(moved_idx)
+            let moved_idx = position_idx as isize + column_offset as isize;
+            if moved_idx < 0 {
+                None
+            } else {
+                self.content_index_to_position(moved_idx as usize)
+            }
         } else {
             None
         }
     }
 
-    fn end_of_content_position(&self) -> Position {
+    pub fn moved_position_vertically(
+        &self,
+        position: Position,
+        line_offset: i32,
+    ) -> Option<Position> {
+        // TODO maybe check if position is within content as some kind of sanity check? idk
+        let new_line_index = position.line_index as i64 + line_offset as i64;
+        if new_line_index < 0 {
+            return None;
+        }
+        let new_line_index = new_line_index as u32;
+        if let Some(line) = self.line(new_line_index) {
+            let new_column_index = position.column_index.min(line.len() as u32);
+            Some(Position {
+                column_index: new_column_index,
+                line_index: new_line_index,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn start_of_content_position(&self) -> Position {
+        Position::ZERO
+    }
+
+    pub fn end_of_content_position(&self) -> Position {
         match self.inner.chars().count() {
             0 => Position::ZERO,
             len => self
-                .content_index_to_position(len - 1)
+                .content_index_to_position(len)
                 .expect("index is in bounds, so there should be a position"),
+        }
+    }
+
+    fn _clamped_position(&self, position: Position) -> Position {
+        // TODO remove this method if it's unused
+        if self.position_to_content_index(position).is_some() {
+            position
+        } else {
+            self.end_of_content_position()
         }
     }
 
