@@ -48,6 +48,8 @@ impl Buffer {
     pub fn execute_command(&mut self, command: Command, _viewport_size: (u32, u32)) {
         match command {
             Command::Insert(c) => self.insert_char(c),
+            Command::DeleteBeforeSelection => self.delete_before_selection(),
+            Command::DeleteSelection => self.delete_selection(),
             Command::MoveSelectionUp => self.move_selection(-1, 0),
             Command::MoveSelectionDown => self.move_selection(1, 0),
             Command::MoveSelectionLeft => self.move_selection(0, -1),
@@ -63,12 +65,48 @@ impl Buffer {
         }
     }
 
-    pub fn move_selection(&mut self, line_offset: i32, column_offset: i32) {
+    pub fn delete_before_selection(&mut self) {
         for selection in self.selections.iter_mut() {
-            let moved_position = selection.position.moved(line_offset, column_offset);
-            let clamped_moved_position = self.content.clamp_position(moved_position);
+            if selection.position == Position::ZERO {
+                // Can't delete before the beginning!
+                continue;
+            }
+            let before_selection = self
+                .content
+                .moved_position(selection.position, -1)
+                .expect("wow?");
+            self.content
+                .delete_selection(Selection::new().with_position(before_selection));
+
+            let new_selection = selection.with_position(before_selection);
+            *selection = new_selection;
+        }
+    }
+
+    pub fn delete_selection(&mut self) {
+        for selection in self.selections.iter_mut() {
+            self.content.delete_selection(*selection);
+            *selection = selection.shrunk();
+        }
+    }
+
+    pub fn move_selection(&mut self, line_offset: i32, column_offset: i32) {
+        // FIXME this is incorrect, it doesnt handle moving across lines by horizontal movement
+        for selection in self.selections.iter_mut() {
+            let moved_position = selection
+                .position
+                .with_moved_indices(line_offset, column_offset);
+            let clamped_moved_position = self.content.clamped_position(moved_position);
             selection.position = clamped_moved_position;
         }
+    }
+
+    pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
+        // FIXME this only shows selections as hacing a length
+        self.selections.iter().map(|selection| SelectionBounds {
+            from: selection.position.with_moved_indices(0, 0),
+            to: selection.position.with_moved_indices(0, 1),
+        })
     }
 }
 
@@ -121,11 +159,33 @@ impl BufferContent {
         }
     }
 
-    pub fn clamp_position(&self, position: Position) -> Position {
+    pub fn delete_selection(&mut self, selection: Selection) {
+        if let Some(start_idx) = self.position_to_content_index(selection.position) {
+            let end_idx = start_idx + selection.length() as usize;
+            let range = if end_idx < self.inner.len() {
+                start_idx..end_idx
+            } else {
+                start_idx..self.inner.len()
+            };
+            self.inner.drain(range);
+        }
+    }
+
+    pub fn clamped_position(&self, position: Position) -> Position {
         if self.position_to_content_index(position).is_some() {
             position
         } else {
             self.end_of_content_position()
+        }
+    }
+
+    pub fn moved_position(&self, position: Position, column_offset: i32) -> Option<Position> {
+        if let Some(position_idx) = self.position_to_content_index(position) {
+            // FIXME this line below might cause problem for files bigger than 4GB
+            let moved_idx = saturating_add_signed(position_idx as u32, column_offset) as usize;
+            self.content_index_to_position(moved_idx)
+        } else {
+            None
         }
     }
 
@@ -184,6 +244,11 @@ impl BufferContent {
     }
 }
 
+pub struct SelectionBounds {
+    pub from: Position,
+    pub to: Position,
+}
+
 struct Selections {
     primary_selection: Selection,
     extra_selections: Vec<Selection>,
@@ -197,6 +262,12 @@ impl Selections {
         }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &Selection> {
+        Some(&self.primary_selection)
+            .into_iter()
+            .chain(self.extra_selections.iter())
+    }
+
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Selection> {
         Some(&mut self.primary_selection)
             .into_iter()
@@ -207,22 +278,39 @@ impl Selections {
 #[derive(Debug, Clone, Copy)]
 struct Selection {
     position: Position,
-    _extra_length: u32,
+    extra_length: u32,
 }
 
 impl Selection {
     pub fn new() -> Self {
         Self {
             position: Position::ZERO,
-            _extra_length: 0,
+            extra_length: 0,
         }
+    }
+
+    pub fn with_position(&self, position: Position) -> Self {
+        Self {
+            position,
+            extra_length: self.extra_length,
+        }
+    }
+
+    pub fn shrunk(&self) -> Self {
+        let mut this = *self;
+        this.extra_length = 0;
+        this
+    }
+
+    pub fn length(&self) -> u32 {
+        self.extra_length + 1
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Position {
-    line_index: u32,
-    column_index: u32,
+pub struct Position {
+    pub line_index: u32,
+    pub column_index: u32,
 }
 
 impl Position {
@@ -231,7 +319,7 @@ impl Position {
         column_index: 0,
     };
 
-    pub fn moved(&self, line_offset: i32, column_offset: i32) -> Self {
+    pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
         let line_index = saturating_add_signed(self.line_index, line_offset);
         let column_index = saturating_add_signed(self.column_index, column_offset);
         Self {

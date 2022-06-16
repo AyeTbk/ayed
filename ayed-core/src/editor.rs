@@ -1,5 +1,5 @@
 use crate::arena::{Arena, Handle};
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, SelectionBounds};
 use crate::command::Command;
 use crate::input::Input;
 use crate::input_mapper::{InputContext, InputMapper, InputMapperImpl};
@@ -55,5 +55,9 @@ impl Editor {
 
     pub fn active_buffer(&self) -> &Buffer {
         self.buffers.get(self.active_buffer)
+    }
+
+    pub fn active_buffer_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
+        self.active_buffer().selections()
     }
 }

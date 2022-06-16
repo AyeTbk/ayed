@@ -2,6 +2,8 @@
 pub enum Input {
     Char(char),
     Return,
+    Backspace,
+    Delete,
     Up,
     Down,
     Left,

@@ -19,6 +19,8 @@ impl InputMapper for InputMapperImpl {
         match input {
             Input::Char(ch) => Command::Insert(ch),
             Input::Return => Command::Insert('\n'),
+            Input::Backspace => Command::DeleteBeforeSelection,
+            Input::Delete => Command::DeleteSelection,
             Input::Up => Command::MoveSelectionUp,
             Input::Down => Command::MoveSelectionDown,
             Input::Left => Command::MoveSelectionLeft,

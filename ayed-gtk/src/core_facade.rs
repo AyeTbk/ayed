@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use ayed_core::buffer::SelectionBounds;
 use gtk4 as gtk;
 
 use gtk::prelude::*;
@@ -83,6 +84,8 @@ impl CoreFacade {
         use gtk4::gdk::Key;
         let input = match key {
             Key::Return => Input::Return,
+            Key::BackSpace => Input::Backspace,
+            Key::Delete => Input::Delete,
             Key::Up => Input::Up,
             Key::Down => Input::Down,
             Key::Left => Input::Left,
@@ -128,11 +131,12 @@ impl CoreFacade {
         let core = self.core.borrow();
         let mut content = Vec::new();
         core.active_buffer_viewport_content(&mut content);
+        content.push(" ");
 
         let mut string_content = String::new();
         for line in content {
             string_content.push_str(&line);
-            string_content.push('\n');
+            string_content.push_str(" \n");
         }
 
         text_buffer.set_text(&string_content);
@@ -144,10 +148,28 @@ impl CoreFacade {
         let text_buffer = self.text_view_widget.borrow().as_ref().unwrap().buffer();
         text_buffer.remove_all_tags(&text_buffer.start_iter(), &text_buffer.end_iter());
 
-        let tag = gtk4::TextTag::new(None);
-        tag.set_background_rgba(Some(&gtk4::gdk::RGBA::BLUE));
+        let selection_tag = gtk4::TextTag::new(None);
+        selection_tag.set_background_rgba(Some(&gtk4::gdk::RGBA::BLUE));
+        text_buffer.tag_table().add(&selection_tag);
 
-        text_buffer.tag_table().add(&tag);
-        text_buffer.apply_tag(&tag, &text_buffer.start_iter(), &text_buffer.end_iter());
+        for SelectionBounds { from, to } in self.core.borrow().active_buffer_selections() {
+            let start_iter = if let Some(iter) =
+                text_buffer.iter_at_line_offset(from.line_index as i32, from.column_index as i32)
+            {
+                iter
+            } else {
+                eprintln!("ayed-gtk: warn: bad selection bounds {from:?}");
+                continue;
+            };
+            let end_iter = if let Some(iter) =
+                text_buffer.iter_at_line_offset(to.line_index as i32, to.column_index as i32)
+            {
+                iter
+            } else {
+                eprintln!("ayed-gtk: warn: bad selection bounds {to:?}");
+                continue;
+            };
+            text_buffer.apply_tag(&selection_tag, &start_iter, &end_iter);
+        }
     }
 }
