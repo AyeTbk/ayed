@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Write};
 
 use termion::{
-    color,
+    cursor::HideCursor,
     event::{Event, Key},
     input::{MouseTerminal, TermRead},
     raw::IntoRawMode,
@@ -23,7 +23,7 @@ impl Tui {
     pub fn run(&mut self) {
         let stdin = stdin();
         let stdout = stdout().into_raw_mode().unwrap();
-        let mut screen = MouseTerminal::from(AlternateScreen::from(stdout));
+        let mut screen = HideCursor::from(MouseTerminal::from(AlternateScreen::from(stdout)));
 
         self.render(&mut screen);
 
@@ -31,8 +31,17 @@ impl Tui {
         for result_event in stdin.events() {
             let event = result_event.unwrap();
             match event {
-                Event::Key(Key::Esc) => break,
-                Event::Key(Key::Char(ch)) => self.core.input(ayed_core::input::Input::Char(ch)),
+                Event::Key(key) => match key {
+                    Key::Esc => break,
+                    Key::Backspace => self.core.input(ayed_core::input::Input::Backspace),
+                    Key::Delete => self.core.input(ayed_core::input::Input::Delete),
+                    Key::Up => self.core.input(ayed_core::input::Input::Up),
+                    Key::Down => self.core.input(ayed_core::input::Input::Down),
+                    Key::Left => self.core.input(ayed_core::input::Input::Left),
+                    Key::Right => self.core.input(ayed_core::input::Input::Right),
+                    Key::Char(ch) => self.core.input(ayed_core::input::Input::Char(ch)),
+                    k => println!("key: {:?}", k),
+                },
                 e => {
                     println!("{:?}", e);
                 }
@@ -44,6 +53,22 @@ impl Tui {
 
     fn render(&mut self, screen: &mut impl Write) {
         self.update_viewport_size_if_needed();
+
+        let mut content = Vec::new();
+        self.core.active_editor_viewport_content(&mut content);
+
+        write!(
+            screen,
+            "{}{}",
+            termion::clear::All,
+            termion::cursor::Goto(1, 1)
+        )
+        .unwrap();
+        for line in content {
+            screen.write_all(line.as_bytes()).unwrap();
+            screen.write_all(&[b'\r', b'\n']).unwrap();
+        }
+
         screen.flush().unwrap();
     }
 

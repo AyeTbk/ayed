@@ -59,10 +59,13 @@ impl Core {
         self.viewport_size = viewport_size;
     }
 
-    // pub fn active_editor_viewport_content<'a>(&'a self, content: &mut Vec<&'a str>) {
-    //     self.active_editor()
-    //         .viewport_content_string(content, self.viewport_size);
-    // }
+    pub fn active_editor_viewport_content(&mut self, content: &mut Vec<String>) {
+        let ctx = EditorContext {
+            buffers: &mut self.buffers,
+            viewport_size: self.viewport_size,
+        };
+        self.active_editor.viewport_content_string(content, &ctx);
+    }
 
     // pub fn active_editor(&self) -> &Buffer {
     //     self.buffers.get(self.active_editor)

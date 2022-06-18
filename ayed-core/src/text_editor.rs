@@ -21,11 +21,7 @@ impl TextEditor {
         }
     }
 
-    pub fn viewport_content_string<'a>(
-        &'a self,
-        output: &mut Vec<&'a str>,
-        ctx: &'a EditorContext,
-    ) {
+    pub fn viewport_content_string(&self, output: &mut Vec<String>, ctx: &EditorContext) {
         let start_line_index = self.viewport_top_left_position.line_index;
         let end_line_index = start_line_index + ctx.viewport_size.1;
         let start_column_index = self.viewport_top_left_position.column_index;
@@ -49,7 +45,7 @@ impl TextEditor {
                 (start_column_index as usize, end)
             };
             let sliced_line = &full_line[start_column..end_column];
-            output.push(sliced_line);
+            output.push(sliced_line.to_string());
         }
     }
 
