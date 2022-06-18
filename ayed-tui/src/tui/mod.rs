@@ -64,19 +64,27 @@ impl Tui {
             termion::cursor::Goto(1, 1)
         )
         .unwrap();
-        for line in content {
+
+        for (i, line) in content.iter().enumerate() {
             screen.write_all(line.as_bytes()).unwrap();
-            screen.write_all(&[b'\r', b'\n']).unwrap();
+            if i != content.len() - 1 {
+                screen.write_all(&[b'\r', b'\n']).unwrap();
+            }
         }
 
         screen.flush().unwrap();
     }
 
     fn update_viewport_size_if_needed(&mut self) {
-        let (width, height) = termion::terminal_size().unwrap();
+        let (width, height) = self.viewport_size();
         let (vwidth, vheight) = self.core.viewport_size();
-        if width as u32 != vwidth || height as u32 != vheight {
+        if width != vwidth || height != vheight {
             self.core.set_viewport_size((width as _, height as _));
         }
+    }
+
+    fn viewport_size(&self) -> (u32, u32) {
+        let (width, height) = termion::terminal_size().unwrap();
+        (width as _, height as _)
     }
 }

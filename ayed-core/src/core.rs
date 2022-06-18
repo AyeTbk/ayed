@@ -28,12 +28,16 @@ impl Core {
         }
     }
 
-    pub fn create_buffer_from_filepath(&mut self, path: &Path) -> Handle<Buffer> {
-        self.buffers.allocate(Buffer::from_filepath(path))
+    pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<Buffer> {
+        self.buffers.allocate(Buffer::from_filepath(path.as_ref()))
     }
 
     pub fn create_scratch_buffer(&mut self) -> Handle<Buffer> {
         self.buffers.allocate(Buffer::new_scratch())
+    }
+
+    pub fn edit_buffer(&mut self, buffer: Handle<Buffer>) {
+        self.active_editor = TextEditor::new(buffer);
     }
 
     pub fn input(&mut self, input: Input) {

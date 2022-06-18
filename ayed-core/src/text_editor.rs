@@ -23,7 +23,7 @@ impl TextEditor {
 
     pub fn viewport_content_string(&self, output: &mut Vec<String>, ctx: &EditorContext) {
         let start_line_index = self.viewport_top_left_position.line_index;
-        let end_line_index = start_line_index + ctx.viewport_size.1;
+        let after_end_line_index = start_line_index + ctx.viewport_size.1;
         let start_column_index = self.viewport_top_left_position.column_index;
         let line_slice_max_len = ctx.viewport_size.0;
 
@@ -31,7 +31,7 @@ impl TextEditor {
 
         let content = ctx.buffers.get(self.buffer);
 
-        for line_index in start_line_index..=end_line_index {
+        for line_index in start_line_index..after_end_line_index {
             let full_line = if let Some(line) = content.line(line_index) {
                 line
             } else {
@@ -121,7 +121,7 @@ impl TextEditor {
         }
     }
 
-    fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
+    fn _selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         // FIXME this only shows selections as hacing a length
         self.selections.iter().map(|selection| SelectionBounds {
             from: selection.position.with_moved_indices(0, 0),
