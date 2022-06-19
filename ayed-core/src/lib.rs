@@ -6,3 +6,4 @@ pub mod input;
 pub mod input_mapper;
 pub mod selection;
 pub mod text_editor;
+pub mod ui_state;

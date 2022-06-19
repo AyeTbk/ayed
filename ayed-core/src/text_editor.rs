@@ -2,8 +2,9 @@ use crate::{
     arena::Handle,
     buffer::Buffer,
     command::Command,
-    core::EditorContext,
+    core::{EditorContext, EditorContextMut},
     selection::{Position, Selection, SelectionBounds, Selections},
+    ui_state::{Panel, Span, Style},
 };
 
 pub struct TextEditor {
@@ -21,14 +22,14 @@ impl TextEditor {
         }
     }
 
-    pub fn viewport_content_string(&self, output: &mut Vec<String>, ctx: &EditorContext) {
+    pub fn viewport_content_panel(&self, ctx: &EditorContext) -> Panel {
+        // Compute content
         let start_line_index = self.viewport_top_left_position.line_index;
         let after_end_line_index = start_line_index + ctx.viewport_size.1;
         let start_column_index = self.viewport_top_left_position.column_index;
         let line_slice_max_len = ctx.viewport_size.0;
 
-        output.clear();
-
+        let mut panel_content = Vec::new();
         let content = ctx.buffers.get(self.buffer);
 
         for line_index in start_line_index..after_end_line_index {
@@ -44,12 +45,39 @@ impl TextEditor {
                 let end = expected_end.min(full_line.len());
                 (start_column_index as usize, end)
             };
-            let sliced_line = &full_line[start_column..end_column];
-            output.push(sliced_line.to_string());
+
+            let mut line = full_line[start_column..end_column].to_string();
+            let padlen = line_slice_max_len as usize - end_column;
+            line.extend(" ".repeat(padlen).chars());
+
+            panel_content.push(line);
+        }
+
+        // Compute spans
+        let mut panel_spans = Vec::new();
+        for selection in self.selections() {
+            panel_spans.push(Span {
+                from: selection.from,
+                to: selection.to,
+                style: Style {
+                    foreground_color: None,
+                    background_color: None,
+                    invert: true,
+                },
+                importance: !0,
+            });
+        }
+
+        // Wooowie done
+        Panel {
+            position: (0, 0),
+            size: ctx.viewport_size,
+            content: panel_content,
+            spans: panel_spans,
         }
     }
 
-    pub fn execute_command(&mut self, command: Command, ctx: &mut EditorContext) {
+    pub fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
         let buffer = ctx.buffers.get_mut(self.buffer);
 
         match command {
@@ -61,6 +89,14 @@ impl TextEditor {
             Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
             Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
         }
+    }
+
+    pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
+        // FIXME this only shows selections as having a length of one
+        self.selections.iter().map(|selection| SelectionBounds {
+            from: selection.position.with_moved_indices(0, 0),
+            to: selection.position.with_moved_indices(0, 1),
+        })
     }
 
     fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
@@ -119,13 +155,5 @@ impl TextEditor {
                 selection.position = moved_position;
             }
         }
-    }
-
-    fn _selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
-        // FIXME this only shows selections as hacing a length
-        self.selections.iter().map(|selection| SelectionBounds {
-            from: selection.position.with_moved_indices(0, 0),
-            to: selection.position.with_moved_indices(0, 1),
-        })
     }
 }

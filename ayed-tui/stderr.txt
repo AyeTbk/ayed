@@ -1,0 +1,4 @@
+   Compiling ayed-core v0.1.0 (/home/simon/workspaces/rust/ayed/ayed-core)
+   Compiling ayed-tui v0.1.0 (/home/simon/workspaces/rust/ayed/ayed-tui)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.38s
+     Running `target/debug/ayed-tui Cargo.lock`

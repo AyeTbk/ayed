@@ -5,7 +5,9 @@ use crate::buffer::Buffer;
 use crate::command::Command;
 use crate::input::Input;
 use crate::input_mapper::{InputContext, InputMapper, InputMapperImpl};
+use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
+use crate::ui_state::{Panel, UiState};
 
 pub struct Core {
     buffers: Arena<Buffer>,
@@ -48,14 +50,14 @@ impl Core {
     }
 
     pub fn execute_command_in_active_editor(&mut self, command: Command) {
-        let mut ctx = EditorContext {
+        let mut ctx = EditorContextMut {
             buffers: &mut self.buffers,
             viewport_size: self.viewport_size,
         };
         self.active_editor.execute_command(command, &mut ctx);
     }
 
-    pub fn viewport_size(&mut self) -> (u32, u32) {
+    pub fn viewport_size(&self) -> (u32, u32) {
         self.viewport_size
     }
 
@@ -63,24 +65,31 @@ impl Core {
         self.viewport_size = viewport_size;
     }
 
-    pub fn active_editor_viewport_content(&mut self, content: &mut Vec<String>) {
-        let ctx = EditorContext {
-            buffers: &mut self.buffers,
-            viewport_size: self.viewport_size,
-        };
-        self.active_editor.viewport_content_string(content, &ctx);
+    pub fn ui_state(&self) -> UiState {
+        let active_editor_panel = self.active_editor_viewport_panel();
+        let panels = vec![active_editor_panel];
+        UiState { panels }
     }
 
-    // pub fn active_editor(&self) -> &Buffer {
-    //     self.buffers.get(self.active_editor)
-    // }
+    fn active_editor_viewport_panel(&self) -> Panel {
+        let ctx = EditorContext {
+            buffers: &self.buffers,
+            viewport_size: self.viewport_size,
+        };
+        self.active_editor.viewport_content_panel(&ctx)
+    }
 
-    // pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
-    //     self.active_editor().selections()
-    // }
+    pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
+        self.active_editor.selections()
+    }
+}
+
+pub struct EditorContextMut<'a> {
+    pub buffers: &'a mut Arena<Buffer>,
+    pub viewport_size: (u32, u32),
 }
 
 pub struct EditorContext<'a> {
-    pub buffers: &'a mut Arena<Buffer>,
+    pub buffers: &'a Arena<Buffer>,
     pub viewport_size: (u32, u32),
 }

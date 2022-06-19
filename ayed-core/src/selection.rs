@@ -16,6 +16,24 @@ impl Selections {
         }
     }
 
+    pub fn on_line(&self, line_index: u32) -> Vec<Selection> {
+        // FIXME handle more than just the start of the selection
+
+        let mut selections = Vec::new();
+        let mut push_if_on_line = |sel: Selection| {
+            if sel.position.line_index == line_index {
+                selections.push(self.primary_selection);
+            }
+        };
+
+        push_if_on_line(self.primary_selection);
+        for selection in self.extra_selections.iter().copied() {
+            push_if_on_line(selection);
+        }
+
+        selections
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {
         Some(&self.primary_selection)
             .into_iter()

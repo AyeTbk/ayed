@@ -1,5 +1,6 @@
 use std::io::{stdin, stdout, Write};
 
+use ayed_core::ui_state::{Color, Span};
 use termion::{
     cursor::HideCursor,
     event::{Event, Key},
@@ -52,23 +53,74 @@ impl Tui {
     }
 
     fn render(&mut self, screen: &mut impl Write) {
+        fn prepare_span_style(span: &Span, screen: &mut impl Write) {
+            if let Some(foreground_color) = span.style.foreground_color {
+                let fg = convert_color(foreground_color);
+                write!(screen, "{}", termion::color::Fg(fg)).unwrap();
+            }
+            if let Some(background_color) = span.style.background_color {
+                let bg = convert_color(background_color);
+                write!(screen, "{}", termion::color::Bg(bg)).unwrap();
+            }
+            if span.style.invert {
+                write!(screen, "{}", termion::style::Invert).unwrap();
+            }
+        }
+
+        fn cleanup_span_style(screen: &mut impl Write) {
+            write!(
+                screen,
+                "{}{}{}",
+                termion::color::Reset.fg_str(),
+                termion::color::Reset.bg_str(),
+                termion::style::Reset
+            )
+            .unwrap();
+        }
+
         self.update_viewport_size_if_needed();
 
-        let mut content = Vec::new();
-        self.core.active_editor_viewport_content(&mut content);
+        let ui_state = self.core.ui_state();
 
-        write!(
-            screen,
-            "{}{}",
-            termion::clear::All,
-            termion::cursor::Goto(1, 1)
-        )
-        .unwrap();
+        write!(screen, "{}", termion::clear::All).unwrap();
 
-        for (i, line) in content.iter().enumerate() {
-            screen.write_all(line.as_bytes()).unwrap();
-            if i != content.len() - 1 {
-                screen.write_all(&[b'\r', b'\n']).unwrap();
+        for panel in ui_state.panels {
+            let start_y = panel.position.1;
+            let after_end_y = start_y + panel.size.1;
+            let start_x = panel.position.0;
+            let after_end_x = start_x + panel.size.0;
+
+            for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
+                write!(
+                    screen,
+                    "{}",
+                    termion::cursor::Goto((start_x + 1) as _, (y + 1) as _)
+                )
+                .unwrap();
+
+                let panel_line_index = y - panel.position.1;
+                let mut char_str = String::new();
+                for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
+                    if panel
+                        .spans_on_line(panel_line_index)
+                        .filter(|span| span.to.column_index == x)
+                        .next()
+                        .is_some()
+                    {
+                        cleanup_span_style(screen);
+                    }
+                    if let Some(span) = panel
+                        .spans_on_line(panel_line_index)
+                        .filter(|span| span.from.column_index == x)
+                        .next()
+                    {
+                        prepare_span_style(span, screen);
+                    }
+
+                    char_str.clear();
+                    char_str.push(ch);
+                    screen.write(char_str.as_bytes()).unwrap();
+                }
             }
         }
 
@@ -87,4 +139,8 @@ impl Tui {
         let (width, height) = termion::terminal_size().unwrap();
         (width as _, height as _)
     }
+}
+
+fn convert_color(color: Color) -> termion::color::Rgb {
+    termion::color::Rgb(color.r, color.g, color.b)
 }
