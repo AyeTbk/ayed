@@ -4,6 +4,7 @@ pub mod command;
 pub mod core;
 pub mod input;
 pub mod input_mapper;
+pub mod mode;
 pub mod selection;
 pub mod text_editor;
 pub mod ui_state;

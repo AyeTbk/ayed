@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::Buffer;
 use crate::command::Command;
 use crate::input::Input;
-use crate::input_mapper::{InputContext, InputMapper, InputMapperImpl};
+use crate::input_mapper::{InputContext, InputMapper};
+use crate::mode::{TextCommandMode, TextEditMode};
 use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{Panel, UiState};
@@ -12,7 +15,8 @@ use crate::ui_state::{Panel, UiState};
 pub struct Core {
     buffers: Arena<Buffer>,
     active_editor: TextEditor,
-    input_mapper: InputMapperImpl,
+    modes: HashMap<&'static str, Rc<dyn InputMapper>>,
+    active_mode: Rc<dyn InputMapper>,
     viewport_size: (u32, u32),
 }
 
@@ -21,11 +25,14 @@ impl Core {
         let mut buffers = Arena::new();
         let start_buffer = buffers.allocate(Buffer::new_scratch());
         let active_editor = TextEditor::new(start_buffer);
+        let modes = Self::make_default_modes();
+        let active_mode = modes.get("text-command").unwrap().clone();
 
         Self {
             buffers,
             active_editor,
-            input_mapper: Default::default(),
+            modes,
+            active_mode,
             viewport_size: (80, 25),
         }
     }
@@ -42,11 +49,21 @@ impl Core {
         self.active_editor = TextEditor::new(buffer);
     }
 
+    pub fn set_mode(&mut self, mode_name: &str) {
+        let mode_rc = self.modes.get(mode_name).unwrap().clone();
+        self.active_mode = mode_rc;
+    }
+
     pub fn input(&mut self, input: Input) {
-        let command = self
-            .input_mapper
-            .convert_input_to_command(input, &InputContext::default());
-        self.execute_command_in_active_editor(command);
+        if let Some(command) = self
+            .active_mode
+            .convert_input_to_command(input, &InputContext::default())
+        {
+            match command {
+                Command::ChangeMode(mode_name) => self.set_mode(mode_name),
+                cmd => self.execute_command_in_active_editor(cmd),
+            }
+        }
     }
 
     pub fn execute_command_in_active_editor(&mut self, command: Command) {
@@ -81,6 +98,13 @@ impl Core {
 
     pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         self.active_editor.selections()
+    }
+
+    fn make_default_modes() -> HashMap<&'static str, Rc<dyn InputMapper>> {
+        let mut modes: HashMap<&'static str, Rc<dyn InputMapper>> = HashMap::new();
+        modes.insert("text-command", Rc::new(TextCommandMode));
+        modes.insert("text-edit", Rc::new(TextEditMode));
+        modes
     }
 }
 

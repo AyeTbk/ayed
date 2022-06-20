@@ -94,6 +94,7 @@ impl TextEditor {
             Command::MoveSelectionDown => self.move_selection_vertically(1, buffer),
             Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
             Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
+            _ => (),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
