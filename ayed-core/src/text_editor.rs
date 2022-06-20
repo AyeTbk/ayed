@@ -46,11 +46,8 @@ impl TextEditor {
                 let end = expected_end.min(full_line.len());
                 (start_column_index as usize, end)
             };
-            dbg!((start_column, end_column));
-            dbg!(full_line.len());
 
             let mut line = full_line[start_column..end_column].to_string();
-            dbg!((line_slice_max_len, end_column));
             let line_visible_part_length = end_column - start_column;
             let padlen = line_slice_max_len as usize - line_visible_part_length;
             line.extend(" ".repeat(padlen).chars());
