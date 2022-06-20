@@ -3,12 +3,17 @@ use crate::{
     buffer::Buffer,
     command::Command,
     core::{EditorContext, EditorContextMut},
+    input::Input,
+    input_mapper::InputMapper,
+    panel::Panel,
     selection::{Position, Selection, SelectionBounds, Selections},
-    ui_state::{Panel, Span, Style},
+    text_mode::{TextCommandMode, TextEditMode},
+    ui_state::{Panel as UiPanel, Span, Style},
 };
 
 pub struct TextEditor {
     buffer: Handle<Buffer>,
+    active_mode: Box<dyn InputMapper>,
     selections: Selections,
     viewport_top_left_position: Position,
 }
@@ -17,69 +22,17 @@ impl TextEditor {
     pub fn new(buffer: Handle<Buffer>) -> Self {
         Self {
             buffer,
+            active_mode: Box::new(TextCommandMode),
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
         }
     }
 
-    pub fn viewport_content_panel(&self, ctx: &EditorContext) -> Panel {
-        // Compute content
-        let start_line_index = self.viewport_top_left_position.line_index;
-        let after_end_line_index = start_line_index + ctx.viewport_size.1;
-        let start_column_index = self.viewport_top_left_position.column_index;
-        let line_slice_max_len = ctx.viewport_size.0;
-
-        let mut panel_content = Vec::new();
-        let content = ctx.buffers.get(self.buffer);
-
-        for line_index in start_line_index..after_end_line_index {
-            let full_line = if let Some(line) = content.line(line_index) {
-                line
-            } else {
-                break;
-            };
-
-            let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
-                (0, 0)
-            } else {
-                let expected_end = start_column_index as usize + line_slice_max_len as usize;
-                let end = expected_end.min(full_line.len());
-                (start_column_index as usize, end)
-            };
-
-            let mut line = full_line[start_column..end_column].to_string();
-            let line_visible_part_length = end_column - start_column;
-            let padlen = line_slice_max_len as usize - line_visible_part_length;
-            line.extend(" ".repeat(padlen).chars());
-
-            panel_content.push(line);
-        }
-
-        panel_content.push(String::from("  "));
-
-        // Compute spans
-        let mut panel_spans = Vec::new();
-        for selection in self.selections() {
-            let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
-            let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
-            panel_spans.push(Span {
-                from: from_relative_to_viewport,
-                to: to_relative_to_viewport,
-                style: Style {
-                    foreground_color: None,
-                    background_color: None,
-                    invert: true,
-                },
-                importance: !0,
-            });
-        }
-
-        // Wooowie done
-        Panel {
-            position: (0, 0),
-            size: ctx.viewport_size,
-            content: panel_content,
-            spans: panel_spans,
+    pub fn set_mode(&mut self, mode_name: &str) {
+        match mode_name {
+            TextCommandMode::NAME => self.active_mode = Box::new(TextCommandMode),
+            TextEditMode::NAME => self.active_mode = Box::new(TextEditMode),
+            _ => panic!("unsupported mode: {:?}", mode_name),
         }
     }
 
@@ -87,6 +40,7 @@ impl TextEditor {
         let buffer = ctx.buffers.get_mut(self.buffer);
 
         match command {
+            Command::ChangeMode(mode_name) => self.set_mode(mode_name),
             Command::Insert(c) => self.insert_char(c, buffer),
             Command::DeleteBeforeSelection => self.delete_before_selection(buffer),
             Command::DeleteSelection => self.delete_selection(buffer),
@@ -94,7 +48,6 @@ impl TextEditor {
             Command::MoveSelectionDown => self.move_selection_vertically(1, buffer),
             Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
             Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
-            _ => (),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
@@ -191,5 +144,74 @@ impl TextEditor {
         }
 
         self.viewport_top_left_position = new_viewport_top_left_position;
+    }
+}
+
+impl Panel for TextEditor {
+    fn input(&mut self, input: Input, ctx: &mut EditorContextMut) {
+        if let Some(command) = self.active_mode.convert_input_to_command(input, ctx) {
+            self.execute_command(command, ctx);
+        }
+    }
+
+    fn panel(&self, ctx: &EditorContext) -> UiPanel {
+        // Compute content
+        let start_line_index = self.viewport_top_left_position.line_index;
+        let after_end_line_index = start_line_index + ctx.viewport_size.1;
+        let start_column_index = self.viewport_top_left_position.column_index;
+        let line_slice_max_len = ctx.viewport_size.0;
+
+        let mut panel_content = Vec::new();
+        let content = ctx.buffers.get(self.buffer);
+
+        for line_index in start_line_index..after_end_line_index {
+            let full_line = if let Some(line) = content.line(line_index) {
+                line
+            } else {
+                break;
+            };
+
+            let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
+                (0, 0)
+            } else {
+                let expected_end = start_column_index as usize + line_slice_max_len as usize;
+                let end = expected_end.min(full_line.len());
+                (start_column_index as usize, end)
+            };
+
+            let mut line = full_line[start_column..end_column].to_string();
+            let line_visible_part_length = end_column - start_column;
+            let padlen = line_slice_max_len as usize - line_visible_part_length;
+            line.extend(" ".repeat(padlen).chars());
+
+            panel_content.push(line);
+        }
+
+        panel_content.push(String::from("  "));
+
+        // Compute spans
+        let mut panel_spans = Vec::new();
+        for selection in self.selections() {
+            let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
+            let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
+            panel_spans.push(Span {
+                from: from_relative_to_viewport,
+                to: to_relative_to_viewport,
+                style: Style {
+                    foreground_color: None,
+                    background_color: None,
+                    invert: true,
+                },
+                importance: !0,
+            });
+        }
+
+        // Wooowie done
+        UiPanel {
+            position: (0, 0),
+            size: ctx.viewport_size,
+            content: panel_content,
+            spans: panel_spans,
+        }
     }
 }

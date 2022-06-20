@@ -1,22 +1,18 @@
-use std::collections::HashMap;
 use std::path::Path;
-use std::rc::Rc;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::Buffer;
-use crate::command::Command;
 use crate::input::Input;
-use crate::input_mapper::{InputContext, InputMapper};
-use crate::mode::{TextCommandMode, TextEditMode};
+use crate::mode_line::ModeLine;
+use crate::panel::Panel;
 use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
-use crate::ui_state::{Panel, UiState};
+use crate::ui_state::{Panel as UiPanel, UiState};
 
 pub struct Core {
     buffers: Arena<Buffer>,
     active_editor: TextEditor,
-    modes: HashMap<&'static str, Rc<dyn InputMapper>>,
-    active_mode: Rc<dyn InputMapper>,
+    mode_line: ModeLine,
     viewport_size: (u32, u32),
 }
 
@@ -25,14 +21,12 @@ impl Core {
         let mut buffers = Arena::new();
         let start_buffer = buffers.allocate(Buffer::new_scratch());
         let active_editor = TextEditor::new(start_buffer);
-        let modes = Self::make_default_modes();
-        let active_mode = modes.get("text-command").unwrap().clone();
+        let mode_line = ModeLine::new();
 
         Self {
             buffers,
             active_editor,
-            modes,
-            active_mode,
+            mode_line,
             viewport_size: (80, 25),
         }
     }
@@ -49,29 +43,14 @@ impl Core {
         self.active_editor = TextEditor::new(buffer);
     }
 
-    pub fn set_mode(&mut self, mode_name: &str) {
-        let mode_rc = self.modes.get(mode_name).unwrap().clone();
-        self.active_mode = mode_rc;
-    }
-
     pub fn input(&mut self, input: Input) {
-        if let Some(command) = self
-            .active_mode
-            .convert_input_to_command(input, &InputContext::default())
-        {
-            match command {
-                Command::ChangeMode(mode_name) => self.set_mode(mode_name),
-                cmd => self.execute_command_in_active_editor(cmd),
-            }
-        }
-    }
-
-    pub fn execute_command_in_active_editor(&mut self, command: Command) {
+        // TODO handle modeline input eventually
+        let viewport_size = self.active_editor_viewport_size();
         let mut ctx = EditorContextMut {
             buffers: &mut self.buffers,
-            viewport_size: self.viewport_size,
+            viewport_size,
         };
-        self.active_editor.execute_command(command, &mut ctx);
+        self.active_editor.input(input, &mut ctx);
     }
 
     pub fn viewport_size(&self) -> (u32, u32) {
@@ -83,28 +62,40 @@ impl Core {
     }
 
     pub fn ui_state(&self) -> UiState {
-        let active_editor_panel = self.active_editor_viewport_panel();
-        let panels = vec![active_editor_panel];
+        let active_editor_panel = self.active_editor_panel();
+        let mode_line_panel = self.mode_line_panel();
+        let panels = vec![active_editor_panel, mode_line_panel];
         UiState { panels }
-    }
-
-    fn active_editor_viewport_panel(&self) -> Panel {
-        let ctx = EditorContext {
-            buffers: &self.buffers,
-            viewport_size: self.viewport_size,
-        };
-        self.active_editor.viewport_content_panel(&ctx)
     }
 
     pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         self.active_editor.selections()
     }
 
-    fn make_default_modes() -> HashMap<&'static str, Rc<dyn InputMapper>> {
-        let mut modes: HashMap<&'static str, Rc<dyn InputMapper>> = HashMap::new();
-        modes.insert("text-command", Rc::new(TextCommandMode));
-        modes.insert("text-edit", Rc::new(TextEditMode));
-        modes
+    fn active_editor_panel(&self) -> UiPanel {
+        let ctx = EditorContext {
+            buffers: &self.buffers,
+            viewport_size: self.active_editor_viewport_size(),
+        };
+        self.active_editor.panel(&ctx)
+    }
+
+    fn active_editor_viewport_size(&self) -> (u32, u32) {
+        (self.viewport_size.0, self.viewport_size.1 - 1)
+    }
+
+    fn mode_line_panel(&self) -> UiPanel {
+        let ctx = EditorContext {
+            buffers: &self.buffers,
+            viewport_size: self.mode_line_viewport_size(),
+        };
+        let mut panel = self.mode_line.panel(&ctx);
+        panel.position.1 = self.viewport_size.1 - 1;
+        panel
+    }
+
+    fn mode_line_viewport_size(&self) -> (u32, u32) {
+        (self.viewport_size.0, 1)
     }
 }
 

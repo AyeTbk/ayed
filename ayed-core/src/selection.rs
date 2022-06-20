@@ -21,7 +21,7 @@ impl Selections {
         self.primary_selection
     }
 
-    pub fn on_line(&self, line_index: u32) -> Vec<Selection> {
+    pub fn _on_line(&self, line_index: u32) -> Vec<Selection> {
         // FIXME handle more than just the start of the selection
         let mut selections = Vec::new();
         let mut push_if_on_line = |sel: Selection| {
@@ -96,6 +96,7 @@ impl Position {
     };
 
     pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
+        // FIXME line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
         let line_index = saturating_add_signed(self.line_index, line_offset);
         let column_index = saturating_add_signed(self.column_index, column_offset);
         Self {

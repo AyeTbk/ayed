@@ -1,15 +1,19 @@
-use crate::{
-    command::Command,
-    input::Input,
-    input_mapper::{InputContext, InputMapper},
-};
+use crate::{command::Command, core::EditorContextMut, input::Input, input_mapper::InputMapper};
 
 pub struct TextCommandMode;
 
+impl TextCommandMode {
+    pub const NAME: &'static str = "text-command";
+}
+
 impl InputMapper for TextCommandMode {
-    fn convert_input_to_command(&self, input: Input, _ctx: &InputContext) -> Option<Command> {
+    fn convert_input_to_command(
+        &self,
+        input: Input,
+        _ctx: &mut EditorContextMut,
+    ) -> Option<Command> {
         let command = match input {
-            Input::Char('\t') => Command::ChangeMode("text-edit"),
+            Input::Char('\t') => Command::ChangeMode(TextEditMode::NAME),
             Input::Up => Command::MoveSelectionUp,
             Input::Down => Command::MoveSelectionDown,
             Input::Left => Command::MoveSelectionLeft,
@@ -22,10 +26,18 @@ impl InputMapper for TextCommandMode {
 
 pub struct TextEditMode;
 
+impl TextEditMode {
+    pub const NAME: &'static str = "text-edit";
+}
+
 impl InputMapper for TextEditMode {
-    fn convert_input_to_command(&self, input: Input, _ctx: &InputContext) -> Option<Command> {
+    fn convert_input_to_command(
+        &self,
+        input: Input,
+        _ctx: &mut EditorContextMut,
+    ) -> Option<Command> {
         let command = match input {
-            Input::Char('\t') => Command::ChangeMode("text-command"),
+            Input::Char('\t') => Command::ChangeMode(TextCommandMode::NAME),
             Input::Char(ch) => Command::Insert(ch),
             Input::Return => Command::Insert('\n'),
             Input::Backspace => Command::DeleteBeforeSelection,
