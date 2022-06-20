@@ -98,6 +98,8 @@ impl Tui {
                 )
                 .unwrap();
 
+                cleanup_span_style(screen);
+
                 let panel_line_index = y - panel.position.1;
                 let mut char_str = String::new();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {

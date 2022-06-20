@@ -38,6 +38,7 @@ impl TextEditor {
             } else {
                 break;
             };
+
             let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
                 (0, 0)
             } else {
@@ -45,20 +46,28 @@ impl TextEditor {
                 let end = expected_end.min(full_line.len());
                 (start_column_index as usize, end)
             };
+            dbg!((start_column, end_column));
+            dbg!(full_line.len());
 
             let mut line = full_line[start_column..end_column].to_string();
-            let padlen = line_slice_max_len as usize - end_column;
+            dbg!((line_slice_max_len, end_column));
+            let line_visible_part_length = end_column - start_column;
+            let padlen = line_slice_max_len as usize - line_visible_part_length;
             line.extend(" ".repeat(padlen).chars());
 
             panel_content.push(line);
         }
 
+        panel_content.push(String::from("  "));
+
         // Compute spans
         let mut panel_spans = Vec::new();
         for selection in self.selections() {
+            let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
+            let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
             panel_spans.push(Span {
-                from: selection.from,
-                to: selection.to,
+                from: from_relative_to_viewport,
+                to: to_relative_to_viewport,
                 style: Style {
                     foreground_color: None,
                     background_color: None,
@@ -89,6 +98,8 @@ impl TextEditor {
             Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
             Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
         }
+
+        self.adjust_viewport_to_primary_selection(ctx);
     }
 
     pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
@@ -155,5 +166,32 @@ impl TextEditor {
                 selection.position = moved_position;
             }
         }
+    }
+
+    fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
+        let mut new_viewport_top_left_position = self.viewport_top_left_position;
+        // Horizontal
+        let vp_start_x = self.viewport_top_left_position.column_index;
+        let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
+        let selection_x = self.selections.primary().position.column_index;
+
+        if selection_x < vp_start_x {
+            new_viewport_top_left_position.column_index = selection_x;
+        } else if selection_x >= vp_after_end_x {
+            new_viewport_top_left_position.column_index = selection_x - ctx.viewport_size.0 + 1;
+        }
+
+        // Vertical
+        let vp_start_y = self.viewport_top_left_position.line_index;
+        let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
+        let selection_y = self.selections.primary().position.line_index;
+
+        if selection_y < vp_start_y {
+            new_viewport_top_left_position.line_index = selection_y;
+        } else if selection_y >= vp_after_end_y {
+            new_viewport_top_left_position.line_index = selection_y - ctx.viewport_size.1 + 1;
+        }
+
+        self.viewport_top_left_position = new_viewport_top_left_position;
     }
 }

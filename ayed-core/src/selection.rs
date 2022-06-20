@@ -1,3 +1,4 @@
+#[derive(Debug, Clone, Copy)]
 pub struct SelectionBounds {
     pub from: Position,
     pub to: Position,
@@ -16,9 +17,12 @@ impl Selections {
         }
     }
 
+    pub fn primary(&self) -> Selection {
+        self.primary_selection
+    }
+
     pub fn on_line(&self, line_index: u32) -> Vec<Selection> {
         // FIXME handle more than just the start of the selection
-
         let mut selections = Vec::new();
         let mut push_if_on_line = |sel: Selection| {
             if sel.position.line_index == line_index {
@@ -97,6 +101,16 @@ impl Position {
         Self {
             line_index,
             column_index,
+        }
+    }
+}
+
+impl std::ops::Sub for Position {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            column_index: self.column_index - rhs.column_index,
+            line_index: self.line_index - rhs.line_index,
         }
     }
 }

@@ -46,6 +46,11 @@ impl Buffer {
             }
         }
 
+        // Handle moving to after a newline at the very end of the buffer
+        if line_start_idx.is_none() && current_line_index == line_index {
+            line_start_idx = Some(self.end_of_content_index());
+        }
+
         match (line_start_idx, line_end_idx) {
             (None, None) => None,
             (Some(start_idx), None) => Some(&self.inner[start_idx..]),
@@ -127,7 +132,7 @@ impl Buffer {
     }
 
     pub fn end_of_content_position(&self) -> Position {
-        match self.inner.chars().count() {
+        match self.end_of_content_index() {
             0 => Position::ZERO,
             len => self
                 .content_index_to_position(len)
@@ -135,13 +140,8 @@ impl Buffer {
         }
     }
 
-    fn _clamped_position(&self, position: Position) -> Position {
-        // TODO remove this method if it's unused
-        if self.position_to_content_index(position).is_some() {
-            position
-        } else {
-            self.end_of_content_position()
-        }
+    pub fn end_of_content_index(&self) -> usize {
+        self.inner.chars().count()
     }
 
     fn content_index_to_position(&self, index: usize) -> Option<Position> {
