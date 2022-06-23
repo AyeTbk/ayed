@@ -1,11 +1,14 @@
-use std::io::{stdin, stdout, Write};
+use std::{
+    io::{stdin, stdout, Stdout, Write},
+    sync::mpsc::Receiver,
+};
 
 use ayed_core::ui_state::{Color, Span};
 use termion::{
     cursor::HideCursor,
     event::{Event, Key},
     input::{MouseTerminal, TermRead},
-    raw::IntoRawMode,
+    raw::{IntoRawMode, RawTerminal},
     screen::AlternateScreen,
 };
 
@@ -14,23 +17,32 @@ pub mod renderer;
 
 pub struct Tui {
     core: ayed_core::core::Core,
+    screen: HideCursor<MouseTerminal<AlternateScreen<RawTerminal<Stdout>>>>,
 }
 
 impl Tui {
     pub fn new(core: ayed_core::core::Core) -> Self {
-        Self { core }
+        let stdout = stdout().into_raw_mode().unwrap();
+        Self {
+            core,
+            screen: HideCursor::from(MouseTerminal::from(AlternateScreen::from(stdout))),
+        }
     }
 
     pub fn run(&mut self) {
-        let stdin = stdin();
-        let stdout = stdout().into_raw_mode().unwrap();
-        let mut screen = HideCursor::from(MouseTerminal::from(AlternateScreen::from(stdout)));
+        let event_channel = Self::spawn_event_channel();
 
-        self.render(&mut screen);
+        loop {
+            self.render();
 
-        // TODO non blocking event loop, one of these days
-        for result_event in stdin.events() {
-            let event = result_event.unwrap();
+            let event = match event_channel.try_recv() {
+                Ok(event) => event,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    std::thread::sleep(std::time::Duration::from_millis(32));
+                    continue;
+                }
+                e => e.unwrap(),
+            };
             match event {
                 Event::Key(key) => match key {
                     Key::Esc => break,
@@ -47,12 +59,21 @@ impl Tui {
                     println!("{:?}", e);
                 }
             }
-
-            self.render(&mut screen);
         }
     }
 
-    fn render(&mut self, screen: &mut impl Write) {
+    fn spawn_event_channel() -> Receiver<Event> {
+        let (tx, rx) = std::sync::mpsc::channel::<Event>();
+        std::thread::spawn(move || {
+            for result_event in stdin().events() {
+                let event = result_event.unwrap();
+                tx.send(event).unwrap();
+            }
+        });
+        rx
+    }
+
+    fn render(&mut self) {
         fn prepare_span_style(span: &Span, screen: &mut impl Write) {
             if let Some(foreground_color) = span.style.foreground_color {
                 let fg = convert_color(foreground_color);
@@ -82,7 +103,7 @@ impl Tui {
 
         let ui_state = self.core.ui_state();
 
-        write!(screen, "{}", termion::clear::All).unwrap();
+        //write!(self.screen, "{}", termion::clear::All).unwrap(); // This makes the display blink sometimes
 
         for panel in ui_state.panels {
             let start_y = panel.position.1;
@@ -92,13 +113,13 @@ impl Tui {
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
                 write!(
-                    screen,
+                    self.screen,
                     "{}",
                     termion::cursor::Goto((start_x + 1) as _, (y + 1) as _)
                 )
                 .unwrap();
 
-                cleanup_span_style(screen);
+                cleanup_span_style(&mut self.screen);
 
                 let panel_line_index = y - panel.position.1;
                 let mut char_str = String::new();
@@ -109,24 +130,24 @@ impl Tui {
                         .next()
                         .is_some()
                     {
-                        cleanup_span_style(screen);
+                        cleanup_span_style(&mut self.screen);
                     }
                     if let Some(span) = panel
                         .spans_on_line(panel_line_index)
                         .filter(|span| span.from.column_index == x)
                         .next()
                     {
-                        prepare_span_style(span, screen);
+                        prepare_span_style(span, &mut self.screen);
                     }
 
                     char_str.clear();
                     char_str.push(ch);
-                    screen.write(char_str.as_bytes()).unwrap();
+                    self.screen.write(char_str.as_bytes()).unwrap();
                 }
             }
         }
 
-        screen.flush().unwrap();
+        self.screen.flush().unwrap();
     }
 
     fn update_viewport_size_if_needed(&mut self) {
