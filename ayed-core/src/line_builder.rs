@@ -1,4 +1,4 @@
-const ELLIPSIS: &'static str = "…";
+const ELLIPSIS: &'static str = " …";
 
 pub struct LineBuilder<'a, Data> {
     line_length: usize,
@@ -20,7 +20,7 @@ impl<'a, Data> LineBuilder<'a, Data> {
         self
     }
 
-    pub fn _add_left_aligned(mut self, content: &'a str, data: Data) -> Self {
+    pub fn add_left_aligned(mut self, content: &'a str, data: Data) -> Self {
         self.left_aligned_content.push((content, data));
         self
     }
@@ -38,15 +38,19 @@ impl<'a, Data> LineBuilder<'a, Data> {
         let right_aligned_slice_start_idx = right_aligned_length - right_aligned_space;
         let right_aligned_buf_start_idx = self.line_length - right_aligned_space;
 
-        let maybe_ellipsis_idx = if right_aligned_space < right_aligned_length {
-            // Right aligned was "truncated"
-            Some(right_aligned_buf_start_idx)
-        } else if left_aligned_space < left_aligned_length {
-            // Left aligned was "truncated"
-            Some(left_aligned_space)
-        } else {
-            None
-        };
+        let maybe_ellipsis_idx =
+            if left_aligned_space < left_aligned_length && left_aligned_space > 0 {
+                // Left aligned was "truncated"
+                Some(left_aligned_space - 1)
+            } else if left_aligned_space >= right_aligned_buf_start_idx && left_aligned_space > 0 {
+                // Left not truncated but overlaps Right
+                Some(left_aligned_space - 1)
+            } else if right_aligned_space < right_aligned_length {
+                // Right aligned was "truncated"
+                Some(right_aligned_buf_start_idx)
+            } else {
+                None
+            };
 
         buf.replace_range(
             ..left_aligned_space,
@@ -84,6 +88,10 @@ impl<'a, Data> LineBuilder<'a, Data> {
 mod tests {
     use super::*;
 
+    // FIXME These tests dont work. The implementation sorta seems to work but I don't like it.
+    // Working on Strings is annoying, I should work on Vec<char>s instead, so I can index per character
+    // and rely on 1 character == 1 in len.
+
     #[test]
     fn build__when_empty__filled_with_spaces() {
         let expected = "                        ";
@@ -106,9 +114,51 @@ mod tests {
     #[test]
     fn build__when_not_enough_space__right_aligned_is_ellipsized() {
         let content = "bienvenu";
-        let expected = "…nvenu";
+        let expected = " …venu";
         let (result, _payload) = LineBuilder::new_with_length(6)
             .add_right_aligned(content, ())
+            .build();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn build__when_not_enough_space__left_aligned_is_ellipsized() {
+        let content = "bienvenu";
+        let expected = "bien …";
+        let (result, _payload) = LineBuilder::new_with_length(6)
+            .add_left_aligned(content, ())
+            .build();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn build__when_left_aligned_is_ellipsized_and_completely_overlaps_right_aligned__dont_crash_plz(
+    ) {
+        let lcontent = "bienvenu";
+        let rcontent = "allo";
+        let expected = "bi …";
+        let (result, _payload) = LineBuilder::new_with_length(4)
+            .add_left_aligned(lcontent, ())
+            .add_right_aligned(rcontent, ())
+            .build();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn build__when_left_aligned_has_just_enough_space_but_right_aligned_is_ellipsized_so_the_last_character_needs_to_be_ellipsis__dont_crash_plz(
+    ) {
+        let expected = ":edit the file plz tyvm rlly appreciated like i mean it dud …";
+        let (result, _payload) = LineBuilder::new_with_length(61)
+            .add_left_aligned(":", ())
+            .add_left_aligned(
+                "edit the file plz tyvm rlly appreciated like i mean it dude",
+                (),
+            )
+            .add_left_aligned(" ", ())
+            .add_right_aligned("Cargo.toml", ())
             .build();
 
         assert_eq!(result, expected);

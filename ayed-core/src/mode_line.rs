@@ -21,6 +21,10 @@ impl ModeLine {
     pub fn set_infos(&mut self, infos: Vec<ModeLineInfo>) {
         self.infos = infos;
     }
+
+    pub fn wants_focus(&self) -> bool {
+        true
+    }
 }
 
 impl Panel for ModeLine {
@@ -31,6 +35,15 @@ impl Panel for ModeLine {
 
         for info in &self.infos {
             line_builder = line_builder.add_right_aligned(&info.text, ());
+        }
+
+        if self.wants_focus() {
+            line_builder = line_builder.add_left_aligned(":", ());
+            line_builder = line_builder.add_left_aligned(
+                "edit the file plz tyvm rlly appreciated like i mean it dude",
+                (),
+            );
+            line_builder = line_builder.add_left_aligned(" ", ());
         }
 
         let (content, _) = line_builder.build();

@@ -44,13 +44,19 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
-        // TODO handle modeline input eventually
-        let viewport_size = self.active_editor_viewport_size();
-        let mut ctx = EditorContextMut {
-            buffers: &mut self.buffers,
-            viewport_size,
-        };
-        self.active_editor.input(input, &mut ctx);
+        if self.mode_line.wants_focus() {
+            let mut ctx = EditorContextMut {
+                viewport_size: self.mode_line_viewport_size(),
+                buffers: &mut self.buffers,
+            };
+            self.mode_line.input(input, &mut ctx);
+        } else {
+            let mut ctx = EditorContextMut {
+                viewport_size: self.active_editor_viewport_size(),
+                buffers: &mut self.buffers,
+            };
+            self.active_editor.input(input, &mut ctx);
+        }
     }
 
     pub fn viewport_size(&self) -> (u32, u32) {

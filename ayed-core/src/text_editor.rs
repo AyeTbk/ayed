@@ -182,7 +182,8 @@ impl Panel for TextEditor {
             let full_line = if let Some(line) = content.line(line_index) {
                 line
             } else {
-                break;
+                panel_content.push(" ".repeat(ctx.viewport_size.0 as _));
+                continue;
             };
 
             let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
@@ -200,8 +201,6 @@ impl Panel for TextEditor {
 
             panel_content.push(line);
         }
-
-        panel_content.push(String::from("  "));
 
         // Compute spans
         let mut panel_spans = Vec::new();
