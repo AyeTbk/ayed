@@ -4,6 +4,7 @@ pub mod command;
 pub mod core;
 pub mod input;
 mod input_mapper;
+mod line_builder;
 mod mode_line;
 mod panel;
 mod selection;

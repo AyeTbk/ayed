@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::arena::{Arena, Handle};
 use crate::buffer::Buffer;
 use crate::input::Input;
-use crate::mode_line::ModeLine;
+use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
 use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
@@ -61,8 +61,11 @@ impl Core {
         self.viewport_size = viewport_size;
     }
 
-    pub fn ui_state(&self) -> UiState {
+    pub fn ui_state(&mut self) -> UiState {
         let active_editor_panel = self.active_editor_panel();
+
+        self.mode_line.set_infos(self.mode_line_infos());
+
         let mode_line_panel = self.mode_line_panel();
         let panels = vec![active_editor_panel, mode_line_panel];
         UiState { panels }
@@ -89,9 +92,18 @@ impl Core {
             buffers: &self.buffers,
             viewport_size: self.mode_line_viewport_size(),
         };
+
         let mut panel = self.mode_line.panel(&ctx);
         panel.position.1 = self.viewport_size.1 - 1;
         panel
+    }
+
+    fn mode_line_infos(&self) -> Vec<ModeLineInfo> {
+        let ctx = EditorContext {
+            buffers: &self.buffers,
+            viewport_size: self.active_editor_viewport_size(),
+        };
+        self.active_editor.mode_line_infos(&ctx)
     }
 
     fn mode_line_viewport_size(&self) -> (u32, u32) {

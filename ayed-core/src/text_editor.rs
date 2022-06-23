@@ -5,10 +5,11 @@ use crate::{
     core::{EditorContext, EditorContextMut},
     input::Input,
     input_mapper::InputMapper,
+    mode_line::ModeLineInfo,
     panel::Panel,
     selection::{Position, Selection, SelectionBounds, Selections},
     text_mode::{TextCommandMode, TextEditMode},
-    ui_state::{Panel as UiPanel, Span, Style},
+    ui_state::{Color, Panel as UiPanel, Span, Style},
 };
 
 pub struct TextEditor {
@@ -26,6 +27,19 @@ impl TextEditor {
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
         }
+    }
+
+    pub fn mode_line_infos(&self, ctx: &EditorContext) -> Vec<ModeLineInfo> {
+        let file_info = if let Some(path) = ctx.buffers.get(self.buffer).filepath() {
+            path.to_string_lossy().into_owned()
+        } else {
+            "*scratch*".to_string()
+        };
+
+        vec![ModeLineInfo {
+            text: file_info,
+            style: Style::default().with_foreground_color(Color::BLUE),
+        }]
     }
 
     pub fn set_mode(&mut self, mode_name: &str) {

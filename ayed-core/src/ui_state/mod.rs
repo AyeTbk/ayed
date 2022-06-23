@@ -31,10 +31,19 @@ pub struct Span {
     pub importance: u8,
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct Style {
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,
     pub invert: bool,
+}
+
+impl Style {
+    pub fn with_foreground_color(&self, color: Color) -> Self {
+        let mut this = *self;
+        this.foreground_color = Some(color);
+        this
+    }
 }
 
 #[derive(Clone, Copy)]
