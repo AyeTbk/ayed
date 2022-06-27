@@ -11,6 +11,7 @@ use crate::ui_state::{Panel as UiPanel, UiState};
 
 pub struct Core {
     buffers: Arena<Buffer>,
+    active_buffer: Handle<Buffer>,
     active_editor: TextEditor,
     mode_line: ModeLine,
     viewport_size: (u32, u32),
@@ -19,12 +20,13 @@ pub struct Core {
 impl Core {
     pub fn new() -> Self {
         let mut buffers = Arena::new();
-        let start_buffer = buffers.allocate(Buffer::new_scratch());
-        let active_editor = TextEditor::new(start_buffer);
+        let active_buffer = buffers.allocate(Buffer::new_scratch());
+        let active_editor = TextEditor::new();
         let mode_line = ModeLine::new();
 
         Self {
             buffers,
+            active_buffer,
             active_editor,
             mode_line,
             viewport_size: (80, 25),
@@ -40,24 +42,29 @@ impl Core {
     }
 
     pub fn edit_buffer(&mut self, buffer: Handle<Buffer>) {
-        self.active_editor = TextEditor::new(buffer);
+        self.active_editor = TextEditor::new();
+        self.active_buffer = buffer;
     }
 
     pub fn input(&mut self, input: Input) {
         if input == Input::Char(':') {
             self.mode_line.set_wants_focus(true);
         } else if self.mode_line.wants_focus() {
+            let viewport_size = self.mode_line_viewport_size();
+            let buffer = self.buffers.get_mut(self.active_buffer);
             let mut ctx = EditorContextMut {
-                viewport_size: self.mode_line_viewport_size(),
-                buffers: &mut self.buffers,
+                buffer,
+                viewport_size,
             };
             if let Some(command) = self.mode_line.convert_input_to_command(input, &mut ctx) {
                 self.mode_line.execute_command(command, &mut ctx);
             }
         } else {
+            let viewport_size = self.active_editor_viewport_size();
+            let buffer = self.buffers.get_mut(self.active_buffer);
             let mut ctx = EditorContextMut {
-                viewport_size: self.active_editor_viewport_size(),
-                buffers: &mut self.buffers,
+                buffer,
+                viewport_size,
             };
             if let Some(command) = self.active_editor.convert_input_to_command(input, &mut ctx) {
                 self.active_editor.execute_command(command, &mut ctx);
@@ -76,7 +83,8 @@ impl Core {
     pub fn ui_state(&mut self) -> UiState {
         let active_editor_panel = self.active_editor_panel();
 
-        self.mode_line.set_infos(self.mode_line_infos());
+        let infos = self.mode_line_infos();
+        self.mode_line.set_infos(infos);
 
         let mode_line_panel = self.mode_line_panel();
         let panels = vec![active_editor_panel, mode_line_panel];
@@ -87,10 +95,12 @@ impl Core {
         self.active_editor.selections()
     }
 
-    fn active_editor_panel(&self) -> UiPanel {
-        let ctx = EditorContext {
-            buffers: &self.buffers,
-            viewport_size: self.active_editor_viewport_size(),
+    fn active_editor_panel(&mut self) -> UiPanel {
+        let viewport_size = self.active_editor_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let ctx = EditorContextMut {
+            buffer,
+            viewport_size,
         };
         self.active_editor.panel(&ctx)
     }
@@ -99,10 +109,12 @@ impl Core {
         (self.viewport_size.0, self.viewport_size.1 - 1)
     }
 
-    fn mode_line_panel(&self) -> UiPanel {
-        let ctx = EditorContext {
-            buffers: &self.buffers,
-            viewport_size: self.mode_line_viewport_size(),
+    fn mode_line_panel(&mut self) -> UiPanel {
+        let viewport_size = self.mode_line_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let ctx = EditorContextMut {
+            buffer,
+            viewport_size,
         };
 
         let mut panel = self.mode_line.panel(&ctx);
@@ -110,10 +122,12 @@ impl Core {
         panel
     }
 
-    fn mode_line_infos(&self) -> Vec<ModeLineInfo> {
-        let ctx = EditorContext {
-            buffers: &self.buffers,
-            viewport_size: self.active_editor_viewport_size(),
+    fn mode_line_infos(&mut self) -> Vec<ModeLineInfo> {
+        let viewport_size = self.active_editor_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let ctx = EditorContextMut {
+            buffer,
+            viewport_size,
         };
         self.active_editor.mode_line_infos(&ctx)
     }
@@ -124,11 +138,6 @@ impl Core {
 }
 
 pub struct EditorContextMut<'a> {
-    pub buffers: &'a mut Arena<Buffer>,
-    pub viewport_size: (u32, u32),
-}
-
-pub struct EditorContext<'a> {
-    pub buffers: &'a Arena<Buffer>,
+    pub buffer: &'a mut Buffer,
     pub viewport_size: (u32, u32),
 }

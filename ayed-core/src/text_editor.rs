@@ -1,8 +1,7 @@
 use crate::{
-    arena::Handle,
     buffer::Buffer,
     command::Command,
-    core::{EditorContext, EditorContextMut},
+    core::EditorContextMut,
     input::Input,
     input_mapper::InputMapper,
     mode_line::ModeLineInfo,
@@ -13,24 +12,22 @@ use crate::{
 };
 
 pub struct TextEditor {
-    buffer: Handle<Buffer>,
     active_mode: Box<dyn InputMapper>,
     selections: Selections,
     viewport_top_left_position: Position,
 }
 
 impl TextEditor {
-    pub fn new(buffer: Handle<Buffer>) -> Self {
+    pub fn new() -> Self {
         Self {
-            buffer,
             active_mode: Box::new(TextCommandMode),
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
         }
     }
 
-    pub fn mode_line_infos(&self, ctx: &EditorContext) -> Vec<ModeLineInfo> {
-        let file_info = if let Some(path) = ctx.buffers.get(self.buffer).filepath() {
+    pub fn mode_line_infos(&self, ctx: &EditorContextMut) -> Vec<ModeLineInfo> {
+        let file_info = if let Some(path) = ctx.buffer.filepath() {
             path.to_string_lossy().into_owned()
         } else {
             "*scratch*".to_string()
@@ -144,17 +141,15 @@ impl TextEditor {
     }
 
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        let buffer = ctx.buffers.get_mut(self.buffer);
-
         match command {
             Command::ChangeMode(mode_name) => self.set_mode(mode_name),
-            Command::Insert(c) => self.insert_char(c, buffer),
-            Command::DeleteBeforeSelection => self.delete_before_selection(buffer),
-            Command::DeleteSelection => self.delete_selection(buffer),
-            Command::MoveSelectionUp => self.move_selection_vertically(-1, buffer),
-            Command::MoveSelectionDown => self.move_selection_vertically(1, buffer),
-            Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
-            Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
+            Command::Insert(c) => self.insert_char(c, ctx.buffer),
+            Command::DeleteBeforeSelection => self.delete_before_selection(ctx.buffer),
+            Command::DeleteSelection => self.delete_selection(ctx.buffer),
+            Command::MoveSelectionUp => self.move_selection_vertically(-1, ctx.buffer),
+            Command::MoveSelectionDown => self.move_selection_vertically(1, ctx.buffer),
+            Command::MoveSelectionLeft => self.move_selection_horizontally(-1, ctx.buffer),
+            Command::MoveSelectionRight => self.move_selection_horizontally(1, ctx.buffer),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
@@ -174,7 +169,7 @@ impl Panel for TextEditor {
         self.execute_command_inner(command, ctx);
     }
 
-    fn panel(&self, ctx: &EditorContext) -> UiPanel {
+    fn panel(&self, ctx: &EditorContextMut) -> UiPanel {
         // Compute content
         let start_line_index = self.viewport_top_left_position.line_index;
         let after_end_line_index = start_line_index + ctx.viewport_size.1;
@@ -182,10 +177,9 @@ impl Panel for TextEditor {
         let line_slice_max_len = ctx.viewport_size.0;
 
         let mut panel_content = Vec::new();
-        let content = ctx.buffers.get(self.buffer);
 
         for line_index in start_line_index..after_end_line_index {
-            let full_line = if let Some(line) = content.line(line_index) {
+            let full_line = if let Some(line) = ctx.buffer.line(line_index) {
                 line
             } else {
                 panel_content.push(" ".repeat(ctx.viewport_size.0 as _));

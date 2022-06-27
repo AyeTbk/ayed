@@ -1,6 +1,6 @@
 use crate::{
     command::Command,
-    core::{EditorContext, EditorContextMut},
+    core::EditorContextMut,
     input::Input,
     input_mapper::InputMapper,
     line_builder::LineBuilder,
@@ -53,7 +53,7 @@ impl Panel for ModeLine {
         self.execute_command_inner(command, ctx);
     }
 
-    fn panel(&self, ctx: &EditorContext) -> UiPanel {
+    fn panel(&self, ctx: &EditorContextMut) -> UiPanel {
         let mut line_builder = LineBuilder::new_with_length(ctx.viewport_size.0 as _);
 
         for info in &self.infos {
