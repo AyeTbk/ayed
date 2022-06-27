@@ -44,18 +44,24 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
-        if self.mode_line.wants_focus() {
+        if input == Input::Char(':') {
+            self.mode_line.set_wants_focus(true);
+        } else if self.mode_line.wants_focus() {
             let mut ctx = EditorContextMut {
                 viewport_size: self.mode_line_viewport_size(),
                 buffers: &mut self.buffers,
             };
-            self.mode_line.input(input, &mut ctx);
+            if let Some(command) = self.mode_line.convert_input_to_command(input, &mut ctx) {
+                self.mode_line.execute_command(command, &mut ctx);
+            }
         } else {
             let mut ctx = EditorContextMut {
                 viewport_size: self.active_editor_viewport_size(),
                 buffers: &mut self.buffers,
             };
-            self.active_editor.input(input, &mut ctx);
+            if let Some(command) = self.active_editor.convert_input_to_command(input, &mut ctx) {
+                self.active_editor.execute_command(command, &mut ctx);
+            }
         }
     }
 

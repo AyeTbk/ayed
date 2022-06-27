@@ -50,23 +50,6 @@ impl TextEditor {
         }
     }
 
-    pub fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        let buffer = ctx.buffers.get_mut(self.buffer);
-
-        match command {
-            Command::ChangeMode(mode_name) => self.set_mode(mode_name),
-            Command::Insert(c) => self.insert_char(c, buffer),
-            Command::DeleteBeforeSelection => self.delete_before_selection(buffer),
-            Command::DeleteSelection => self.delete_selection(buffer),
-            Command::MoveSelectionUp => self.move_selection_vertically(-1, buffer),
-            Command::MoveSelectionDown => self.move_selection_vertically(1, buffer),
-            Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
-            Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
-        }
-
-        self.adjust_viewport_to_primary_selection(ctx);
-    }
-
     pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         // FIXME this only shows selections as having a length of one
         self.selections.iter().map(|selection| SelectionBounds {
@@ -159,13 +142,36 @@ impl TextEditor {
 
         self.viewport_top_left_position = new_viewport_top_left_position;
     }
+
+    fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
+        let buffer = ctx.buffers.get_mut(self.buffer);
+
+        match command {
+            Command::ChangeMode(mode_name) => self.set_mode(mode_name),
+            Command::Insert(c) => self.insert_char(c, buffer),
+            Command::DeleteBeforeSelection => self.delete_before_selection(buffer),
+            Command::DeleteSelection => self.delete_selection(buffer),
+            Command::MoveSelectionUp => self.move_selection_vertically(-1, buffer),
+            Command::MoveSelectionDown => self.move_selection_vertically(1, buffer),
+            Command::MoveSelectionLeft => self.move_selection_horizontally(-1, buffer),
+            Command::MoveSelectionRight => self.move_selection_horizontally(1, buffer),
+        }
+
+        self.adjust_viewport_to_primary_selection(ctx);
+    }
 }
 
 impl Panel for TextEditor {
-    fn input(&mut self, input: Input, ctx: &mut EditorContextMut) {
-        if let Some(command) = self.active_mode.convert_input_to_command(input, ctx) {
-            self.execute_command(command, ctx);
-        }
+    fn convert_input_to_command(
+        &self,
+        input: Input,
+        ctx: &mut EditorContextMut,
+    ) -> Option<Command> {
+        self.active_mode.convert_input_to_command(input, ctx)
+    }
+
+    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+        self.execute_command_inner(command, ctx);
     }
 
     fn panel(&self, ctx: &EditorContext) -> UiPanel {
