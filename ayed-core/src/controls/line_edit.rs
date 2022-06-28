@@ -22,18 +22,34 @@ impl LineEdit {
             buffer: Buffer::new_empty(),
         }
     }
-}
 
-impl Panel for LineEdit {
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+    pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
         let mut line_edit_ctx = EditorContextMut {
             viewport_size: ctx.viewport_size,
             buffer: &mut self.buffer,
         };
         match command {
-            Command::Insert('\n') => panic!("wow"),
-            _ => self.editor.execute_command(command, &mut line_edit_ctx),
+            Command::Insert('\n') => {
+                let line = self.buffer.line(0).map(|s| s.to_string());
+                self.reset();
+                line
+            }
+            _ => {
+                self.editor.execute_command(command, &mut line_edit_ctx);
+                None
+            }
         }
+    }
+
+    fn reset(&mut self) {
+        self.editor = TextEditor::new();
+        self.buffer = Buffer::new_empty();
+    }
+}
+
+impl Panel for LineEdit {
+    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+        self.send_command(command, ctx);
     }
 
     fn convert_input_to_command(

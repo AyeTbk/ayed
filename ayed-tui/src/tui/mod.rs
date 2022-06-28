@@ -32,7 +32,7 @@ impl Tui {
     pub fn run(&mut self) {
         let event_channel = Self::spawn_event_channel();
 
-        loop {
+        while !self.core.is_quit() {
             self.render();
 
             let event = match event_channel.try_recv() {

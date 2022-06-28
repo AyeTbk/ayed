@@ -38,10 +38,8 @@ impl ModeLine {
         self.has_focus = wants_focus;
     }
 
-    fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        if self.has_focus {
-            self.line_edit.execute_command(command, ctx);
-        }
+    pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
+        self.line_edit.send_command(command, ctx)
     }
 }
 
@@ -55,7 +53,7 @@ impl Panel for ModeLine {
     }
 
     fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        self.execute_command_inner(command, ctx);
+        self.send_command(command, ctx);
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {

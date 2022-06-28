@@ -15,6 +15,7 @@ pub struct Core {
     active_editor: TextEditor,
     mode_line: ModeLine,
     viewport_size: (u32, u32),
+    quit: bool,
 }
 
 impl Core {
@@ -30,7 +31,12 @@ impl Core {
             active_editor,
             mode_line,
             viewport_size: (80, 25),
+            quit: false,
         }
+    }
+
+    pub fn is_quit(&self) -> bool {
+        self.quit
     }
 
     pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<Buffer> {
@@ -48,27 +54,11 @@ impl Core {
 
     pub fn input(&mut self, input: Input) {
         if self.mode_line.has_focus() {
-            let viewport_size = self.mode_line_viewport_size();
-            let buffer = self.buffers.get_mut(self.active_buffer);
-            let mut ctx = EditorContextMut {
-                buffer,
-                viewport_size,
-            };
-            if let Some(command) = self.mode_line.convert_input_to_command(input, &mut ctx) {
-                self.mode_line.execute_command(command, &mut ctx);
-            }
+            self.input_mode_line(input);
         } else if input == Input::Char(':') {
             self.mode_line.set_has_focus(true);
         } else {
-            let viewport_size = self.active_editor_viewport_size();
-            let buffer = self.buffers.get_mut(self.active_buffer);
-            let mut ctx = EditorContextMut {
-                buffer,
-                viewport_size,
-            };
-            if let Some(command) = self.active_editor.convert_input_to_command(input, &mut ctx) {
-                self.active_editor.execute_command(command, &mut ctx);
-            }
+            self.input_active_editor(input);
         }
     }
 
@@ -93,6 +83,40 @@ impl Core {
 
     pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         self.active_editor.selections()
+    }
+
+    fn interpret_command(&mut self, command_str: &str) {
+        match command_str {
+            "q" | "quit" => self.quit = true,
+            _ => (),
+        }
+    }
+
+    fn input_mode_line(&mut self, input: Input) {
+        let viewport_size = self.mode_line_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let mut ctx = EditorContextMut {
+            buffer,
+            viewport_size,
+        };
+        if let Some(command) = self.mode_line.convert_input_to_command(input, &mut ctx) {
+            if let Some(line) = self.mode_line.send_command(command, &mut ctx) {
+                self.mode_line.set_has_focus(false);
+                self.interpret_command(&line);
+            }
+        }
+    }
+
+    fn input_active_editor(&mut self, input: Input) {
+        let viewport_size = self.active_editor_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let mut ctx = EditorContextMut {
+            buffer,
+            viewport_size,
+        };
+        if let Some(command) = self.active_editor.convert_input_to_command(input, &mut ctx) {
+            self.active_editor.execute_command(command, &mut ctx);
+        }
     }
 
     fn active_editor_panel(&mut self) -> UiPanel {
