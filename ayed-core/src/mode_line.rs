@@ -13,7 +13,7 @@ use crate::{
 
 pub struct ModeLine {
     infos: Vec<ModeLineInfo>,
-    wants_focus: bool,
+    has_focus: bool,
     line_edit: LineEdit,
 }
 
@@ -21,7 +21,7 @@ impl ModeLine {
     pub fn new() -> Self {
         Self {
             infos: Default::default(),
-            wants_focus: Default::default(),
+            has_focus: Default::default(),
             line_edit: LineEdit::new(),
         }
     }
@@ -30,16 +30,16 @@ impl ModeLine {
         self.infos = infos;
     }
 
-    pub fn wants_focus(&self) -> bool {
-        self.wants_focus
+    pub fn has_focus(&self) -> bool {
+        self.has_focus
     }
 
-    pub fn set_wants_focus(&mut self, wants_focus: bool) {
-        self.wants_focus = wants_focus;
+    pub fn set_has_focus(&mut self, wants_focus: bool) {
+        self.has_focus = wants_focus;
     }
 
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        if self.wants_focus {
+        if self.has_focus {
             self.line_edit.execute_command(command, ctx);
         }
     }
@@ -65,7 +65,7 @@ impl Panel for ModeLine {
             line_builder = line_builder.add_right_aligned(&info.text, ());
         }
 
-        if self.wants_focus() {
+        if self.has_focus() {
             // TODO unify this with the rest maybe idk figure it out
             return self.line_edit.panel(ctx);
         }

@@ -48,8 +48,8 @@ impl Core {
 
     pub fn input(&mut self, input: Input) {
         if input == Input::Char(':') {
-            self.mode_line.set_wants_focus(true);
-        } else if self.mode_line.wants_focus() {
+            self.mode_line.set_has_focus(true);
+        } else if self.mode_line.has_focus() {
             let viewport_size = self.mode_line_viewport_size();
             let buffer = self.buffers.get_mut(self.active_buffer);
             let mut ctx = EditorContextMut {
