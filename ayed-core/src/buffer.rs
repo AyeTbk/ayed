@@ -9,7 +9,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new_scratch() -> Self {
+    pub fn new_empty() -> Self {
         Self {
             inner: String::new(),
             filepath: None,

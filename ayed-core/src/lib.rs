@@ -1,6 +1,7 @@
 pub mod arena;
 pub mod buffer;
 pub mod command;
+pub mod controls;
 pub mod core;
 pub mod input;
 mod input_mapper;

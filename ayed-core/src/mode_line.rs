@@ -1,5 +1,6 @@
 use crate::{
     command::Command,
+    controls::LineEdit,
     core::EditorContextMut,
     input::Input,
     input_mapper::InputMapper,
@@ -7,12 +8,13 @@ use crate::{
     panel::Panel,
     selection::Position,
     text_mode::TextEditMode,
-    ui_state::{Color, Panel as UiPanel, Span, Style},
+    ui_state::{Color, Span, Style, UiPanel},
 };
 
 pub struct ModeLine {
     infos: Vec<ModeLineInfo>,
     wants_focus: bool,
+    line_edit: LineEdit,
 }
 
 impl ModeLine {
@@ -20,6 +22,7 @@ impl ModeLine {
         Self {
             infos: Default::default(),
             wants_focus: Default::default(),
+            line_edit: LineEdit::new(),
         }
     }
 
@@ -35,8 +38,10 @@ impl ModeLine {
         self.wants_focus = wants_focus;
     }
 
-    fn execute_command_inner(&mut self, _command: Command, _ctx: &mut EditorContextMut) {
-        //
+    fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
+        if self.wants_focus {
+            self.line_edit.execute_command(command, ctx);
+        }
     }
 }
 
@@ -53,7 +58,7 @@ impl Panel for ModeLine {
         self.execute_command_inner(command, ctx);
     }
 
-    fn panel(&self, ctx: &EditorContextMut) -> UiPanel {
+    fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
         let mut line_builder = LineBuilder::new_with_length(ctx.viewport_size.0 as _);
 
         for info in &self.infos {
@@ -61,12 +66,8 @@ impl Panel for ModeLine {
         }
 
         if self.wants_focus() {
-            line_builder = line_builder.add_left_aligned(":", ());
-            line_builder = line_builder.add_left_aligned(
-                "edit the file plz tyvm rlly appreciated like i mean it dude",
-                (),
-            );
-            line_builder = line_builder.add_left_aligned(" ", ());
+            // TODO unify this with the rest maybe idk figure it out
+            return self.line_edit.panel(ctx);
         }
 
         let (content, _) = line_builder.build();

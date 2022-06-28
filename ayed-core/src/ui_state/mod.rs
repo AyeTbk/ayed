@@ -1,17 +1,17 @@
 use crate::selection::Position;
 
 pub struct UiState {
-    pub panels: Vec<Panel>,
+    pub panels: Vec<UiPanel>,
 }
 
-pub struct Panel {
+pub struct UiPanel {
     pub position: (u32, u32),
     pub size: (u32, u32),
     pub content: Vec<String>,
     pub spans: Vec<Span>,
 }
 
-impl Panel {
+impl UiPanel {
     /// Modify span list so that none are overlapping.
     pub fn normalize_spans(&mut self) {
         todo!()

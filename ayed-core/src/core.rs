@@ -7,7 +7,7 @@ use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
 use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
-use crate::ui_state::{Panel as UiPanel, UiState};
+use crate::ui_state::{UiPanel, UiState};
 
 pub struct Core {
     buffers: Arena<Buffer>,
@@ -20,7 +20,7 @@ pub struct Core {
 impl Core {
     pub fn new() -> Self {
         let mut buffers = Arena::new();
-        let active_buffer = buffers.allocate(Buffer::new_scratch());
+        let active_buffer = buffers.allocate(Buffer::new_empty());
         let active_editor = TextEditor::new();
         let mode_line = ModeLine::new();
 
@@ -38,7 +38,7 @@ impl Core {
     }
 
     pub fn create_scratch_buffer(&mut self) -> Handle<Buffer> {
-        self.buffers.allocate(Buffer::new_scratch())
+        self.buffers.allocate(Buffer::new_empty())
     }
 
     pub fn edit_buffer(&mut self, buffer: Handle<Buffer>) {

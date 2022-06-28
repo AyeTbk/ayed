@@ -8,7 +8,7 @@ use crate::{
     panel::Panel,
     selection::{Position, Selection, SelectionBounds, Selections},
     text_mode::{TextCommandMode, TextEditMode},
-    ui_state::{Color, Panel as UiPanel, Span, Style},
+    ui_state::{Color, Span, Style, UiPanel},
 };
 
 pub struct TextEditor {
@@ -169,7 +169,7 @@ impl Panel for TextEditor {
         self.execute_command_inner(command, ctx);
     }
 
-    fn panel(&self, ctx: &EditorContextMut) -> UiPanel {
+    fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
         // Compute content
         let start_line_index = self.viewport_top_left_position.line_index;
         let after_end_line_index = start_line_index + ctx.viewport_size.1;
