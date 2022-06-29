@@ -39,6 +39,10 @@ impl Core {
         self.quit
     }
 
+    pub fn request_quit(&mut self) {
+        self.quit = true;
+    }
+
     pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<Buffer> {
         self.buffers.allocate(Buffer::from_filepath(path.as_ref()))
     }
@@ -93,7 +97,8 @@ impl Core {
         let mut parts = command_str.split(' ');
         let command = parts.next().expect("command expected");
         match command {
-            "q" | "quit" => self.quit = true,
+            "" => (),
+            "q" | "quit" => self.request_quit(),
             "e" | "edit" => {
                 let arg = parts.next().expect("name expected");
                 let buffer = self.create_buffer_from_filepath(arg);
@@ -101,6 +106,10 @@ impl Core {
             }
             "w" | "write" | "s" | "save" => {
                 self.save_buffer(self.active_buffer);
+            }
+            "wq" | "write-quit" => {
+                self.save_buffer(self.active_buffer);
+                self.request_quit();
             }
             _ => panic!("unknown command: {}", command_str),
         }
