@@ -102,7 +102,7 @@ impl Core {
             "w" | "write" | "s" | "save" => {
                 self.save_buffer(self.active_buffer);
             }
-            _ => (),
+            _ => panic!("unknown command: {}", command_str),
         }
     }
 

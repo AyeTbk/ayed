@@ -9,7 +9,6 @@ use termion::{
     event::{Event, Key},
     input::{MouseTerminal, TermRead},
     raw::{IntoRawMode, RawTerminal},
-    screen::AlternateScreen,
 };
 
 pub mod panel;
@@ -17,7 +16,7 @@ pub mod renderer;
 
 pub struct Tui {
     core: ayed_core::core::Core,
-    screen: HideCursor<MouseTerminal<AlternateScreen<RawTerminal<Stdout>>>>,
+    screen: HideCursor<MouseTerminal<RawTerminal<Stdout>>>,
 }
 
 impl Tui {
@@ -25,7 +24,7 @@ impl Tui {
         let stdout = stdout().into_raw_mode().unwrap();
         Self {
             core,
-            screen: HideCursor::from(MouseTerminal::from(AlternateScreen::from(stdout))),
+            screen: HideCursor::from(MouseTerminal::from(stdout)),
         }
     }
 
@@ -60,6 +59,8 @@ impl Tui {
                 }
             }
         }
+
+        self.cleanup_styling();
     }
 
     fn spawn_event_channel() -> Receiver<Event> {
@@ -148,6 +149,17 @@ impl Tui {
         }
 
         self.screen.flush().unwrap();
+    }
+
+    fn cleanup_styling(&mut self) {
+        write!(
+            self.screen,
+            "{}{}{}",
+            termion::color::Reset.fg_str(),
+            termion::color::Reset.bg_str(),
+            termion::style::Reset
+        )
+        .unwrap();
     }
 
     fn update_viewport_size_if_needed(&mut self) {
