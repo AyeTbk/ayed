@@ -28,6 +28,15 @@ impl Buffer {
         self.filepath.as_ref().map(|p| p.as_path())
     }
 
+    pub fn save(&self) -> Result<(), ()> {
+        if let Some(filepath) = &self.filepath {
+            std::fs::write(filepath, &self.inner).map_err(|_| ())?;
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     pub fn line(&self, line_index: u32) -> Option<&str> {
         let mut current_line_index = 0;
         let mut line_start_idx = None;

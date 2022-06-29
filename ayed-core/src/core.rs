@@ -52,6 +52,10 @@ impl Core {
         self.active_buffer = buffer;
     }
 
+    pub fn save_buffer(&mut self, buffer: Handle<Buffer>) {
+        self.buffers.get(buffer).save().unwrap();
+    }
+
     pub fn input(&mut self, input: Input) {
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
@@ -86,8 +90,18 @@ impl Core {
     }
 
     fn interpret_command(&mut self, command_str: &str) {
-        match command_str {
+        let mut parts = command_str.split(' ');
+        let command = parts.next().expect("command expected");
+        match command {
             "q" | "quit" => self.quit = true,
+            "e" | "edit" => {
+                let arg = parts.next().expect("name expected");
+                let buffer = self.create_buffer_from_filepath(arg);
+                self.edit_buffer(buffer);
+            }
+            "w" | "write" | "s" | "save" => {
+                self.save_buffer(self.active_buffer);
+            }
             _ => (),
         }
     }

@@ -13,7 +13,7 @@ impl InputMapper for TextCommandMode {
         _ctx: &mut EditorContextMut,
     ) -> Option<Command> {
         let command = match input {
-            Input::Char('\t') => Command::ChangeMode(TextEditMode::NAME),
+            Input::Char('\t') | Input::Char('i') => Command::ChangeMode(TextEditMode::NAME),
             Input::Up => Command::MoveSelectionUp,
             Input::Down => Command::MoveSelectionDown,
             Input::Left => Command::MoveSelectionLeft,
