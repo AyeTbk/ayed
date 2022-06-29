@@ -13,6 +13,7 @@ use crate::{
 
 pub struct TextEditor {
     active_mode: Box<dyn InputMapper>,
+    active_mode_name: &'static str, // TODO make this better, active mode sucks right now
     selections: Selections,
     viewport_top_left_position: Position,
 }
@@ -21,6 +22,7 @@ impl TextEditor {
     pub fn new() -> Self {
         Self {
             active_mode: Box::new(TextCommandMode),
+            active_mode_name: TextCommandMode::NAME,
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
         }
@@ -39,7 +41,8 @@ impl TextEditor {
         }]
     }
 
-    pub fn set_mode(&mut self, mode_name: &str) {
+    pub fn set_mode(&mut self, mode_name: &'static str) {
+        self.active_mode_name = mode_name;
         match mode_name {
             TextCommandMode::NAME => self.active_mode = Box::new(TextCommandMode),
             TextEditMode::NAME => self.active_mode = Box::new(TextEditMode),
@@ -220,6 +223,11 @@ impl Panel for TextEditor {
         }
 
         // Selection spans
+        let selection_color = if self.active_mode_name == TextEditMode::NAME {
+            Some(Color::RED)
+        } else {
+            None
+        };
         for selection in self.selections() {
             let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
             let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
@@ -227,7 +235,7 @@ impl Panel for TextEditor {
                 from: from_relative_to_viewport,
                 to: to_relative_to_viewport,
                 style: Style {
-                    foreground_color: None,
+                    foreground_color: selection_color,
                     background_color: None,
                     invert: true,
                 },

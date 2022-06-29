@@ -65,4 +65,5 @@ impl Color {
         b: 255,
     };
     pub const BLUE: Self = Self { r: 0, g: 0, b: 255 };
+    pub const RED: Self = Self { r: 255, g: 0, b: 0 };
 }
