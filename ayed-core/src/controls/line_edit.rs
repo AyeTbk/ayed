@@ -61,12 +61,8 @@ impl Panel for LineEdit {
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
-        let line_edit_viewport_size = (
-            ctx.viewport_size.0.checked_sub(1).unwrap(),
-            ctx.viewport_size.1,
-        );
         let line_edit_ctx = EditorContextMut {
-            viewport_size: line_edit_viewport_size,
+            viewport_size: ctx.viewport_size,
             buffer: &mut self.buffer,
         };
         let mut panel = self.editor.panel(&line_edit_ctx);

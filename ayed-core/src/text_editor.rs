@@ -177,12 +177,29 @@ impl Panel for TextEditor {
         let line_slice_max_len = ctx.viewport_size.0;
 
         let mut panel_content = Vec::new();
+        let mut panel_spans = Vec::new();
 
         for line_index in start_line_index..after_end_line_index {
             let full_line = if let Some(line) = ctx.buffer.line(line_index) {
                 line
             } else {
-                panel_content.push(" ".repeat(ctx.viewport_size.0 as _));
+                let mut non_existant_line = " ".repeat((ctx.viewport_size.0 - 1) as _);
+                non_existant_line.insert(0, '~');
+                panel_content.push(non_existant_line);
+                let line_index_relative_to_viewport = line_index - start_line_index;
+                let from =
+                    Position::ZERO.with_moved_indices(line_index_relative_to_viewport as _, 0);
+                let to = from.with_moved_indices(0, 1);
+                panel_spans.push(Span {
+                    from,
+                    to,
+                    style: Style {
+                        foreground_color: Some(Color::rgb(155, 100, 200)),
+                        background_color: None,
+                        invert: false,
+                    },
+                    importance: !0,
+                });
                 continue;
             };
 
@@ -202,8 +219,7 @@ impl Panel for TextEditor {
             panel_content.push(line);
         }
 
-        // Compute spans
-        let mut panel_spans = Vec::new();
+        // Selection spans
         for selection in self.selections() {
             let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
             let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
