@@ -9,5 +9,6 @@ fn main() {
     }
 
     let mut tui = tui::Tui::new(core);
+
     tui.run();
 }

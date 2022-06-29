@@ -6,7 +6,7 @@ use std::{
 use ayed_core::ui_state::{Color, Span};
 use termion::{
     cursor::HideCursor,
-    event::{Event, Key},
+    event::{Event as TermionEvent, Key},
     input::{MouseTerminal, TermRead},
     raw::{IntoRawMode, RawTerminal},
 };
@@ -31,9 +31,14 @@ impl Tui {
     pub fn run(&mut self) {
         let event_channel = Self::spawn_event_channel();
 
+        self.to_alternate_screen();
+
         while !self.core.is_quit() {
             self.render();
 
+            #[cfg(unix)]
+            let event = event_channel.recv().unwrap();
+            #[cfg(not(unix))]
             let event = match event_channel.try_recv() {
                 Ok(event) => event,
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -42,8 +47,9 @@ impl Tui {
                 }
                 e => e.unwrap(),
             };
+
             match event {
-                Event::Key(key) => match key {
+                Event::TermionEvent(TermionEvent::Key(key)) => match key {
                     Key::Esc => break,
                     Key::Backspace => self.core.input(ayed_core::input::Input::Backspace),
                     Key::Delete => self.core.input(ayed_core::input::Input::Delete),
@@ -54,23 +60,41 @@ impl Tui {
                     Key::Char(ch) => self.core.input(ayed_core::input::Input::Char(ch)),
                     k => println!("key: {:?}", k),
                 },
+                Event::WindowResized => (),
                 e => {
                     println!("{:?}", e);
                 }
             }
         }
 
+        self.to_main_screen();
+
         self.cleanup_styling();
     }
 
     fn spawn_event_channel() -> Receiver<Event> {
         let (tx, rx) = std::sync::mpsc::channel::<Event>();
+        let stdin_tx = tx.clone();
         std::thread::spawn(move || {
             for result_event in stdin().events() {
                 let event = result_event.unwrap();
-                tx.send(event).unwrap();
+                stdin_tx.send(Event::TermionEvent(event)).unwrap();
             }
         });
+
+        #[cfg(unix)]
+        std::thread::spawn(move || {
+            use signal_hook::consts::signal::*;
+            use signal_hook::iterator::Signals;
+            let mut signals = Signals::new(&[SIGWINCH]).unwrap();
+            for signal in &mut signals {
+                match signal {
+                    SIGWINCH => tx.send(Event::WindowResized).unwrap(),
+                    _ => unreachable!(),
+                }
+            }
+        });
+
         rx
     }
 
@@ -162,6 +186,14 @@ impl Tui {
         .unwrap();
     }
 
+    fn to_alternate_screen(&mut self) {
+        write!(self.screen, "{}", termion::screen::ToAlternateScreen).unwrap();
+    }
+
+    fn to_main_screen(&mut self) {
+        write!(self.screen, "{}", termion::screen::ToMainScreen).unwrap();
+    }
+
     fn update_viewport_size_if_needed(&mut self) {
         let (width, height) = self.viewport_size();
         let (vwidth, vheight) = self.core.viewport_size();
@@ -178,4 +210,10 @@ impl Tui {
 
 fn convert_color(color: Color) -> termion::color::Rgb {
     termion::color::Rgb(color.r, color.g, color.b)
+}
+
+#[derive(Debug)]
+enum Event {
+    WindowResized,
+    TermionEvent(TermionEvent),
 }
