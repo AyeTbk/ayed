@@ -21,23 +21,6 @@ impl Selections {
         self.primary_selection
     }
 
-    pub fn _on_line(&self, line_index: u32) -> Vec<Selection> {
-        // FIXME handle more than just the start of the selection
-        let mut selections = Vec::new();
-        let mut push_if_on_line = |sel: Selection| {
-            if sel.position.line_index == line_index {
-                selections.push(self.primary_selection);
-            }
-        };
-
-        push_if_on_line(self.primary_selection);
-        for selection in self.extra_selections.iter().copied() {
-            push_if_on_line(selection);
-        }
-
-        selections
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {
         Some(&self.primary_selection)
             .into_iter()
@@ -53,33 +36,78 @@ impl Selections {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Selection {
-    pub position: Position,
-    pub extra_length: u32,
+    cursor: Position,
+    anchor: Position,
 }
 
 impl Selection {
     pub fn new() -> Self {
         Self {
-            position: Position::ZERO,
-            extra_length: 0,
+            cursor: Position::ZERO,
+            anchor: Position::ZERO,
         }
     }
 
     pub fn with_position(&self, position: Position) -> Self {
         Self {
-            position,
-            extra_length: self.extra_length,
+            cursor: position,
+            anchor: position,
         }
     }
 
     pub fn shrunk(&self) -> Self {
         let mut this = *self;
-        this.extra_length = 0;
+        this.anchor = this.cursor;
         this
     }
 
-    pub fn length(&self) -> u32 {
-        self.extra_length + 1
+    pub fn _length(&self) -> u32 {
+        todo!("FIXME move this elsewhere, a selection cannot know its length")
+    }
+
+    pub fn cursor(&self) -> Position {
+        self.cursor
+    }
+
+    pub fn anchor(&self) -> Position {
+        self.anchor
+    }
+
+    pub fn start(&self) -> Position {
+        self.start_end().0
+    }
+
+    pub fn end(&self) -> Position {
+        self.start_end().1
+    }
+
+    pub fn start_end(&self) -> (Position, Position) {
+        let from;
+        let to;
+        if self.cursor.line_index != self.anchor.line_index {
+            if self.cursor.line_index < self.anchor.line_index {
+                from = self.cursor;
+                to = self.anchor;
+            } else {
+                from = self.anchor;
+                to = self.cursor;
+            }
+        } else {
+            if self.cursor.column_index < self.anchor.column_index {
+                from = self.cursor;
+                to = self.anchor;
+            } else {
+                from = self.anchor;
+                to = self.cursor;
+            }
+        }
+        (from, to)
+    }
+
+    pub fn bounds(&self) -> SelectionBounds {
+        let (from, mut to) = self.start_end();
+        to.column_index += 1;
+        SelectionBounds { from, to }
     }
 }
 

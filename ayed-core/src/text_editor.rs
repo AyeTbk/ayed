@@ -52,28 +52,25 @@ impl TextEditor {
 
     pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
         // FIXME this only shows selections as having a length of one
-        self.selections.iter().map(|selection| SelectionBounds {
-            from: selection.position.with_moved_indices(0, 0),
-            to: selection.position.with_moved_indices(0, 1),
-        })
+        self.selections.iter().map(Selection::bounds)
     }
 
     fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
         for selection in self.selections.iter_mut() {
-            if let Ok(new_position) = buffer.insert_char_at(ch, selection.position) {
-                selection.position = new_position;
+            if let Ok(new_position) = buffer.insert_char_at(ch, selection.cursor()) {
+                *selection = selection.with_position(new_position);
             }
         }
     }
 
     fn delete_before_selection(&mut self, buffer: &mut Buffer) {
         for selection in self.selections.iter_mut() {
-            if selection.position == buffer.start_of_content_position() {
+            if selection.start() == buffer.start_of_content_position() {
                 // Can't delete before the beginning!
                 continue;
             }
             let before_selection = buffer
-                .moved_position_horizontally(selection.position, -1)
+                .moved_position_horizontally(selection.start(), -1)
                 .expect("wow?");
             buffer.delete_selection(Selection::new().with_position(before_selection));
 
@@ -92,7 +89,7 @@ impl TextEditor {
     fn move_selection_horizontally(&mut self, column_offset: i32, buffer: &Buffer) {
         for selection in self.selections.iter_mut() {
             let new_position = if let Some(moved_position) =
-                buffer.moved_position_horizontally(selection.position, column_offset)
+                buffer.moved_position_horizontally(selection.cursor(), column_offset)
             {
                 moved_position
             } else {
@@ -102,16 +99,16 @@ impl TextEditor {
                     buffer.end_of_content_position()
                 }
             };
-            selection.position = new_position;
+            *selection = selection.with_position(new_position);
         }
     }
 
     fn move_selection_vertically(&mut self, line_offset: i32, buffer: &Buffer) {
         for selection in self.selections.iter_mut() {
             if let Some(moved_position) =
-                buffer.moved_position_vertically(selection.position, line_offset)
+                buffer.moved_position_vertically(selection.cursor(), line_offset)
             {
-                selection.position = moved_position;
+                *selection = selection.with_position(moved_position);
             }
         }
     }
@@ -121,7 +118,7 @@ impl TextEditor {
         // Horizontal
         let vp_start_x = self.viewport_top_left_position.column_index;
         let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
-        let selection_x = self.selections.primary().position.column_index;
+        let selection_x = self.selections.primary().cursor().column_index;
 
         if selection_x < vp_start_x {
             new_viewport_top_left_position.column_index = selection_x;
@@ -132,7 +129,7 @@ impl TextEditor {
         // Vertical
         let vp_start_y = self.viewport_top_left_position.line_index;
         let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
-        let selection_y = self.selections.primary().position.line_index;
+        let selection_y = self.selections.primary().cursor().line_index;
 
         if selection_y < vp_start_y {
             new_viewport_top_left_position.line_index = selection_y;

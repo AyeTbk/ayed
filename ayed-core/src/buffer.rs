@@ -86,15 +86,19 @@ impl Buffer {
     }
 
     pub fn delete_selection(&mut self, selection: Selection) {
-        if let Some(start_idx) = self.position_to_content_index(selection.position) {
-            let end_idx = start_idx + selection.length() as usize;
-            let range = if end_idx < self.inner.len() {
-                start_idx..end_idx
-            } else {
-                start_idx..self.inner.len()
-            };
-            self.inner.drain(range);
-        }
+        let start_idx = self
+            .position_to_content_index(selection.start())
+            .expect("invalid selection start");
+        let end_idx = self
+            .position_to_content_index(selection.end())
+            .expect("invalid selection end")
+            + 1;
+        let range = if end_idx < self.inner.len() {
+            start_idx..end_idx
+        } else {
+            start_idx..self.inner.len()
+        };
+        self.inner.drain(range);
     }
 
     pub fn moved_position_horizontally(
@@ -154,6 +158,8 @@ impl Buffer {
     }
 
     fn content_index_to_position(&self, index: usize) -> Option<Position> {
+        // FIXME this isnt good because index is incremented by one for every char but
+        // strings are by bytes, using the index in a non ascii buffer is gonna cause problems
         let mut current_index: usize = 0;
         let mut position: Position = Position::ZERO;
         for ch in self.inner.chars() {
@@ -177,6 +183,8 @@ impl Buffer {
 
     /// Returns the index corresponding to position, if it's not beyond the content.
     fn position_to_content_index(&self, position: Position) -> Option<usize> {
+        // FIXME this isnt good because index is incremented by one for every char but
+        // strings are by bytes, using the index in a non ascii buffer is gonna cause problems
         let mut index: usize = 0;
         let mut current_position: Position = Position::ZERO;
         for ch in self.inner.chars() {
@@ -198,3 +206,10 @@ impl Buffer {
         }
     }
 }
+
+// TODO use this eventually maybe ok? good
+// enum PositionContentIndex {
+//     Index(usize),
+//     BeyondLine,
+//     BeyondContent,
+// }
