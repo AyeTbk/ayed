@@ -3,7 +3,10 @@ use std::{
     sync::mpsc::Receiver,
 };
 
-use ayed_core::ui_state::{Color, Span};
+use ayed_core::{
+    input::Input,
+    ui_state::{Color, Span},
+};
 use termion::{
     cursor::HideCursor,
     event::{Event as TermionEvent, Key},
@@ -51,13 +54,13 @@ impl Tui {
             match event {
                 Event::TermionEvent(TermionEvent::Key(key)) => match key {
                     Key::Esc => break,
-                    Key::Backspace => self.core.input(ayed_core::input::Input::Backspace),
-                    Key::Delete => self.core.input(ayed_core::input::Input::Delete),
-                    Key::Up => self.core.input(ayed_core::input::Input::Up),
-                    Key::Down => self.core.input(ayed_core::input::Input::Down),
-                    Key::Left => self.core.input(ayed_core::input::Input::Left),
-                    Key::Right => self.core.input(ayed_core::input::Input::Right),
-                    Key::Char(ch) => self.core.input(ayed_core::input::Input::Char(ch)),
+                    Key::Backspace => self.core.input(ayed_core::input::Key::Backspace.into()),
+                    Key::Delete => self.core.input(ayed_core::input::Key::Delete.into()),
+                    Key::Up => self.core.input(ayed_core::input::Key::Up.into()),
+                    Key::Down => self.core.input(ayed_core::input::Key::Down.into()),
+                    Key::Left => self.core.input(ayed_core::input::Key::Left.into()),
+                    Key::Right => self.core.input(ayed_core::input::Key::Right.into()),
+                    Key::Char(ch) => self.core.input(Input::from_char(ch)),
                     k => println!("key: {:?}", k),
                 },
                 Event::WindowResized => (),

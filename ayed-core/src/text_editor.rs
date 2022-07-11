@@ -3,7 +3,7 @@ use crate::{
     command::Command,
     core::EditorContextMut,
     input::Input,
-    input_mapper::InputMapper,
+    input_mapper::InputMap,
     mode_line::ModeLineInfo,
     panel::Panel,
     selection::{Position, Selection, SelectionBounds, Selections},
@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub struct TextEditor {
-    active_mode: Box<dyn InputMapper>,
+    active_mode: Box<dyn InputMap>,
     active_mode_name: &'static str, // TODO make this better, active mode sucks right now
     selections: Selections,
     viewport_top_left_position: Position,

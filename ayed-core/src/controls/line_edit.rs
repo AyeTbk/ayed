@@ -2,7 +2,8 @@ use crate::{
     buffer::Buffer,
     command::Command,
     core::EditorContextMut,
-    input_mapper::InputMapper,
+    input::Input,
+    input_mapper::InputMap,
     panel::Panel,
     selection::Position,
     text_editor::TextEditor,
@@ -54,7 +55,7 @@ impl Panel for LineEdit {
 
     fn convert_input_to_command(
         &self,
-        input: crate::input::Input,
+        input: Input,
         ctx: &mut EditorContextMut,
     ) -> Option<Command> {
         TextEditMode.convert_input_to_command(input, ctx)

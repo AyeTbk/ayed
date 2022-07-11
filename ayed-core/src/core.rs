@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::Buffer;
-use crate::input::Input;
+use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
 use crate::selection::SelectionBounds;
@@ -63,7 +63,7 @@ impl Core {
     pub fn input(&mut self, input: Input) {
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
-        } else if input == Input::Char(':') {
+        } else if input.key == Key::Char(':') {
             self.mode_line.set_has_focus(true);
         } else {
             self.input_active_editor(input);

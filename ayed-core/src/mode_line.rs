@@ -3,7 +3,7 @@ use crate::{
     controls::LineEdit,
     core::EditorContextMut,
     input::Input,
-    input_mapper::InputMapper,
+    input_mapper::InputMap,
     line_builder::LineBuilder,
     panel::Panel,
     selection::Position,

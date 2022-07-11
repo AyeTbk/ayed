@@ -1,4 +1,9 @@
-use crate::{command::Command, core::EditorContextMut, input::Input, input_mapper::InputMapper};
+use crate::{
+    command::Command,
+    core::EditorContextMut,
+    input::Input,
+    input_mapper::{InputMap, InputMapper},
+};
 
 pub struct TextCommandMode;
 
@@ -6,21 +11,25 @@ impl TextCommandMode {
     pub const NAME: &'static str = "text-command";
 }
 
-impl InputMapper for TextCommandMode {
+impl InputMap for TextCommandMode {
     fn convert_input_to_command(
         &self,
         input: Input,
-        _ctx: &mut EditorContextMut,
+        ctx: &mut EditorContextMut,
     ) -> Option<Command> {
-        let command = match input {
-            Input::Char('\t') | Input::Char('i') => Command::ChangeMode(TextEditMode::NAME),
-            Input::Up => Command::MoveSelectionUp,
-            Input::Down => Command::MoveSelectionDown,
-            Input::Left => Command::MoveSelectionLeft,
-            Input::Right => Command::MoveSelectionRight,
-            _ => return None,
-        };
-        Some(command)
+        use Command::*;
+
+        let mut im = InputMapper::default();
+        im.register("<tab>", ChangeMode(TextEditMode::NAME))
+            .unwrap();
+        im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
+
+        im.register("<up>", MoveSelectionUp).unwrap();
+        im.register("<down>", MoveSelectionDown).unwrap();
+        im.register("<left>", MoveSelectionLeft).unwrap();
+        im.register("<right>", MoveSelectionRight).unwrap();
+
+        im.convert_input_to_command(input, ctx)
     }
 }
 
@@ -30,24 +39,29 @@ impl TextEditMode {
     pub const NAME: &'static str = "text-edit";
 }
 
-impl InputMapper for TextEditMode {
+impl InputMap for TextEditMode {
     fn convert_input_to_command(
         &self,
         input: Input,
-        _ctx: &mut EditorContextMut,
+        ctx: &mut EditorContextMut,
     ) -> Option<Command> {
-        let command = match input {
-            Input::Char('\t') => Command::ChangeMode(TextCommandMode::NAME),
-            Input::Char(ch) => Command::Insert(ch),
-            Input::Return => Command::Insert('\n'),
-            Input::Backspace => Command::DeleteBeforeSelection,
-            Input::Delete => Command::DeleteSelection,
-            Input::Up => Command::MoveSelectionUp,
-            Input::Down => Command::MoveSelectionDown,
-            Input::Left => Command::MoveSelectionLeft,
-            Input::Right => Command::MoveSelectionRight,
-            _ => todo!(),
-        };
-        Some(command)
+        use Command::*;
+
+        let mut im = InputMapper::default();
+
+        im.register("<tab>", ChangeMode(TextCommandMode::NAME))
+            .unwrap();
+
+        im.register_char_insert();
+        im.register("<ret>", Insert('\n')).unwrap();
+        im.register("<backspace>", DeleteBeforeSelection).unwrap();
+        im.register("<del>", DeleteSelection).unwrap();
+
+        im.register("<up>", MoveSelectionUp).unwrap();
+        im.register("<down>", MoveSelectionDown).unwrap();
+        im.register("<left>", MoveSelectionLeft).unwrap();
+        im.register("<right>", MoveSelectionRight).unwrap();
+
+        im.convert_input_to_command(input, ctx)
     }
 }
