@@ -1,26 +1,38 @@
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+use std::hash::Hash;
+
+#[derive(Debug, Clone, Copy, Eq)]
 pub struct Input {
     pub key: Key,
     pub modifiers: Modifiers,
 }
 
 impl Input {
-    pub fn from_char_mod(ch: char, mut modifiers: Modifiers) -> Self {
-        let (key, norm_modifiers) = Key::from_char_normalized(ch);
-        modifiers.ctrl = modifiers.ctrl || norm_modifiers.ctrl;
-        modifiers.shift = modifiers.shift || norm_modifiers.shift;
-        modifiers.alt = modifiers.alt || norm_modifiers.alt;
+    pub fn new(key: Key, modifiers: Modifiers) -> Self {
         Self { key, modifiers }
     }
 
+    pub fn from_char_mods(ch: char, mut modifiers: Modifiers) -> Self {
+        if ch.is_uppercase() {
+            modifiers.shift = true;
+        }
+        Self {
+            key: Key::Char(ch),
+            modifiers,
+        }
+    }
+
     pub fn from_char(ch: char) -> Self {
-        let (key, modifiers) = Key::from_char_normalized(ch);
-        Self { key, modifiers }
+        Self::from_char_mods(ch, Default::default())
     }
 
     pub fn normalized(self) -> Self {
         if let Key::Char(ch) = self.key {
-            Self::from_char_mod(ch, self.modifiers)
+            let key = Key::from_char_normalized(ch);
+            let mut modifiers = self.modifiers;
+            if ch.is_uppercase() {
+                modifiers.shift = true;
+            }
+            Self { key, modifiers }
         } else {
             self
         }
@@ -45,6 +57,8 @@ impl Input {
                 "down" => Key::Down,
                 "left" => Key::Left,
                 "right" => Key::Right,
+                "lt" => Key::Char('<'),
+                "gt" => Key::Char('>'),
                 s => {
                     if s.len() != 1 {
                         return Err(());
@@ -96,6 +110,22 @@ impl Input {
     }
 }
 
+impl Hash for Input {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let norm = self.normalized();
+        norm.key.hash(state);
+        norm.modifiers.hash(state);
+    }
+}
+
+impl PartialEq for Input {
+    fn eq(&self, other: &Self) -> bool {
+        let norm_self = self.normalized();
+        let norm_other = other.normalized();
+        norm_self.key.eq(&norm_other.key) && norm_self.modifiers.eq(&norm_other.modifiers)
+    }
+}
+
 impl From<Key> for Input {
     fn from(key: Key) -> Self {
         Self {
@@ -122,13 +152,9 @@ pub enum Key {
 }
 
 impl Key {
-    pub fn from_char_normalized(ch: char) -> (Self, Modifiers) {
-        let mut mods = Modifiers::default();
+    pub fn from_char_normalized(ch: char) -> Self {
         let normalized_ch = ch.to_lowercase().next().unwrap();
-        if ch != normalized_ch {
-            mods.shift = true;
-        }
-        (Self::Char(normalized_ch), mods)
+        Self::Char(normalized_ch)
     }
 }
 
@@ -162,11 +188,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn input_eq__normalized_comparison() {
+        let not_uppercase_but_shift_wtf = Input {
+            key: Key::Char('s'),
+            modifiers: Modifiers::default().with_shift(),
+        };
+        let uppercase_without_shift = Input {
+            key: Key::Char('S'),
+            modifiers: Modifiers::default(),
+        };
+        dbg!(not_uppercase_but_shift_wtf.normalized());
+        dbg!(uppercase_without_shift.normalized());
+        assert_eq!(not_uppercase_but_shift_wtf, uppercase_without_shift)
+    }
+
+    #[test]
     fn try_parse_input__one_modifier_and_uppercase_letter() {
         let result = Input::try_parse("<c-M>").unwrap();
         assert_eq!(
             result,
-            Input::from_char_mod('m', Modifiers::default().with_ctrl().with_shift())
+            Input::from_char_mods('m', Modifiers::default().with_ctrl().with_shift())
         )
     }
 
@@ -175,7 +216,7 @@ mod tests {
         let result = Input::try_parse("<ca-l>").unwrap();
         assert_eq!(
             result,
-            Input::from_char_mod('l', Modifiers::default().with_ctrl().with_alt())
+            Input::from_char_mods('l', Modifiers::default().with_ctrl().with_alt())
         )
     }
 
@@ -184,7 +225,7 @@ mod tests {
         let result = Input::try_parse("<sac-space>").unwrap();
         assert_eq!(
             result,
-            Input::from_char_mod(
+            Input::from_char_mods(
                 ' ',
                 Modifiers::default().with_shift().with_alt().with_ctrl()
             )

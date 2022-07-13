@@ -9,7 +9,7 @@ use ayed_core::{
 };
 use crossterm::{
     cursor::MoveTo,
-    event::{Event, KeyCode, KeyEvent},
+    event::{Event, KeyCode, KeyEvent, KeyModifiers},
     style::{SetBackgroundColor, SetForegroundColor},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
@@ -44,22 +44,18 @@ impl Tui {
             let event = crossterm::event::read().unwrap();
 
             match event {
-                Event::Key(KeyEvent { code, .. }) => match code {
-                    KeyCode::Esc => break,
-                    KeyCode::Backspace => self.core.input(ayed_core::input::Key::Backspace.into()),
-                    KeyCode::Delete => self.core.input(ayed_core::input::Key::Delete.into()),
-                    KeyCode::Up => self.core.input(ayed_core::input::Key::Up.into()),
-                    KeyCode::Down => self.core.input(ayed_core::input::Key::Down.into()),
-                    KeyCode::Left => self.core.input(ayed_core::input::Key::Left.into()),
-                    KeyCode::Right => self.core.input(ayed_core::input::Key::Right.into()),
-                    KeyCode::Enter => self.core.input(Input::from_char('\n')),
-                    KeyCode::Tab => self.core.input(Input::from_char('\t')),
-                    KeyCode::Char(ch) => self.core.input(Input::from_char(ch)),
-                    k => println!("key: {:?}", k),
-                },
+                Event::Key(KeyEvent { code, modifiers }) => {
+                    if code == KeyCode::Esc {
+                        break;
+                    }
+                    let key = convert_key_code_to_ayed(code);
+                    let modifiers = convert_key_modifiers_to_ayed(modifiers);
+                    let input = Input::new(key, modifiers);
+                    self.core.input(input);
+                }
                 Event::Resize(_, _) => (),
                 e => {
-                    println!("{:?}", e);
+                    println!("huh: {:?}", e);
                 }
             }
 
@@ -72,11 +68,11 @@ impl Tui {
     fn render(&mut self) {
         fn prepare_span_style(span: &Span, screen: &mut impl Write) {
             if let Some(foreground_color) = span.style.foreground_color {
-                let fg = convert_color(foreground_color);
+                let fg = convert_color_to_crossterm(foreground_color);
                 screen.execute(SetForegroundColor(fg)).unwrap();
             }
             if let Some(background_color) = span.style.background_color {
-                let bg = convert_color(background_color);
+                let bg = convert_color_to_crossterm(background_color);
                 screen.execute(SetBackgroundColor(bg)).unwrap();
             }
             if span.style.invert {
@@ -175,12 +171,42 @@ impl Tui {
     }
 }
 
-fn convert_color(color: Color) -> crossterm::style::Color {
+fn convert_color_to_crossterm(color: Color) -> crossterm::style::Color {
     crossterm::style::Color::Rgb {
         r: color.r,
         g: color.g,
         b: color.b,
     }
+}
+
+fn convert_key_code_to_ayed(code: KeyCode) -> ayed_core::input::Key {
+    use ayed_core::input::Key as AyedKey;
+    match code {
+        KeyCode::Backspace => AyedKey::Backspace,
+        KeyCode::Delete => AyedKey::Delete,
+        KeyCode::Up => AyedKey::Up,
+        KeyCode::Down => AyedKey::Down,
+        KeyCode::Left => AyedKey::Left,
+        KeyCode::Right => AyedKey::Right,
+        KeyCode::Enter => AyedKey::Char('\n'),
+        KeyCode::Tab => AyedKey::Char('\t'),
+        KeyCode::Char(ch) => AyedKey::Char(ch),
+        k => unimplemented!("key: {:?}", k),
+    }
+}
+
+fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> ayed_core::input::Modifiers {
+    let mut mods = ayed_core::input::Modifiers::default();
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        mods = mods.with_ctrl();
+    }
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        mods = mods.with_shift();
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        mods = mods.with_alt();
+    }
+    mods
 }
 
 fn unset_crossterm_styling() -> std::io::Result<()> {
