@@ -1,17 +1,18 @@
 use std::{
-    io::{stdin, stdout, Stdout, Write},
-    sync::mpsc::Receiver,
+    io::{stdout, Stdout, Write},
+    time::Duration,
 };
 
 use ayed_core::{
     input::Input,
     ui_state::{Color, Span},
 };
-use termion::{
-    cursor::HideCursor,
-    event::{Event as TermionEvent, Key},
-    input::{MouseTerminal, TermRead},
-    raw::{IntoRawMode, RawTerminal},
+use crossterm::{
+    cursor::MoveTo,
+    event::{Event, KeyCode, KeyEvent},
+    style::{SetBackgroundColor, SetForegroundColor},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
 };
 
 pub mod panel;
@@ -19,110 +20,76 @@ pub mod renderer;
 
 pub struct Tui {
     core: ayed_core::core::Core,
-    screen: HideCursor<MouseTerminal<RawTerminal<Stdout>>>,
+    screen: Stdout,
 }
 
 impl Tui {
     pub fn new(core: ayed_core::core::Core) -> Self {
-        let stdout = stdout().into_raw_mode().unwrap();
+        let stdout = stdout();
         Self {
             core,
-            screen: HideCursor::from(MouseTerminal::from(stdout)),
+            screen: stdout,
         }
     }
 
     pub fn run(&mut self) {
-        let event_channel = Self::spawn_event_channel();
-
         self.to_alternate_screen();
 
-        while !self.core.is_quit() {
-            self.render();
+        self.render();
 
-            #[cfg(unix)]
-            let event = event_channel.recv().unwrap();
-            #[cfg(not(unix))]
-            let event = match event_channel.try_recv() {
-                Ok(event) => event,
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    std::thread::sleep(std::time::Duration::from_millis(32));
-                    continue;
-                }
-                e => e.unwrap(),
-            };
+        while !self.core.is_quit() {
+            if !crossterm::event::poll(Duration::from_millis(1000)).unwrap() {
+                continue;
+            }
+            let event = crossterm::event::read().unwrap();
 
             match event {
-                Event::TermionEvent(TermionEvent::Key(key)) => match key {
-                    Key::Esc => break,
-                    Key::Backspace => self.core.input(ayed_core::input::Key::Backspace.into()),
-                    Key::Delete => self.core.input(ayed_core::input::Key::Delete.into()),
-                    Key::Up => self.core.input(ayed_core::input::Key::Up.into()),
-                    Key::Down => self.core.input(ayed_core::input::Key::Down.into()),
-                    Key::Left => self.core.input(ayed_core::input::Key::Left.into()),
-                    Key::Right => self.core.input(ayed_core::input::Key::Right.into()),
-                    Key::Char(ch) => self.core.input(Input::from_char(ch)),
+                Event::Key(KeyEvent { code, .. }) => match code {
+                    KeyCode::Esc => break,
+                    KeyCode::Backspace => self.core.input(ayed_core::input::Key::Backspace.into()),
+                    KeyCode::Delete => self.core.input(ayed_core::input::Key::Delete.into()),
+                    KeyCode::Up => self.core.input(ayed_core::input::Key::Up.into()),
+                    KeyCode::Down => self.core.input(ayed_core::input::Key::Down.into()),
+                    KeyCode::Left => self.core.input(ayed_core::input::Key::Left.into()),
+                    KeyCode::Right => self.core.input(ayed_core::input::Key::Right.into()),
+                    KeyCode::Enter => self.core.input(Input::from_char('\n')),
+                    KeyCode::Tab => self.core.input(Input::from_char('\t')),
+                    KeyCode::Char(ch) => self.core.input(Input::from_char(ch)),
                     k => println!("key: {:?}", k),
                 },
-                Event::WindowResized => (),
+                Event::Resize(_, _) => (),
                 e => {
                     println!("{:?}", e);
                 }
             }
+
+            self.render();
         }
 
         self.to_main_screen();
-
-        self.cleanup_styling();
-    }
-
-    fn spawn_event_channel() -> Receiver<Event> {
-        let (tx, rx) = std::sync::mpsc::channel::<Event>();
-        let stdin_tx = tx.clone();
-        std::thread::spawn(move || {
-            for result_event in stdin().events() {
-                let event = result_event.unwrap();
-                stdin_tx.send(Event::TermionEvent(event)).unwrap();
-            }
-        });
-
-        #[cfg(unix)]
-        std::thread::spawn(move || {
-            use signal_hook::consts::signal::*;
-            use signal_hook::iterator::Signals;
-            let mut signals = Signals::new(&[SIGWINCH]).unwrap();
-            for signal in &mut signals {
-                match signal {
-                    SIGWINCH => tx.send(Event::WindowResized).unwrap(),
-                    _ => unreachable!(),
-                }
-            }
-        });
-
-        rx
     }
 
     fn render(&mut self) {
         fn prepare_span_style(span: &Span, screen: &mut impl Write) {
             if let Some(foreground_color) = span.style.foreground_color {
                 let fg = convert_color(foreground_color);
-                write!(screen, "{}", termion::color::Fg(fg)).unwrap();
+                screen.execute(SetForegroundColor(fg)).unwrap();
             }
             if let Some(background_color) = span.style.background_color {
                 let bg = convert_color(background_color);
-                write!(screen, "{}", termion::color::Bg(bg)).unwrap();
+                screen.execute(SetBackgroundColor(bg)).unwrap();
             }
             if span.style.invert {
-                write!(screen, "{}", termion::style::Invert).unwrap();
+                write!(screen, "{}", crossterm::style::Attribute::Reverse).unwrap();
             }
         }
 
         fn cleanup_span_style(screen: &mut impl Write) {
             write!(
                 screen,
-                "{}{}{}",
-                termion::color::Reset.fg_str(),
-                termion::color::Reset.bg_str(),
-                termion::style::Reset
+                "{}{}",
+                crossterm::style::ResetColor,
+                crossterm::style::Attribute::Reset
             )
             .unwrap();
         }
@@ -140,12 +107,9 @@ impl Tui {
             let after_end_x = start_x + panel.size.0;
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
-                write!(
-                    self.screen,
-                    "{}",
-                    termion::cursor::Goto((start_x + 1) as _, (y + 1) as _)
-                )
-                .unwrap();
+                self.screen
+                    .execute(MoveTo((start_x) as _, (y) as _))
+                    .unwrap();
 
                 cleanup_span_style(&mut self.screen);
 
@@ -178,23 +142,23 @@ impl Tui {
         self.screen.flush().unwrap();
     }
 
-    fn cleanup_styling(&mut self) {
-        write!(
-            self.screen,
-            "{}{}{}",
-            termion::color::Reset.fg_str(),
-            termion::color::Reset.bg_str(),
-            termion::style::Reset
-        )
-        .unwrap();
-    }
-
     fn to_alternate_screen(&mut self) {
-        write!(self.screen, "{}", termion::screen::ToAlternateScreen).unwrap();
+        enable_raw_mode().unwrap();
+        let default_panic_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            let _ = unset_crossterm_styling();
+            default_panic_hook(panic_info);
+        }));
+
+        self.screen
+            .execute(EnterAlternateScreen)
+            .unwrap()
+            .execute(crossterm::cursor::Hide)
+            .unwrap();
     }
 
     fn to_main_screen(&mut self) {
-        write!(self.screen, "{}", termion::screen::ToMainScreen).unwrap();
+        unset_crossterm_styling().unwrap();
     }
 
     fn update_viewport_size_if_needed(&mut self) {
@@ -206,17 +170,28 @@ impl Tui {
     }
 
     fn viewport_size(&self) -> (u32, u32) {
-        let (width, height) = termion::terminal_size().unwrap();
-        (width as _, height as _)
+        let (width, height) = crossterm::terminal::size().unwrap();
+        ((width) as _, (height) as _)
     }
 }
 
-fn convert_color(color: Color) -> termion::color::Rgb {
-    termion::color::Rgb(color.r, color.g, color.b)
+fn convert_color(color: Color) -> crossterm::style::Color {
+    crossterm::style::Color::Rgb {
+        r: color.r,
+        g: color.g,
+        b: color.b,
+    }
 }
 
-#[derive(Debug)]
-enum Event {
-    WindowResized,
-    TermionEvent(TermionEvent),
+fn unset_crossterm_styling() -> std::io::Result<()> {
+    disable_raw_mode()?;
+    let mut stdout = stdout();
+    stdout.execute(LeaveAlternateScreen)?;
+    write!(
+        stdout,
+        "{}{}{}",
+        crossterm::style::ResetColor,
+        crossterm::style::Attribute::Reset,
+        crossterm::cursor::Show,
+    )
 }
