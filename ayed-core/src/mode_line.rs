@@ -44,11 +44,7 @@ impl ModeLine {
 }
 
 impl Panel for ModeLine {
-    fn convert_input_to_command(
-        &self,
-        input: Input,
-        ctx: &mut EditorContextMut,
-    ) -> Option<Command> {
+    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
         TextEditMode.convert_input_to_command(input, ctx)
     }
 

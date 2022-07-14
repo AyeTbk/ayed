@@ -157,11 +157,7 @@ impl TextEditor {
 }
 
 impl Panel for TextEditor {
-    fn convert_input_to_command(
-        &self,
-        input: Input,
-        ctx: &mut EditorContextMut,
-    ) -> Option<Command> {
+    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
         self.active_mode.convert_input_to_command(input, ctx)
     }
 

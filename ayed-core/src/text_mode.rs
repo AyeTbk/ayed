@@ -12,17 +12,16 @@ impl TextCommandMode {
 }
 
 impl InputMap for TextCommandMode {
-    fn convert_input_to_command(
-        &self,
-        input: Input,
-        ctx: &mut EditorContextMut,
-    ) -> Option<Command> {
+    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
         use Command::*;
 
         let mut im = InputMapper::default();
         im.register("<tab>", ChangeMode(TextEditMode::NAME))
             .unwrap();
         im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
+
+        im.register("o", [MoveSelectionRight, ChangeMode(TextEditMode::NAME)])
+            .unwrap(); // TODO change
 
         im.register("<up>", MoveSelectionUp).unwrap();
         im.register("<down>", MoveSelectionDown).unwrap();
@@ -40,11 +39,7 @@ impl TextEditMode {
 }
 
 impl InputMap for TextEditMode {
-    fn convert_input_to_command(
-        &self,
-        input: Input,
-        ctx: &mut EditorContextMut,
-    ) -> Option<Command> {
+    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
         use Command::*;
 
         let mut im = InputMapper::default();

@@ -117,12 +117,22 @@ impl Core {
 
     fn input_mode_line(&mut self, input: Input) {
         let viewport_size = self.mode_line_viewport_size();
-        let buffer = self.buffers.get_mut(self.active_buffer);
-        let mut ctx = EditorContextMut {
-            buffer,
-            viewport_size,
+        // FIXME this code stinks, gotta recreate the same ctx at multiple different place? ew
+        let commands = {
+            let buffer = self.buffers.get_mut(self.active_buffer);
+            let mut ctx = EditorContextMut {
+                buffer,
+                viewport_size,
+            };
+            self.mode_line.convert_input_to_command(input, &mut ctx)
         };
-        if let Some(command) = self.mode_line.convert_input_to_command(input, &mut ctx) {
+
+        for command in commands {
+            let buffer = self.buffers.get_mut(self.active_buffer);
+            let mut ctx = EditorContextMut {
+                buffer,
+                viewport_size,
+            };
             if let Some(line) = self.mode_line.send_command(command, &mut ctx) {
                 self.mode_line.set_has_focus(false);
                 self.interpret_command(&line);
@@ -137,7 +147,7 @@ impl Core {
             buffer,
             viewport_size,
         };
-        if let Some(command) = self.active_editor.convert_input_to_command(input, &mut ctx) {
+        for command in self.active_editor.convert_input_to_command(input, &mut ctx) {
             self.active_editor.execute_command(command, &mut ctx);
         }
     }
