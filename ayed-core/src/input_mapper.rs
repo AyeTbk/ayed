@@ -32,8 +32,6 @@ impl InputMap for InputMapper {
     fn convert_input_to_command(&self, input: Input, _ctx: &mut EditorContextMut) -> Vec<Command> {
         let mut commands = Vec::new();
 
-        dbg!(&self.mapping);
-
         if let Some(command) = self.mapping.get(&input).cloned() {
             commands.extend(command.to_commands());
         } else if self.do_char_insert {

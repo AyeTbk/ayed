@@ -197,8 +197,6 @@ mod tests {
             key: Key::Char('S'),
             modifiers: Modifiers::default(),
         };
-        dbg!(not_uppercase_but_shift_wtf.normalized());
-        dbg!(uppercase_without_shift.normalized());
         assert_eq!(not_uppercase_but_shift_wtf, uppercase_without_shift)
     }
 
