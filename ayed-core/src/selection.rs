@@ -61,10 +61,6 @@ impl Selection {
         this
     }
 
-    pub fn _length(&self) -> u32 {
-        todo!("FIXME move this elsewhere, a selection cannot know its length")
-    }
-
     pub fn cursor(&self) -> Position {
         self.cursor
     }
@@ -123,8 +119,15 @@ impl Position {
         column_index: 0,
     };
 
+    pub fn new(line_index: u32, column_index: u32) -> Self {
+        Self {
+            line_index,
+            column_index,
+        }
+    }
+
     pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
-        // FIXME line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
+        // FIXME? line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
         let line_index = saturating_add_signed(self.line_index, line_offset);
         let column_index = saturating_add_signed(self.column_index, column_offset);
         Self {

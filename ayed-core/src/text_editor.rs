@@ -176,8 +176,9 @@ impl Panel for TextEditor {
         let mut panel_spans = Vec::new();
 
         for line_index in start_line_index..after_end_line_index {
-            let full_line = if let Some(line) = ctx.buffer.line(line_index) {
-                line
+            let mut line_buf = String::new();
+            let full_line = if ctx.buffer.copy_line(line_index, &mut line_buf).is_some() {
+                line_buf
             } else {
                 let mut non_existant_line = " ".repeat((ctx.viewport_size.0 - 1) as _);
                 non_existant_line.insert(0, '~');
@@ -207,7 +208,7 @@ impl Panel for TextEditor {
                 (start_column_index as usize, end)
             };
 
-            let mut line = full_line[start_column..end_column].to_string();
+            let mut line = full_line.to_string()[start_column..end_column].to_string();
             let line_visible_part_length = end_column - start_column;
             let padlen = line_slice_max_len as usize - line_visible_part_length;
             line.extend(" ".repeat(padlen).chars());

@@ -31,9 +31,10 @@ impl LineEdit {
         };
         match command {
             Command::Insert('\n') => {
-                let line = self.buffer.line(0).map(|s| s.to_string());
+                let mut line = String::new();
+                self.buffer.copy_line(0, &mut line)?;
                 self.reset();
-                line
+                Some(line)
             }
             _ => {
                 self.editor.execute_command(command, &mut line_edit_ctx);
