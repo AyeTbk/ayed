@@ -9,21 +9,19 @@ pub mod char_string;
 use self::char_string::CharString;
 
 // Notes:
-// inner is the lines of text.
 // The lines of text must uphold some invariants:
 // 1. There is always at least one line.
 // 2. Every line must have one and only one '\n' and it must be at the end.
-// Maybe I could rename inner to lines.
 #[derive(Debug, Default)]
 pub struct Buffer {
-    inner: Vec<CharString>,
+    lines: Vec<CharString>,
     filepath: Option<PathBuf>,
 }
 
 impl Buffer {
     pub fn new_empty() -> Self {
         Self {
-            inner: vec![CharString::from("\n")],
+            lines: vec![CharString::from("\n")],
             filepath: None,
         }
     }
@@ -39,7 +37,7 @@ impl Buffer {
         }
 
         Self {
-            inner,
+            lines: inner,
             filepath: Some(filepath.to_owned()),
         }
     }
@@ -52,7 +50,7 @@ impl Buffer {
         if let Some(filepath) = &self.filepath {
             let file = std::fs::File::create(filepath).expect("TODO error handling");
             let mut writer = std::io::BufWriter::new(file);
-            for line in &self.inner {
+            for line in &self.lines {
                 line.write_all(&mut writer).expect("TODO error handling");
             }
             writer.flush().expect("TODO error handling");
@@ -190,13 +188,13 @@ impl Buffer {
 
     pub fn end_of_content_position(&self) -> Position {
         let last_column_index_of_last_line = self
-            .inner
+            .lines
             .last()
             .expect("there must always be at least one line")
             .len()
             - 1;
         Position::ZERO
-            .with_moved_indices(self.inner.len() as _, last_column_index_of_last_line as _)
+            .with_moved_indices(self.lines.len() as _, last_column_index_of_last_line as _)
     }
 
     pub fn selection_length(&self, selection: Selection) -> Option<u32> {
@@ -227,7 +225,7 @@ impl Buffer {
     }
 
     pub fn line_count(&self) -> u32 {
-        self.inner.len() as _
+        self.lines.len() as _
     }
 
     pub fn copy_line(&self, line_index: u32, buf: &mut String) -> Option<()> {
@@ -243,28 +241,28 @@ impl Buffer {
     }
 
     fn line(&self, line_index: u32) -> Option<&CharString> {
-        self.inner.get(line_index as usize)
+        self.lines.get(line_index as usize)
     }
 
     fn set_line(&mut self, line_index: u32, line: CharString) {
-        self.inner[line_index as usize] = line;
+        self.lines[line_index as usize] = line;
     }
 
     fn insert_line(&mut self, line_index: u32, line: CharString) {
-        self.inner.insert(line_index as usize, line);
+        self.lines.insert(line_index as usize, line);
     }
 
     /// Replace line with with default value and return it.
     fn take_line(&mut self, line_index: u32) -> Option<CharString> {
         let idx = line_index as usize;
-        let line = self.inner.get_mut(idx)?;
+        let line = self.lines.get_mut(idx)?;
         Some(std::mem::take(line))
     }
 
     fn remove_line(&mut self, line_index: u32) -> Option<CharString> {
         let idx = line_index as usize;
-        if idx < self.inner.len() {
-            Some(self.inner.remove(idx))
+        if idx < self.lines.len() {
+            Some(self.lines.remove(idx))
         } else {
             None
         }
