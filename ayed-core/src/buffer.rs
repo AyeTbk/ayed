@@ -90,11 +90,7 @@ impl Buffer {
     }
 
     pub fn delete_selection(&mut self, selection: Selection) {
-        dbg!(selection);
         let selection_length = self.selection_length(selection).unwrap();
-
-        dbg!(selection_length);
-
         for _ in 0..selection_length {
             self.delete_position(selection.start()).unwrap();
         }
@@ -218,7 +214,6 @@ impl Buffer {
             let is_end_line = line_index == end_line_index;
 
             if is_start_line && is_end_line {
-                dbg!(start_column_index..=end_column_index);
                 len += line[start_column_index..=end_column_index].len() as u32;
             } else if is_start_line {
                 len += line[start_column_index..].len() as u32;
@@ -228,7 +223,6 @@ impl Buffer {
                 len += line.len() as u32;
             }
         }
-        dbg!(len);
         Some(len)
     }
 
