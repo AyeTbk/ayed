@@ -20,13 +20,18 @@ impl InputMap for TextCommandMode {
             .unwrap();
         im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
 
-        im.register("o", [MoveSelectionRight, ChangeMode(TextEditMode::NAME)])
+        im.register("o", [MoveCursorRight, ChangeMode(TextEditMode::NAME)])
             .unwrap(); // TODO change
 
-        im.register("<up>", MoveSelectionUp).unwrap();
-        im.register("<down>", MoveSelectionDown).unwrap();
-        im.register("<left>", MoveSelectionLeft).unwrap();
-        im.register("<right>", MoveSelectionRight).unwrap();
+        im.register("<up>", MoveCursorUp).unwrap();
+        im.register("<down>", MoveCursorDown).unwrap();
+        im.register("<left>", MoveCursorLeft).unwrap();
+        im.register("<right>", MoveCursorRight).unwrap();
+
+        im.register("<s-up>", DragCursorUp).unwrap();
+        im.register("<s-down>", DragCursorDown).unwrap();
+        im.register("<s-left>", DragCursorLeft).unwrap();
+        im.register("<s-right>", DragCursorRight).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }
@@ -52,10 +57,10 @@ impl InputMap for TextEditMode {
         im.register("<backspace>", DeleteBeforeSelection).unwrap();
         im.register("<del>", DeleteSelection).unwrap();
 
-        im.register("<up>", MoveSelectionUp).unwrap();
-        im.register("<down>", MoveSelectionDown).unwrap();
-        im.register("<left>", MoveSelectionLeft).unwrap();
-        im.register("<right>", MoveSelectionRight).unwrap();
+        im.register("<up>", MoveCursorUp).unwrap();
+        im.register("<down>", MoveCursorDown).unwrap();
+        im.register("<left>", MoveCursorLeft).unwrap();
+        im.register("<right>", MoveCursorRight).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }

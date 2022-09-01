@@ -5,12 +5,16 @@ pub enum Command {
 
     // Text edit commands
     Insert(char),
-    DeleteBeforeSelection,
     DeleteSelection,
+    DeleteBeforeSelection, // TODO change to DeleteBeforeCursor
 
     // Selection manipulation commands
-    MoveSelectionUp,
-    MoveSelectionDown,
-    MoveSelectionLeft,
-    MoveSelectionRight,
+    MoveCursorUp,
+    MoveCursorDown,
+    MoveCursorLeft,
+    MoveCursorRight,
+    DragCursorUp,
+    DragCursorDown,
+    DragCursorLeft,
+    DragCursorRight,
 }

@@ -5,7 +5,6 @@ use crate::buffer::Buffer;
 use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
-use crate::selection::SelectionBounds;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{UiPanel, UiState};
 
@@ -87,10 +86,6 @@ impl Core {
         let mode_line_panel = self.mode_line_panel();
         let panels = vec![active_editor_panel, mode_line_panel];
         UiState { panels }
-    }
-
-    pub fn active_editor_selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
-        self.active_editor.selections()
     }
 
     fn interpret_command(&mut self, command_str: &str) {

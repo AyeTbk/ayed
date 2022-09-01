@@ -75,7 +75,7 @@ impl Panel for LineEdit {
 
         panel.spans.push(Span {
             from: Position::ZERO,
-            to: Position::ZERO.with_moved_indices(0, 1),
+            to: Position::ZERO,
             style: Style {
                 foreground_color: None,
                 background_color: Some(Color::rgb(96, 32, 200)),

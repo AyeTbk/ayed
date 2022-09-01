@@ -6,7 +6,7 @@ use crate::{
     input_mapper::InputMap,
     mode_line::ModeLineInfo,
     panel::Panel,
-    selection::{Position, Selection, SelectionBounds, Selections},
+    selection::{Position, Selection, Selections},
     text_mode::{TextCommandMode, TextEditMode},
     ui_state::{Color, Span, Style, UiPanel},
 };
@@ -50,14 +50,9 @@ impl TextEditor {
         }
     }
 
-    pub fn selections(&self) -> impl Iterator<Item = SelectionBounds> + '_ {
-        // FIXME this only shows selections as having a length of one
-        self.selections.iter().map(Selection::bounds)
-    }
-
     fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
         for selection in self.selections.iter_mut() {
-            if let Ok(new_position) = buffer.insert_char_at(ch, selection.cursor()) {
+            if let Ok(new_position) = buffer.insert_char_at(ch, selection.start()) {
                 *selection = selection.with_position(new_position);
             }
         }
@@ -86,7 +81,12 @@ impl TextEditor {
         }
     }
 
-    fn move_selection_horizontally(&mut self, column_offset: i32, buffer: &Buffer) {
+    fn move_cursor_horizontally(
+        &mut self,
+        column_offset: i32,
+        buffer: &Buffer,
+        selection_anchored: bool,
+    ) {
         for selection in self.selections.iter_mut() {
             let new_position = if let Some(moved_position) =
                 buffer.moved_position_horizontally(selection.cursor(), column_offset)
@@ -99,16 +99,29 @@ impl TextEditor {
                     buffer.end_of_content_position()
                 }
             };
-            *selection = selection.with_position(new_position);
+            *selection = if selection_anchored {
+                selection.with_cursor(new_position)
+            } else {
+                selection.with_position(new_position)
+            }
         }
     }
 
-    fn move_selection_vertically(&mut self, line_offset: i32, buffer: &Buffer) {
+    fn move_cursor_vertically(
+        &mut self,
+        line_offset: i32,
+        buffer: &Buffer,
+        selection_anchored: bool,
+    ) {
         for selection in self.selections.iter_mut() {
             if let Some(moved_position) =
                 buffer.moved_position_vertically(selection.cursor(), line_offset)
             {
-                *selection = selection.with_position(moved_position);
+                *selection = if selection_anchored {
+                    selection.with_cursor(moved_position)
+                } else {
+                    selection.with_position(moved_position)
+                }
             }
         }
     }
@@ -140,16 +153,108 @@ impl TextEditor {
         self.viewport_top_left_position = new_viewport_top_left_position;
     }
 
+    fn selections(&self) -> impl Iterator<Item = Selection> + '_ {
+        self.selections.iter().copied()
+    }
+
+    fn selections_split_by_lines<'a>(
+        &'a self,
+        buffer: &'a Buffer,
+    ) -> impl Iterator<Item = (Selection, impl Iterator<Item = Selection> + 'a)> + 'a {
+        self.selections().map(move |s| {
+            let anchor = s.anchor();
+            let cursor = s.cursor();
+            (
+                s,
+                s.line_span().map(move |line_index| {
+                    let line = buffer
+                        .line(line_index)
+                        .expect("selection spans an invalid line");
+                    let line_anchor;
+                    let line_cursor;
+                    if line_index == anchor.line_index {
+                        line_anchor = anchor;
+                    } else {
+                        line_anchor = Position::new(line_index, 0);
+                    }
+                    if line_index == cursor.line_index {
+                        line_cursor = cursor;
+                    } else {
+                        line_cursor = Position::new(line_index, line.len() as u32);
+                    }
+                    Selection::new()
+                        .with_position(line_anchor)
+                        .with_cursor(line_cursor)
+                }),
+            )
+        })
+    }
+
+    fn compute_selection_spans(&self, spans: &mut Vec<Span>, buffer: &Buffer) {
+        let selection_color = if self.active_mode_name == TextEditMode::NAME {
+            Some(Color::rgb(150, 32, 96))
+        } else {
+            Some(Color::rgb(18, 72, 139))
+        };
+
+        for (selection, selection_split_by_line) in self.selections_split_by_lines(buffer) {
+            let cursor_color = if self.active_mode_name == TextEditMode::NAME {
+                Some(Color::RED)
+            } else {
+                Some(Color::WHITE)
+            };
+
+            let cursor_from_relative_to_viewport =
+                selection.cursor() - self.viewport_top_left_position;
+            let cursor_to_relative_to_viewport =
+                selection.cursor() - self.viewport_top_left_position;
+
+            spans.push(Span {
+                from: cursor_from_relative_to_viewport,
+                to: cursor_to_relative_to_viewport,
+                style: Style {
+                    foreground_color: cursor_color,
+                    background_color: None,
+                    invert: true,
+                },
+                importance: 255,
+            });
+
+            for split in selection_split_by_line {
+                let from_relative_to_viewport = split.start() - self.viewport_top_left_position;
+                let to_relative_to_viewport = split.end() - self.viewport_top_left_position;
+
+                spans.push(Span {
+                    from: from_relative_to_viewport,
+                    to: to_relative_to_viewport,
+                    style: Style {
+                        foreground_color: Some(Color::rgb(200, 200, 200)),
+                        background_color: selection_color,
+                        invert: false,
+                    },
+                    importance: 254,
+                });
+            }
+        }
+    }
+
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
         match command {
             Command::ChangeMode(mode_name) => self.set_mode(mode_name),
             Command::Insert(c) => self.insert_char(c, ctx.buffer),
-            Command::DeleteBeforeSelection => self.delete_before_selection(ctx.buffer),
             Command::DeleteSelection => self.delete_selection(ctx.buffer),
-            Command::MoveSelectionUp => self.move_selection_vertically(-1, ctx.buffer),
-            Command::MoveSelectionDown => self.move_selection_vertically(1, ctx.buffer),
-            Command::MoveSelectionLeft => self.move_selection_horizontally(-1, ctx.buffer),
-            Command::MoveSelectionRight => self.move_selection_horizontally(1, ctx.buffer),
+            Command::DeleteBeforeSelection => self.delete_before_selection(ctx.buffer),
+
+            // Wow
+            Command::MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, false),
+            Command::MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, false),
+            Command::MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, false),
+            Command::MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, false),
+            //
+            Command::DragCursorUp => self.move_cursor_vertically(-1, ctx.buffer, true),
+            Command::DragCursorDown => self.move_cursor_vertically(1, ctx.buffer, true),
+            Command::DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
+            Command::DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
@@ -217,25 +322,7 @@ impl Panel for TextEditor {
         }
 
         // Selection spans
-        let selection_color = if self.active_mode_name == TextEditMode::NAME {
-            Some(Color::RED)
-        } else {
-            None
-        };
-        for selection in self.selections() {
-            let from_relative_to_viewport = selection.from - self.viewport_top_left_position;
-            let to_relative_to_viewport = selection.to - self.viewport_top_left_position;
-            panel_spans.push(Span {
-                from: from_relative_to_viewport,
-                to: to_relative_to_viewport,
-                style: Style {
-                    foreground_color: selection_color,
-                    background_color: None,
-                    invert: true,
-                },
-                importance: !0,
-            });
-        }
+        self.compute_selection_spans(&mut panel_spans, &ctx.buffer);
 
         // Wooowie done
         UiPanel {

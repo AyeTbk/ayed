@@ -66,7 +66,17 @@ impl Tui {
     }
 
     fn render(&mut self) {
+        fn cleanup_span_style(screen: &mut impl Write) {
+            write!(
+                screen,
+                "{}{}",
+                crossterm::style::ResetColor,
+                crossterm::style::Attribute::Reset
+            )
+            .unwrap();
+        }
         fn prepare_span_style(span: &Span, screen: &mut impl Write) {
+            cleanup_span_style(screen);
             if let Some(foreground_color) = span.style.foreground_color {
                 let fg = convert_color_to_crossterm(foreground_color);
                 screen.execute(SetForegroundColor(fg)).unwrap();
@@ -80,23 +90,17 @@ impl Tui {
             }
         }
 
-        fn cleanup_span_style(screen: &mut impl Write) {
-            write!(
-                screen,
-                "{}{}",
-                crossterm::style::ResetColor,
-                crossterm::style::Attribute::Reset
-            )
-            .unwrap();
-        }
-
         self.update_viewport_size_if_needed();
 
         let ui_state = self.core.ui_state();
 
         //write!(self.screen, "{}", termion::clear::All).unwrap(); // This makes the display blink sometimes
 
-        for panel in ui_state.panels {
+        for mut panel in ui_state.panels {
+            panel.normalize_spans();
+
+            todo!("fix the bug where the end of a line in a selection looks like 2 chars when it's only one, i think it's only a display problem");
+
             let start_y = panel.position.1;
             let after_end_y = start_y + panel.size.1;
             let start_x = panel.position.0;
@@ -112,14 +116,6 @@ impl Tui {
                 let panel_line_index = y - panel.position.1;
                 let mut char_str = String::new();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
-                    if panel
-                        .spans_on_line(panel_line_index)
-                        .filter(|span| span.to.column_index == x)
-                        .next()
-                        .is_some()
-                    {
-                        cleanup_span_style(&mut self.screen);
-                    }
                     if let Some(span) = panel
                         .spans_on_line(panel_line_index)
                         .filter(|span| span.from.column_index == x)
@@ -131,6 +127,15 @@ impl Tui {
                     char_str.clear();
                     char_str.push(ch);
                     self.screen.write(char_str.as_bytes()).unwrap();
+
+                    if panel
+                        .spans_on_line(panel_line_index)
+                        .filter(|span| span.to.column_index == x)
+                        .next()
+                        .is_some()
+                    {
+                        cleanup_span_style(&mut self.screen);
+                    }
                 }
             }
         }

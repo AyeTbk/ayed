@@ -240,7 +240,7 @@ impl Buffer {
         Some(())
     }
 
-    fn line(&self, line_index: u32) -> Option<&CharString> {
+    pub fn line(&self, line_index: u32) -> Option<&CharString> {
         self.lines.get(line_index as usize)
     }
 

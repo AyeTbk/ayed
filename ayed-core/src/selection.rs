@@ -1,8 +1,4 @@
-#[derive(Debug, Clone, Copy)]
-pub struct SelectionBounds {
-    pub from: Position,
-    pub to: Position,
-}
+use std::ops::RangeInclusive;
 
 pub struct Selections {
     primary_selection: Selection,
@@ -55,10 +51,24 @@ impl Selection {
         }
     }
 
+    pub fn with_cursor(&self, cursor: Position) -> Self {
+        Self {
+            cursor,
+            anchor: self.anchor,
+        }
+    }
+
     pub fn shrunk(&self) -> Self {
         let mut this = *self;
         this.anchor = this.cursor;
         this
+    }
+
+    pub fn flipped(&self) -> Selection {
+        Self {
+            cursor: self.anchor,
+            anchor: self.cursor,
+        }
     }
 
     pub fn cursor(&self) -> Position {
@@ -77,9 +87,14 @@ impl Selection {
         self.start_end().1
     }
 
-    pub fn start_end(&self) -> (Position, Position) {
+    pub fn line_span(&self) -> RangeInclusive<u32> {
+        self.start().line_index..=self.end().line_index
+    }
+
+    fn start_end(&self) -> (Position, Position) {
         let from;
         let to;
+        // TODO rewrite using < and > of position
         if self.cursor.line_index != self.anchor.line_index {
             if self.cursor.line_index < self.anchor.line_index {
                 from = self.cursor;
@@ -99,15 +114,9 @@ impl Selection {
         }
         (from, to)
     }
-
-    pub fn bounds(&self) -> SelectionBounds {
-        let (from, mut to) = self.start_end();
-        to.column_index += 1;
-        SelectionBounds { from, to }
-    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub line_index: u32,
     pub column_index: u32,
@@ -134,6 +143,20 @@ impl Position {
             line_index,
             column_index,
         }
+    }
+}
+
+impl std::cmp::PartialOrd for Position {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.line_index.cmp(&other.line_index) {
+            std::cmp::Ordering::Equal => Some(self.column_index.cmp(&other.column_index)),
+            o => Some(o),
+        }
+    }
+}
+impl std::cmp::Ord for Position {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
