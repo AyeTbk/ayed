@@ -167,8 +167,8 @@ impl TextEditor {
             (
                 s,
                 s.line_span().map(move |line_index| {
-                    let line = buffer
-                        .line(line_index)
+                    let line_len = buffer
+                        .line_len(line_index)
                         .expect("selection spans an invalid line");
                     let line_anchor;
                     let line_cursor;
@@ -180,7 +180,7 @@ impl TextEditor {
                     if line_index == cursor.line_index {
                         line_cursor = cursor;
                     } else {
-                        line_cursor = Position::new(line_index, line.len() as u32);
+                        line_cursor = Position::new(line_index, line_len as u32);
                     }
                     Selection::new()
                         .with_position(line_anchor)

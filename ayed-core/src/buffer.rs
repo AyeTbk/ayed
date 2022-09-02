@@ -244,6 +244,12 @@ impl Buffer {
         self.lines.get(line_index as usize)
     }
 
+    pub fn line_len(&self, line_index: u32) -> Option<usize> {
+        self.lines
+            .get(line_index as usize)
+            .map(|chrstr| chrstr.len() - 1) // Minus one, because of invariant 2.
+    }
+
     fn set_line(&mut self, line_index: u32, line: CharString) {
         self.lines[line_index as usize] = line;
     }

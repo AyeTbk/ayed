@@ -99,8 +99,6 @@ impl Tui {
         for mut panel in ui_state.panels {
             panel.normalize_spans();
 
-            todo!("fix the bug where the end of a line in a selection looks like 2 chars when it's only one, i think it's only a display problem");
-
             let start_y = panel.position.1;
             let after_end_y = start_y + panel.size.1;
             let start_x = panel.position.0;
