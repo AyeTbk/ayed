@@ -81,8 +81,19 @@ impl Panel for LineEdit {
                 background_color: Some(Color::rgb(96, 32, 200)),
                 invert: false,
             },
+            importance: 1,
+        });
+        panel.spans.push(Span {
+            from: Position::ZERO,
+            to: Position::ZERO.with_moved_indices(0, ctx.viewport_size.0 as _),
+            style: Style {
+                foreground_color: None,
+                background_color: Some(Color::rgb(40, 30, 50)),
+                invert: false,
+            },
             importance: 0,
         });
+
         panel
     }
 }
