@@ -216,7 +216,7 @@ impl Buffer {
             } else if is_start_line {
                 len += line[start_column_index..].len() as u32;
             } else if is_end_line {
-                len += line[..end_column_index].len() as u32;
+                len += line[..=end_column_index].len() as u32;
             } else {
                 len += line.len() as u32;
             }

@@ -172,16 +172,25 @@ impl TextEditor {
                         .expect("selection spans an invalid line");
                     let line_anchor;
                     let line_cursor;
+
+                    let (cursor_default_column_index, anchor_default_column_index) =
+                        if cursor >= anchor {
+                            (0, line_len as u32)
+                        } else {
+                            (line_len as u32, 0)
+                        };
+
                     if line_index == anchor.line_index {
                         line_anchor = anchor;
                     } else {
-                        line_anchor = Position::new(line_index, 0);
+                        line_anchor = Position::new(line_index, cursor_default_column_index);
                     }
                     if line_index == cursor.line_index {
                         line_cursor = cursor;
                     } else {
-                        line_cursor = Position::new(line_index, line_len as u32);
+                        line_cursor = Position::new(line_index, anchor_default_column_index);
                     }
+
                     Selection::new()
                         .with_position(line_anchor)
                         .with_cursor(line_cursor)
@@ -220,9 +229,36 @@ impl TextEditor {
                 importance: 255,
             });
 
-            for split in selection_split_by_line {
-                let from_relative_to_viewport = split.start() - self.viewport_top_left_position;
-                let to_relative_to_viewport = split.end() - self.viewport_top_left_position;
+            for line_split_selection in selection_split_by_line {
+                if self.viewport_top_left_position.line_index
+                    > line_split_selection.start().line_index
+                {
+                    // If line is before the viewport, ignore it
+                    continue;
+                }
+
+                let cursor = line_split_selection.cursor();
+                let anchor = line_split_selection.anchor();
+                let viewport_adjusted_selection = Selection::new()
+                    .with_position(
+                        if self.viewport_top_left_position.column_index > anchor.column_index {
+                            anchor.with_column_index(self.viewport_top_left_position.column_index)
+                        } else {
+                            anchor
+                        },
+                    )
+                    .with_cursor(
+                        if self.viewport_top_left_position.column_index > cursor.column_index {
+                            cursor.with_column_index(self.viewport_top_left_position.column_index)
+                        } else {
+                            cursor
+                        },
+                    );
+
+                let from_relative_to_viewport =
+                    viewport_adjusted_selection.start() - self.viewport_top_left_position;
+                let to_relative_to_viewport =
+                    viewport_adjusted_selection.end() - self.viewport_top_left_position;
 
                 spans.push(Span {
                     from: from_relative_to_viewport,

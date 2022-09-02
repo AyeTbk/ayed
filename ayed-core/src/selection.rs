@@ -60,11 +60,12 @@ impl Selection {
 
     pub fn shrunk(&self) -> Self {
         let mut this = *self;
+        this.cursor = self.start();
         this.anchor = this.cursor;
         this
     }
 
-    pub fn flipped(&self) -> Selection {
+    pub fn flipped(&self) -> Self {
         Self {
             cursor: self.anchor,
             anchor: self.cursor,
@@ -141,6 +142,13 @@ impl Position {
         let column_index = saturating_add_signed(self.column_index, column_offset);
         Self {
             line_index,
+            column_index,
+        }
+    }
+
+    pub fn with_column_index(&self, column_index: u32) -> Self {
+        Self {
+            line_index: self.line_index,
             column_index,
         }
     }

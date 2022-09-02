@@ -23,6 +23,8 @@ impl InputMap for TextCommandMode {
         im.register("o", [MoveCursorRight, ChangeMode(TextEditMode::NAME)])
             .unwrap(); // TODO change
 
+        im.register("d", DeleteSelection).unwrap();
+
         im.register("<up>", MoveCursorUp).unwrap();
         im.register("<down>", MoveCursorDown).unwrap();
         im.register("<left>", MoveCursorLeft).unwrap();
