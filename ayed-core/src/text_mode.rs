@@ -18,17 +18,43 @@ impl InputMap for TextCommandMode {
         let mut im = InputMapper::default();
         im.register("<tab>", ChangeMode(TextEditMode::NAME))
             .unwrap();
-        im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
 
-        im.register("o", [MoveCursorRight, ChangeMode(TextEditMode::NAME)])
-            .unwrap(); // TODO change
+        im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
+        im.register("a", [DragCursorRight, ChangeMode(TextEditMode::NAME)])
+            .unwrap();
+
+        im.register(
+            // Insert line above and enter edit mode
+            "o",
+            [
+                MoveCursorToLineEnd,
+                Insert('\n'),
+                ChangeMode(TextEditMode::NAME),
+            ],
+        )
+        .unwrap();
+        im.register(
+            // Insert line above and enter edit mode
+            "O",
+            [
+                MoveCursorToLineStart,
+                Insert('\n'),
+                MoveCursorUp,
+                ChangeMode(TextEditMode::NAME),
+            ],
+        )
+        .unwrap();
 
         im.register("d", DeleteSelection).unwrap();
 
         im.register("<up>", MoveCursorUp).unwrap();
         im.register("<down>", MoveCursorDown).unwrap();
         im.register("<left>", MoveCursorLeft).unwrap();
+        im.register("<c-left>", MoveCursorToLineStart).unwrap();
+        im.register("<home>", MoveCursorToLineStart).unwrap();
         im.register("<right>", MoveCursorRight).unwrap();
+        im.register("<c-right>", MoveCursorToLineEnd).unwrap();
+        im.register("<end>", MoveCursorToLineEnd).unwrap();
 
         im.register("<s-up>", DragCursorUp).unwrap();
         im.register("<s-down>", DragCursorDown).unwrap();
@@ -62,7 +88,9 @@ impl InputMap for TextEditMode {
         im.register("<up>", MoveCursorUp).unwrap();
         im.register("<down>", MoveCursorDown).unwrap();
         im.register("<left>", MoveCursorLeft).unwrap();
+        im.register("<home>", MoveCursorToLineStart).unwrap();
         im.register("<right>", MoveCursorRight).unwrap();
+        im.register("<end>", MoveCursorToLineEnd).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }

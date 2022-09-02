@@ -53,6 +53,8 @@ impl Input {
                 "ret" => Key::Return,
                 "backspace" => Key::Backspace,
                 "del" => Key::Delete,
+                "home" => Key::Home,
+                "end" => Key::End,
                 "up" => Key::Up,
                 "down" => Key::Down,
                 "left" => Key::Left,
@@ -166,14 +168,26 @@ pub struct Modifiers {
 }
 
 impl Modifiers {
+    pub fn ctrl(&self) -> bool {
+        self.ctrl
+    }
+
     pub fn with_ctrl(mut self) -> Self {
         self.ctrl = true;
         self
     }
 
+    pub fn shift(&self) -> bool {
+        self.shift
+    }
+
     pub fn with_shift(mut self) -> Self {
         self.shift = true;
         self
+    }
+
+    pub fn alt(&self) -> bool {
+        self.alt
     }
 
     pub fn with_alt(mut self) -> Self {

@@ -126,6 +126,22 @@ impl TextEditor {
         }
     }
 
+    fn move_cursor_to_line_start(&mut self) {
+        for selection in self.selections.iter_mut() {
+            let new_cursor = selection.cursor().with_column_index(0);
+            *selection = selection.with_position(new_cursor);
+        }
+    }
+
+    fn move_cursor_to_line_end(&mut self, buffer: &Buffer) {
+        for selection in self.selections.iter_mut() {
+            let line_index = selection.cursor().line_index;
+            let line_len = buffer.line_len(line_index).unwrap();
+            let new_cursor = selection.cursor().with_column_index(line_len as u32);
+            *selection = selection.with_position(new_cursor);
+        }
+    }
+
     fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
         let mut new_viewport_top_left_position = self.viewport_top_left_position;
         // Horizontal
@@ -291,6 +307,9 @@ impl TextEditor {
             Command::DragCursorDown => self.move_cursor_vertically(1, ctx.buffer, true),
             Command::DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
             Command::DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
+            //
+            Command::MoveCursorToLineStart => self.move_cursor_to_line_start(),
+            Command::MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);

@@ -187,6 +187,8 @@ fn convert_key_code_to_ayed(code: KeyCode) -> ayed_core::input::Key {
     match code {
         KeyCode::Backspace => AyedKey::Backspace,
         KeyCode::Delete => AyedKey::Delete,
+        KeyCode::Home => AyedKey::Home,
+        KeyCode::End => AyedKey::End,
         KeyCode::Up => AyedKey::Up,
         KeyCode::Down => AyedKey::Down,
         KeyCode::Left => AyedKey::Left,

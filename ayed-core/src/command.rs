@@ -17,4 +17,7 @@ pub enum Command {
     DragCursorDown,
     DragCursorLeft,
     DragCursorRight,
+
+    MoveCursorToLineStart,
+    MoveCursorToLineEnd,
 }
