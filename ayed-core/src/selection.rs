@@ -58,6 +58,29 @@ impl Selection {
         }
     }
 
+    pub fn with_anchor(&self, anchor: Position) -> Self {
+        Self {
+            cursor: self.cursor,
+            anchor,
+        }
+    }
+
+    pub fn with_start(&self, start: Position) -> Self {
+        if self.is_forward() {
+            self.with_anchor(start)
+        } else {
+            self.with_cursor(start)
+        }
+    }
+
+    pub fn with_end(&self, end: Position) -> Self {
+        if self.is_forward() {
+            self.with_cursor(end)
+        } else {
+            self.with_anchor(end)
+        }
+    }
+
     pub fn shrunk(&self) -> Self {
         let mut this = *self;
         this.cursor = self.start();
@@ -69,6 +92,14 @@ impl Selection {
         Self {
             cursor: self.anchor,
             anchor: self.cursor,
+        }
+    }
+
+    pub fn flipped_forward(&self) -> Self {
+        if !self.is_forward() {
+            self.flipped()
+        } else {
+            *self
         }
     }
 
@@ -86,6 +117,10 @@ impl Selection {
 
     pub fn end(&self) -> Position {
         self.start_end().1
+    }
+
+    pub fn is_forward(&self) -> bool {
+        self.anchor < self.cursor
     }
 
     pub fn line_span(&self) -> RangeInclusive<u32> {
@@ -174,6 +209,26 @@ impl std::ops::Sub for Position {
         Self {
             column_index: self.column_index - rhs.column_index,
             line_index: self.line_index - rhs.line_index,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Offset {
+    pub line_offset: i32,
+    pub column_offset: i32,
+}
+
+impl Offset {
+    pub const ZERO: Self = Self {
+        line_offset: 0,
+        column_offset: 0,
+    };
+
+    pub fn new(line_offset: i32, column_offset: i32) -> Self {
+        Self {
+            line_offset,
+            column_offset,
         }
     }
 }

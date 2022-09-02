@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::selection::{Position, Selection};
+use crate::selection::{Offset, Position, Selection};
 
 pub mod char_string;
 use self::char_string::CharString;
@@ -60,28 +60,26 @@ impl Buffer {
         }
     }
 
-    pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<Position, ()> {
+    pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<Offset, ()> {
         if let Some(mut line) = self.take_line(position.line_index) {
             if (position.column_index as usize) > line.len() {
                 return Err(());
             }
 
-            // FIXME Im not convinced the new position of the cursor is something the buffer should
-            // even care about. It probably should just be handled in the TextEditor.
-            let mut new_position = position;
-            new_position.column_index += 1;
+            let mut offset = Offset::ZERO;
+            offset.column_offset += 1;
 
             if ch == '\n' {
-                new_position.line_index += 1;
-                new_position.column_index = 0;
+                offset.line_offset += 1;
+                offset.column_offset = 0;
                 let new_line_content = line.drain(position.column_index as usize..).collect();
-                self.insert_line(new_position.line_index, new_line_content);
+                self.insert_line(position.line_index + 1, new_line_content);
             }
             line.insert(position.column_index as usize, ch);
 
             self.set_line(position.line_index, line);
 
-            Ok(new_position)
+            Ok(offset)
         } else {
             Err(())
         }

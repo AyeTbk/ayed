@@ -20,4 +20,8 @@ pub enum Command {
 
     MoveCursorToLineStart,
     MoveCursorToLineEnd,
+
+    FlipSelection,
+    FlipSelectionForward,
+    FlipSelectionBackward,
 }

@@ -19,9 +19,17 @@ impl InputMap for TextCommandMode {
         im.register("<tab>", ChangeMode(TextEditMode::NAME))
             .unwrap();
 
-        im.register("i", ChangeMode(TextEditMode::NAME)).unwrap();
-        im.register("a", [DragCursorRight, ChangeMode(TextEditMode::NAME)])
+        im.register("i", [FlipSelectionBackward, ChangeMode(TextEditMode::NAME)])
             .unwrap();
+        im.register(
+            "a",
+            [
+                FlipSelectionForward,
+                DragCursorRight,
+                ChangeMode(TextEditMode::NAME),
+            ],
+        )
+        .unwrap();
 
         im.register(
             // Insert line above and enter edit mode
@@ -60,6 +68,8 @@ impl InputMap for TextCommandMode {
         im.register("<s-down>", DragCursorDown).unwrap();
         im.register("<s-left>", DragCursorLeft).unwrap();
         im.register("<s-right>", DragCursorRight).unwrap();
+
+        im.register("<a-;>", FlipSelection).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }

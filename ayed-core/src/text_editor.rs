@@ -6,7 +6,7 @@ use crate::{
     input_mapper::InputMap,
     mode_line::ModeLineInfo,
     panel::Panel,
-    selection::{Position, Selection, Selections},
+    selection::{Offset, Position, Selection, Selections},
     text_mode::{TextCommandMode, TextEditMode},
     ui_state::{Color, Span, Style, UiPanel},
 };
@@ -51,10 +51,74 @@ impl TextEditor {
     }
 
     fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
-        for selection in self.selections.iter_mut() {
-            if let Ok(new_position) = buffer.insert_char_at(ch, selection.start()) {
-                *selection = selection.with_position(new_position);
+        let mut insertions = Vec::new();
+        for selection in self.selections.iter() {
+            let insert_at = selection.cursor();
+            if let Ok(offset) = buffer.insert_char_at(ch, insert_at) {
+                insertions.push((insert_at, offset));
+            } else {
+                panic!("tried to insert char outside of buffer")
             }
+        }
+        for (inserted_at, offset) in insertions {
+            self.move_selection_because_of_insert_char(inserted_at, offset);
+        }
+    }
+
+    fn move_selection_because_of_insert_char(&mut self, inserted_at: Position, offset: Offset) {
+        for selection in self.selections.iter_mut() {
+            let inserted_before_selection = inserted_at <= selection.start();
+            let inserted_after_selection = inserted_at > selection.end();
+            let inserted_within_selection = !inserted_before_selection && !inserted_after_selection;
+
+            let mut start = selection.start();
+            let mut end = selection.end();
+
+            if inserted_after_selection {
+                continue;
+            } else if inserted_before_selection {
+                // check if same line to move column index
+                if inserted_at.line_index == start.line_index {
+                    if offset.line_offset != 0 {
+                        start.column_index = start.column_index - selection.start().column_index;
+                    } else {
+                        start.column_index =
+                            (start.column_index as i64 + offset.column_offset as i64) as u32;
+                    }
+                }
+                if inserted_at.line_index == end.line_index {
+                    if offset.line_offset != 0 {
+                        end.column_index = end.column_index - selection.start().column_index
+                    } else {
+                        end.column_index =
+                            (end.column_index as i64 + offset.column_offset as i64) as u32;
+                    }
+                }
+
+                // need to ajust line index
+                start.line_index = (start.line_index as i64 + offset.line_offset as i64) as u32;
+                end.line_index = (end.line_index as i64 + offset.line_offset as i64) as u32;
+            } else if inserted_within_selection {
+                // check if same line as selection.end() to move column index
+                if inserted_at.line_index == end.line_index {
+                    if offset.line_offset != 0 {
+                        end.column_index = 0
+                    } else {
+                        end.column_index =
+                            (end.column_index as i64 + offset.column_offset as i64) as u32;
+                    }
+                }
+                // need to ajust line index
+                end.line_index = (end.line_index as i64 + offset.line_offset as i64) as u32;
+            }
+            let mut new_selection = Selection::new()
+                .with_anchor(start)
+                .with_cursor(end)
+                .flipped_forward();
+            if !selection.is_forward() {
+                new_selection = new_selection.flipped();
+            }
+            *selection = new_selection;
         }
     }
 
@@ -208,7 +272,7 @@ impl TextEditor {
                     }
 
                     Selection::new()
-                        .with_position(line_anchor)
+                        .with_anchor(line_anchor)
                         .with_cursor(line_cursor)
                 }),
             )
@@ -256,7 +320,7 @@ impl TextEditor {
                 let cursor = line_split_selection.cursor();
                 let anchor = line_split_selection.anchor();
                 let viewport_adjusted_selection = Selection::new()
-                    .with_position(
+                    .with_anchor(
                         if self.viewport_top_left_position.column_index > anchor.column_index {
                             anchor.with_column_index(self.viewport_top_left_position.column_index)
                         } else {
@@ -290,6 +354,12 @@ impl TextEditor {
         }
     }
 
+    fn for_each_selection(&mut self, func: impl Fn(Selection) -> Selection) {
+        for selection in self.selections.iter_mut() {
+            *selection = func(*selection);
+        }
+    }
+
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
         match command {
             Command::ChangeMode(mode_name) => self.set_mode(mode_name),
@@ -310,6 +380,12 @@ impl TextEditor {
             //
             Command::MoveCursorToLineStart => self.move_cursor_to_line_start(),
             Command::MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer),
+            //
+            Command::FlipSelection => self.for_each_selection(|sel| sel.flipped()),
+            Command::FlipSelectionForward => self.for_each_selection(|sel| sel.flipped_forward()),
+            Command::FlipSelectionBackward => {
+                self.for_each_selection(|sel| sel.flipped_forward().flipped())
+            }
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
