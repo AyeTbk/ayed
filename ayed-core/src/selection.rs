@@ -1,5 +1,6 @@
 use std::ops::RangeInclusive;
 
+#[derive(Debug, Clone)]
 pub struct Selections {
     primary_selection: Selection,
     extra_selections: Vec<Selection>,
@@ -15,6 +16,34 @@ impl Selections {
 
     pub fn primary(&self) -> Selection {
         self.primary_selection
+    }
+
+    pub fn merge_overlapping_selections(&self) -> Self {
+        todo!()
+    }
+
+    pub fn count(&self) -> usize {
+        1 + self.extra_selections.len()
+    }
+
+    pub fn get(&self, index: usize) -> Option<Selection> {
+        if index == 0 {
+            Some(self.primary_selection)
+        } else {
+            self.extra_selections.get(index - 1).copied()
+        }
+    }
+
+    pub fn set(&self, index: usize, selection: Selection) -> Selections {
+        let mut selections = self.clone();
+
+        if index == 0 {
+            selections.primary_selection = selection;
+        } else {
+            selections.extra_selections[index - 1] = selection;
+        }
+
+        selections
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {

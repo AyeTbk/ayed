@@ -12,8 +12,11 @@ use crate::{
 };
 
 pub struct TextEditor {
+    // TODO active mode sucks right now, make it better.
+    // TODO features Id like: execute predefined commands on mode enter / exit,
     active_mode: Box<dyn InputMap>,
-    active_mode_name: &'static str, // TODO make this better, active mode sucks right now
+    active_mode_name: &'static str,
+    active_mode_is_text_edit_append: bool,
     selections: Selections,
     viewport_top_left_position: Position,
 }
@@ -23,6 +26,7 @@ impl TextEditor {
         Self {
             active_mode: Box::new(TextCommandMode),
             active_mode_name: TextCommandMode::NAME,
+            active_mode_is_text_edit_append: false,
             selections: Selections::new(),
             viewport_top_left_position: Position::ZERO,
         }
@@ -42,6 +46,7 @@ impl TextEditor {
     }
 
     pub fn set_mode(&mut self, mode_name: &'static str) {
+        self.active_mode_is_text_edit_append = false;
         self.active_mode_name = mode_name;
         match mode_name {
             TextCommandMode::NAME => self.active_mode = Box::new(TextCommandMode),
@@ -50,22 +55,36 @@ impl TextEditor {
         }
     }
 
-    fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
-        let mut insertions = Vec::new();
-        for selection in self.selections.iter() {
-            let insert_at = selection.cursor();
-            if let Ok(offset) = buffer.insert_char_at(ch, insert_at) {
-                insertions.push((insert_at, offset));
-            } else {
-                panic!("tried to insert char outside of buffer")
+    pub fn set_mode_with_arg(&mut self, mode_name: &'static str, arg: usize) {
+        self.set_mode(mode_name);
+        match mode_name {
+            TextEditMode::NAME => {
+                self.active_mode_is_text_edit_append = arg != 0;
             }
-        }
-        for (inserted_at, offset) in insertions {
-            self.move_selection_because_of_insert_char(inserted_at, offset);
+            _ => (),
         }
     }
 
-    fn move_selection_because_of_insert_char(&mut self, inserted_at: Position, offset: Offset) {
+    fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
+        for idx in 0..self.selections.count() {
+            let selection = self
+                .selections
+                .get(idx)
+                .expect("iterating over the selections count");
+            self.insert_char_for_selection(ch, selection, buffer);
+        }
+    }
+
+    fn insert_char_for_selection(&mut self, ch: char, selection: Selection, buffer: &mut Buffer) {
+        let insert_at = selection.cursor();
+        if let Ok(offset) = buffer.insert_char_at(ch, insert_at) {
+            self.move_selections_because_of_insert_char(insert_at, offset);
+        } else {
+            panic!("tried to insert char outside of buffer")
+        }
+    }
+
+    fn move_selections_because_of_insert_char(&mut self, inserted_at: Position, offset: Offset) {
         for selection in self.selections.iter_mut() {
             let inserted_before_selection = inserted_at <= selection.start();
             let inserted_after_selection = inserted_at > selection.end();
@@ -362,7 +381,18 @@ impl TextEditor {
 
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
         match command {
-            Command::ChangeMode(mode_name) => self.set_mode(mode_name),
+            Command::ChangeMode(mode_name) => {
+                if self.active_mode_is_text_edit_append {
+                    self.execute_command_inner(Command::DragCursorLeft, ctx);
+                }
+                self.set_mode(mode_name);
+            }
+            Command::ChangeModeArg(mode_name, arg) => {
+                if self.active_mode_is_text_edit_append {
+                    self.execute_command_inner(Command::DragCursorLeft, ctx);
+                }
+                self.set_mode_with_arg(mode_name, arg);
+            }
             Command::Insert(c) => self.insert_char(c, ctx.buffer),
             Command::DeleteSelection => self.delete_selection(ctx.buffer),
             Command::DeleteBeforeSelection => self.delete_before_selection(ctx.buffer),

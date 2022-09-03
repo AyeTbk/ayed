@@ -26,7 +26,7 @@ impl InputMap for TextCommandMode {
             [
                 FlipSelectionForward,
                 DragCursorRight,
-                ChangeMode(TextEditMode::NAME),
+                ChangeModeArg(TextEditMode::NAME, 1),
             ],
         )
         .unwrap();

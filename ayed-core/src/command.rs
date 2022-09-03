@@ -2,11 +2,12 @@
 pub enum Command {
     // Ayed commands
     ChangeMode(&'static str),
+    ChangeModeArg(&'static str, usize),
 
     // Text edit commands
     Insert(char),
     DeleteSelection,
-    DeleteBeforeSelection, // TODO change to DeleteBeforeCursor
+    DeleteBeforeSelection,
 
     // Selection manipulation commands
     MoveCursorUp,
