@@ -18,7 +18,7 @@ impl Selections {
         self.primary_selection
     }
 
-    pub fn merge_overlapping_selections(&self) -> Self {
+    pub fn _merge_overlapping_selections(&self) -> Self {
         todo!()
     }
 
@@ -34,16 +34,12 @@ impl Selections {
         }
     }
 
-    pub fn set(&self, index: usize, selection: Selection) -> Selections {
-        let mut selections = self.clone();
-
+    pub fn set(&mut self, index: usize, selection: Selection) {
         if index == 0 {
-            selections.primary_selection = selection;
+            self.primary_selection = selection;
         } else {
-            selections.extra_selections[index - 1] = selection;
+            self.extra_selections[index - 1] = selection;
         }
-
-        selections
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {
@@ -110,7 +106,13 @@ impl Selection {
         }
     }
 
-    pub fn shrunk(&self) -> Self {
+    pub fn shrunk_to_cursor(&self) -> Self {
+        let mut this = *self;
+        this.anchor = this.cursor;
+        this
+    }
+
+    pub fn shrunk_to_start(&self) -> Self {
         let mut this = *self;
         this.cursor = self.start();
         this.anchor = this.cursor;
@@ -259,6 +261,21 @@ impl Offset {
             line_offset,
             column_offset,
         }
+    }
+}
+
+impl std::ops::Add for Offset {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            column_offset: self.column_offset + rhs.column_offset,
+            line_offset: self.line_offset + rhs.line_offset,
+        }
+    }
+}
+impl std::ops::AddAssign for Offset {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
     }
 }
 

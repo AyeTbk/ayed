@@ -65,47 +65,93 @@ impl TextEditor {
         }
     }
 
-    fn insert_char(&mut self, ch: char, buffer: &mut Buffer) {
-        for idx in 0..self.selections.count() {
-            let selection = self
-                .selections
-                .get(idx)
-                .expect("iterating over the selections count");
-            self.insert_char_for_selection(ch, selection, buffer);
-        }
+    fn insert_char_for_each_selection(&mut self, ch: char, buffer: &mut Buffer) {
+        self.for_each_selection(|this, _, selection| this.insert_char(ch, selection, buffer));
     }
 
-    fn insert_char_for_selection(&mut self, ch: char, selection: Selection, buffer: &mut Buffer) {
+    fn insert_char(&mut self, ch: char, selection: Selection, buffer: &mut Buffer) {
         let insert_at = selection.cursor();
         if let Ok(offset) = buffer.insert_char_at(ch, insert_at) {
-            self.move_selections_because_of_insert_char(insert_at, offset);
+            self.move_selections_because_of_insert_char_or_delete(insert_at, offset, false);
         } else {
             panic!("tried to insert char outside of buffer")
         }
     }
 
-    fn move_selections_because_of_insert_char(&mut self, inserted_at: Position, offset: Offset) {
+    fn delete_selection_for_each_selection(&mut self, buffer: &mut Buffer) {
+        self.for_each_selection(|this, idx, selection| {
+            this.delete_selection(idx, selection, buffer)
+        });
+    }
+
+    fn delete_selection(
+        &mut self,
+        selection_index: usize,
+        selection: Selection,
+        buffer: &mut Buffer,
+    ) {
+        buffer.delete_selection(selection).unwrap();
+        self.selections
+            .set(selection_index, selection.shrunk_to_start());
+    }
+
+    fn delete_cursor_for_each_selection(&mut self, buffer: &mut Buffer) {
+        self.for_each_selection(|this, _, selection| this.delete_cursor(selection, buffer));
+    }
+
+    fn delete_cursor(&mut self, selection: Selection, buffer: &mut Buffer) {
+        let offset = buffer
+            .delete_selection(selection.shrunk_to_cursor())
+            .unwrap();
+        self.move_selections_because_of_insert_char_or_delete(selection.cursor(), offset, true);
+    }
+
+    fn delete_before_cursor_for_each_selection(&mut self, buffer: &mut Buffer) {
+        self.for_each_selection(|this, _, selection| {
+            if selection.cursor() == Position::ZERO {
+                return;
+            }
+            if let Some(before) = buffer.moved_position_horizontally(selection.cursor(), -1) {
+                this.delete_cursor(Selection::new().with_position(before), buffer);
+            }
+        });
+    }
+
+    fn move_selections_because_of_insert_char_or_delete(
+        &mut self,
+        position: Position,
+        offset: Offset,
+        is_delete: bool,
+    ) {
         for selection in self.selections.iter_mut() {
-            let inserted_before_selection = inserted_at <= selection.start();
-            let inserted_after_selection = inserted_at > selection.end();
-            let inserted_within_selection = !inserted_before_selection && !inserted_after_selection;
+            let before_selection = if is_delete {
+                position < selection.start()
+            } else {
+                position <= selection.start()
+            };
+            let after_selection = if is_delete {
+                position >= selection.end()
+            } else {
+                position > selection.end()
+            };
+            let within_selection = !before_selection && !after_selection;
 
             let mut start = selection.start();
             let mut end = selection.end();
 
-            if inserted_after_selection {
+            if after_selection {
                 continue;
-            } else if inserted_before_selection {
+            } else if before_selection {
                 // check if same line to move column index
-                if inserted_at.line_index == start.line_index {
+                if position.line_index == start.line_index {
                     if offset.line_offset != 0 {
-                        start.column_index = start.column_index - selection.start().column_index;
+                        start.column_index = 0;
                     } else {
                         start.column_index =
                             (start.column_index as i64 + offset.column_offset as i64) as u32;
                     }
                 }
-                if inserted_at.line_index == end.line_index {
+                if position.line_index == end.line_index {
                     if offset.line_offset != 0 {
                         end.column_index = end.column_index - selection.start().column_index
                     } else {
@@ -117,11 +163,11 @@ impl TextEditor {
                 // need to ajust line index
                 start.line_index = (start.line_index as i64 + offset.line_offset as i64) as u32;
                 end.line_index = (end.line_index as i64 + offset.line_offset as i64) as u32;
-            } else if inserted_within_selection {
+            } else if within_selection {
                 // check if same line as selection.end() to move column index
-                if inserted_at.line_index == end.line_index {
+                if position.line_index == end.line_index {
                     if offset.line_offset != 0 {
-                        end.column_index = 0
+                        end.column_index = 0;
                     } else {
                         end.column_index =
                             (end.column_index as i64 + offset.column_offset as i64) as u32;
@@ -138,29 +184,6 @@ impl TextEditor {
                 new_selection = new_selection.flipped();
             }
             *selection = new_selection;
-        }
-    }
-
-    fn delete_before_selection(&mut self, buffer: &mut Buffer) {
-        for selection in self.selections.iter_mut() {
-            if selection.start() == buffer.start_of_content_position() {
-                // Can't delete before the beginning!
-                continue;
-            }
-            let before_selection = buffer
-                .moved_position_horizontally(selection.start(), -1)
-                .expect("wow?");
-            buffer.delete_selection(Selection::new().with_position(before_selection));
-
-            let new_selection = selection.with_position(before_selection);
-            *selection = new_selection;
-        }
-    }
-
-    fn delete_selection(&mut self, buffer: &mut Buffer) {
-        for selection in self.selections.iter_mut() {
-            buffer.delete_selection(*selection);
-            *selection = selection.shrunk();
         }
     }
 
@@ -381,7 +404,17 @@ impl TextEditor {
         }
     }
 
-    fn for_each_selection(&mut self, func: impl Fn(Selection) -> Selection) {
+    fn for_each_selection(&mut self, mut func: impl FnMut(&mut Self, usize, Selection)) {
+        for idx in 0..self.selections.count() {
+            let selection = self
+                .selections
+                .get(idx)
+                .expect("iterating over the selections count");
+            func(self, idx, selection);
+        }
+    }
+
+    fn map_selections(&mut self, func: impl Fn(Selection) -> Selection) {
         for selection in self.selections.iter_mut() {
             *selection = func(*selection);
         }
@@ -401,9 +434,10 @@ impl TextEditor {
                 }
                 self.set_mode_with_arg(mode_name, arg);
             }
-            Command::Insert(c) => self.insert_char(c, ctx.buffer),
-            Command::DeleteSelection => self.delete_selection(ctx.buffer),
-            Command::DeleteBeforeSelection => self.delete_before_selection(ctx.buffer),
+            Command::Insert(ch) => self.insert_char_for_each_selection(ch, ctx.buffer),
+            Command::DeleteSelection => self.delete_selection_for_each_selection(ctx.buffer),
+            Command::DeleteCursor => self.delete_cursor_for_each_selection(ctx.buffer),
+            Command::DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(ctx.buffer),
 
             // Wow
             Command::MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, false),
@@ -422,10 +456,11 @@ impl TextEditor {
             Command::DragCursorToLineStart => self.move_cursor_to_line_start(true),
             Command::DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
             //
-            Command::FlipSelection => self.for_each_selection(|sel| sel.flipped()),
-            Command::FlipSelectionForward => self.for_each_selection(|sel| sel.flipped_forward()),
+            Command::ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
+            Command::FlipSelection => self.map_selections(|sel| sel.flipped()),
+            Command::FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
             Command::FlipSelectionBackward => {
-                self.for_each_selection(|sel| sel.flipped_forward().flipped())
+                self.map_selections(|sel| sel.flipped_forward().flipped())
             }
         }
 

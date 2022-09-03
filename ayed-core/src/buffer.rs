@@ -85,15 +85,19 @@ impl Buffer {
         }
     }
 
-    pub fn delete_selection(&mut self, selection: Selection) {
+    pub fn delete_selection(&mut self, selection: Selection) -> Result<Offset, ()> {
         let selection_length = self.selection_length(selection).unwrap();
+        let mut cumulative_offset = Offset::ZERO;
         for _ in 0..selection_length {
-            self.delete_position(selection.start()).unwrap();
+            let offset = self.delete_position(selection.start())?;
+            cumulative_offset += offset;
         }
+        Ok(cumulative_offset)
     }
 
-    fn delete_position(&mut self, position: Position) -> Result<(), ()> {
+    fn delete_position(&mut self, position: Position) -> Result<Offset, ()> {
         let mut line = self.take_line(position.line_index).ok_or(())?;
+        let mut offset = Offset::ZERO;
 
         match line.get(position.column_index as usize) {
             Some('\n') => {
@@ -101,10 +105,12 @@ impl Buffer {
                     assert_eq!(position.column_index as usize, line.len() - 1);
                     line.pop();
                     line.extend(next_line);
+                    offset.line_offset = -1;
                 }
             }
             Some(_) => {
                 line.remove(position.column_index as usize);
+                offset.column_offset = -1;
             }
             None => {
                 return Err(());
@@ -113,7 +119,7 @@ impl Buffer {
 
         self.set_line(position.line_index, line);
 
-        Ok(())
+        Ok(offset)
     }
 
     pub fn moved_position_horizontally(

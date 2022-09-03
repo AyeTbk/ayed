@@ -7,7 +7,8 @@ pub enum Command {
     // Text edit commands
     Insert(char),
     DeleteSelection,
-    DeleteBeforeSelection,
+    DeleteCursor,
+    DeleteBeforeCursor,
 
     // Selection manipulation commands
     MoveCursorUp,
@@ -24,6 +25,7 @@ pub enum Command {
     DragCursorToLineStart,
     DragCursorToLineEnd,
 
+    ShrinkSelectionToCursor,
     FlipSelection,
     FlipSelectionForward,
     FlipSelectionBackward,

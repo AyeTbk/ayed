@@ -57,6 +57,7 @@ impl InputMap for TextCommandMode {
 
         register_cursor_movement_inputs(&mut im).unwrap();
 
+        im.register("<;>", ShrinkSelectionToCursor).unwrap();
         im.register("<a-;>", FlipSelection).unwrap();
 
         im.convert_input_to_command(input, ctx)
@@ -81,6 +82,9 @@ impl InputMap for TextEditMode {
         im.register_char_insert();
 
         register_cursor_movement_inputs(&mut im).unwrap();
+
+        im.register("<del>", DeleteCursor).unwrap();
+        im.register("<backspace>", DeleteBeforeCursor).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }
