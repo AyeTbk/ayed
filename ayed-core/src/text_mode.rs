@@ -55,19 +55,7 @@ impl InputMap for TextCommandMode {
 
         im.register("d", DeleteSelection).unwrap();
 
-        im.register("<up>", MoveCursorUp).unwrap();
-        im.register("<down>", MoveCursorDown).unwrap();
-        im.register("<left>", MoveCursorLeft).unwrap();
-        im.register("<c-left>", MoveCursorToLineStart).unwrap();
-        im.register("<home>", MoveCursorToLineStart).unwrap();
-        im.register("<right>", MoveCursorRight).unwrap();
-        im.register("<c-right>", MoveCursorToLineEnd).unwrap();
-        im.register("<end>", MoveCursorToLineEnd).unwrap();
-
-        im.register("<s-up>", DragCursorUp).unwrap();
-        im.register("<s-down>", DragCursorDown).unwrap();
-        im.register("<s-left>", DragCursorLeft).unwrap();
-        im.register("<s-right>", DragCursorRight).unwrap();
+        register_cursor_movement_inputs(&mut im).unwrap();
 
         im.register("<a-;>", FlipSelection).unwrap();
 
@@ -91,17 +79,34 @@ impl InputMap for TextEditMode {
             .unwrap();
 
         im.register_char_insert();
-        im.register("<ret>", Insert('\n')).unwrap();
-        im.register("<backspace>", DeleteBeforeSelection).unwrap();
-        im.register("<del>", DeleteSelection).unwrap();
 
-        im.register("<up>", MoveCursorUp).unwrap();
-        im.register("<down>", MoveCursorDown).unwrap();
-        im.register("<left>", MoveCursorLeft).unwrap();
-        im.register("<home>", MoveCursorToLineStart).unwrap();
-        im.register("<right>", MoveCursorRight).unwrap();
-        im.register("<end>", MoveCursorToLineEnd).unwrap();
+        register_cursor_movement_inputs(&mut im).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }
+}
+
+fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
+    use Command::*;
+
+    im.register("<up>", MoveCursorUp)?;
+    im.register("<s-up>", DragCursorUp)?;
+    im.register("<down>", MoveCursorDown)?;
+    im.register("<s-down>", DragCursorDown)?;
+
+    im.register("<left>", MoveCursorLeft)?;
+    im.register("<s-left>", DragCursorLeft)?;
+    im.register("<c-left>", MoveCursorToLineStart)?;
+    im.register("<home>", MoveCursorToLineStart)?;
+    im.register("<cs-left>", DragCursorToLineStart)?;
+    im.register("<s-home>", DragCursorToLineStart)?;
+
+    im.register("<right>", MoveCursorRight)?;
+    im.register("<s-right>", DragCursorRight)?;
+    im.register("<c-right>", MoveCursorToLineEnd)?;
+    im.register("<end>", MoveCursorToLineEnd)?;
+    im.register("<cs-right>", DragCursorToLineEnd)?;
+    im.register("<s-end>", DragCursorToLineEnd)?;
+
+    Ok(())
 }

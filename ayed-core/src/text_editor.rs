@@ -209,19 +209,27 @@ impl TextEditor {
         }
     }
 
-    fn move_cursor_to_line_start(&mut self) {
+    fn move_cursor_to_line_start(&mut self, selection_anchored: bool) {
         for selection in self.selections.iter_mut() {
             let new_cursor = selection.cursor().with_column_index(0);
-            *selection = selection.with_position(new_cursor);
+            *selection = if selection_anchored {
+                selection.with_cursor(new_cursor)
+            } else {
+                selection.with_position(new_cursor)
+            };
         }
     }
 
-    fn move_cursor_to_line_end(&mut self, buffer: &Buffer) {
+    fn move_cursor_to_line_end(&mut self, buffer: &Buffer, selection_anchored: bool) {
         for selection in self.selections.iter_mut() {
             let line_index = selection.cursor().line_index;
             let line_len = buffer.line_len(line_index).unwrap();
             let new_cursor = selection.cursor().with_column_index(line_len as u32);
-            *selection = selection.with_position(new_cursor);
+            *selection = if selection_anchored {
+                selection.with_cursor(new_cursor)
+            } else {
+                selection.with_position(new_cursor)
+            };
         }
     }
 
@@ -408,8 +416,11 @@ impl TextEditor {
             Command::DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
             Command::DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
             //
-            Command::MoveCursorToLineStart => self.move_cursor_to_line_start(),
-            Command::MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer),
+            Command::MoveCursorToLineStart => self.move_cursor_to_line_start(false),
+            Command::MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),
+            //
+            Command::DragCursorToLineStart => self.move_cursor_to_line_start(true),
+            Command::DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
             //
             Command::FlipSelection => self.for_each_selection(|sel| sel.flipped()),
             Command::FlipSelectionForward => self.for_each_selection(|sel| sel.flipped_forward()),
