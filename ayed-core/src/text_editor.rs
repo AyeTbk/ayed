@@ -497,7 +497,7 @@ impl Panel for TextEditor {
             };
         }
 
-        self.adjust_viewport_to_primary_selection(ctx);
+        self.adjust_viewport_to_primary_selection(ctx); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
         let start_line_index = self.viewport_top_left_position.line_index;
