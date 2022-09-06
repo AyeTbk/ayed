@@ -488,6 +488,17 @@ impl Panel for TextEditor {
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
+        if ctx.viewport_size.0 == 0 || ctx.viewport_size.1 == 0 {
+            return UiPanel {
+                position: (0, 0),
+                size: ctx.viewport_size,
+                content: Default::default(),
+                spans: Default::default(),
+            };
+        }
+
+        self.adjust_viewport_to_primary_selection(ctx);
+
         // Compute content
         let start_line_index = self.viewport_top_left_position.line_index;
         let after_end_line_index = start_line_index + ctx.viewport_size.1;
