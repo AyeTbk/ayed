@@ -61,8 +61,9 @@ impl Panel for LineEdit {
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
         let (w, h) = ctx.viewport_size;
+        let line_edit_width = w - 1;
         let line_edit_ctx = EditorContextMut {
-            viewport_size: (w - 1, h),
+            viewport_size: (line_edit_width, h),
             buffer: &mut self.buffer,
         };
         let mut panel = self.editor.panel(&line_edit_ctx);
@@ -78,6 +79,7 @@ impl Panel for LineEdit {
             line.insert(0, '›');
         }
 
+        // Prompt color
         panel.spans.push(Span {
             from: Position::ZERO,
             to: Position::ZERO,
@@ -88,6 +90,8 @@ impl Panel for LineEdit {
             },
             importance: 1,
         });
+
+        // Bg color
         panel.spans.push(Span {
             from: Position::ZERO,
             to: Position::ZERO.with_moved_indices(0, w as _),
