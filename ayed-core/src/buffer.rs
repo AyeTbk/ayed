@@ -171,18 +171,30 @@ impl Buffer {
         &self,
         position: Position,
         line_offset: i32,
-    ) -> Option<Position> {
-        let destination_line_index = position.line_index as i64 + line_offset as i64;
+    ) -> Result<Position, Position> {
+        //  returns a result of either:
+        //     Ok(the new position)
+        //     Err(the best position nearest to what the position would have been)
 
-        if let Some(destination_line) = self.line(destination_line_index as _) {
-            let destination_column_index =
-                position.column_index.min((destination_line.len() - 1) as _); // FIXME? what if dest_line.len() is 0?
-            Some(Position::new(
-                destination_line_index as _,
-                destination_column_index,
-            ))
+        let destination_line_index = (position.line_index as i64)
+            .saturating_add(line_offset as i64)
+            .max(0) as u32;
+
+        if let Some(destination_line_len) = self.line_len(destination_line_index) {
+            let destination_line_len = destination_line_len as u32;
+            if position.column_index < destination_line_len {
+                Ok(Position::new(destination_line_index, position.column_index))
+            } else {
+                Err(Position::new(destination_line_index, destination_line_len))
+            }
         } else {
-            None
+            let last_line_index = self.line_count() - 1; // note: self.line_count() is > 0 because of invariant 1
+            let last_line_len = self.line_len(last_line_index).expect("invariant 1") as u32;
+            if position.column_index < last_line_len {
+                Ok(Position::new(last_line_index, position.column_index))
+            } else {
+                Err(Position::new(last_line_index, last_line_len))
+            }
         }
     }
 

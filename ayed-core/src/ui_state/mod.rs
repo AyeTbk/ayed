@@ -301,8 +301,6 @@ mod tests {
 
         ui_panel.normalize_spans();
 
-        dbg!(ui_panel.spans);
-
-        assert!(false);
+        //assert!(false);
     }
 }

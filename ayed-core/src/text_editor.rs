@@ -221,13 +221,22 @@ impl TextEditor {
         selection_anchored: bool,
     ) {
         for selection in self.selections.iter_mut() {
-            if let Some(moved_position) =
-                buffer.moved_position_vertically(selection.cursor(), line_offset)
-            {
-                *selection = if selection_anchored {
-                    selection.with_cursor(moved_position)
-                } else {
-                    selection.with_position(moved_position)
+            match buffer.moved_position_vertically(selection.desired_cursor(), line_offset) {
+                Ok(position) => {
+                    *selection = if selection_anchored {
+                        selection.with_cursor(position)
+                    } else {
+                        selection.with_position(position)
+                    };
+                }
+                Err(provisional_position) => {
+                    *selection = if selection_anchored {
+                        selection.with_provisional_cursor(provisional_position)
+                    } else {
+                        selection
+                            .with_provisional_cursor(provisional_position)
+                            .with_anchor(provisional_position)
+                    };
                 }
             }
         }

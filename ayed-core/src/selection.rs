@@ -59,7 +59,7 @@ impl Selections {
 pub struct Selection {
     cursor: Position,
     anchor: Position,
-    desired_cursor: Position,
+    desired_column_index: u32,
 }
 
 impl Selection {
@@ -67,7 +67,7 @@ impl Selection {
         Self {
             cursor: Position::ZERO,
             anchor: Position::ZERO,
-            desired_cursor: Position::ZERO,
+            desired_column_index: 0,
         }
     }
 
@@ -75,7 +75,7 @@ impl Selection {
         Self {
             cursor: position,
             anchor: position,
-            desired_cursor: position,
+            desired_column_index: position.column_index,
         }
     }
 
@@ -83,7 +83,7 @@ impl Selection {
         Self {
             cursor,
             anchor: self.anchor,
-            desired_cursor: self.desired_cursor,
+            desired_column_index: cursor.column_index,
         }
     }
 
@@ -91,7 +91,7 @@ impl Selection {
         Self {
             cursor,
             anchor: self.anchor,
-            desired_cursor: cursor,
+            desired_column_index: self.desired_column_index,
         }
     }
 
@@ -99,7 +99,7 @@ impl Selection {
         Self {
             cursor: self.cursor,
             anchor,
-            desired_cursor: self.desired_cursor,
+            desired_column_index: self.desired_column_index,
         }
     }
 
@@ -136,7 +136,7 @@ impl Selection {
         Self {
             cursor: self.anchor,
             anchor: self.cursor,
-            desired_cursor: self.anchor,
+            desired_column_index: self.anchor.column_index,
         }
     }
 
@@ -153,7 +153,7 @@ impl Selection {
     }
 
     pub fn desired_cursor(&self) -> Position {
-        self.desired_cursor
+        self.cursor.with_column_index(self.desired_column_index)
     }
 
     pub fn anchor(&self) -> Position {
