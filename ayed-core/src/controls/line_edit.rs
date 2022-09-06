@@ -25,8 +25,9 @@ impl LineEdit {
     }
 
     pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
+        let (w, h) = ctx.viewport_size;
         let mut line_edit_ctx = EditorContextMut {
-            viewport_size: ctx.viewport_size,
+            viewport_size: (w - 1, h),
             buffer: &mut self.buffer,
         };
         match command {
@@ -59,18 +60,22 @@ impl Panel for LineEdit {
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
+        let (w, h) = ctx.viewport_size;
         let line_edit_ctx = EditorContextMut {
-            viewport_size: ctx.viewport_size,
+            viewport_size: (w - 1, h),
             buffer: &mut self.buffer,
         };
         let mut panel = self.editor.panel(&line_edit_ctx);
+
+        panel.size = (w, h);
+
         for span in &mut panel.spans {
             span.from.column_index += 1;
             span.to.column_index += 1;
         }
 
-        if let Some(first_line) = panel.content.first_mut() {
-            first_line.insert(0, '›');
+        for line in &mut panel.content {
+            line.insert(0, '›');
         }
 
         panel.spans.push(Span {
@@ -85,7 +90,7 @@ impl Panel for LineEdit {
         });
         panel.spans.push(Span {
             from: Position::ZERO,
-            to: Position::ZERO.with_moved_indices(0, ctx.viewport_size.0 as _),
+            to: Position::ZERO.with_moved_indices(0, w as _),
             style: Style {
                 foreground_color: None,
                 background_color: Some(Color::rgb(40, 30, 50)),

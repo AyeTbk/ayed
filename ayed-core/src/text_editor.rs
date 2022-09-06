@@ -123,6 +123,7 @@ impl TextEditor {
         offset: Offset,
         is_delete: bool,
     ) {
+        // TODO Change this, find a better simpler more unified way to move positions around that's aware of the buffer's contents
         for selection in self.selections.iter_mut() {
             let before_selection = if is_delete {
                 position < selection.start()
