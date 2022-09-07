@@ -20,6 +20,9 @@ pub enum Command {
     DragCursorLeft,
     DragCursorRight,
 
+    MoveCursorTo(u32, u32),
+    DragCursorTo(u32, u32),
+
     MoveCursorToLineStart,
     MoveCursorToLineEnd,
     DragCursorToLineStart,

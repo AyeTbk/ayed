@@ -48,14 +48,16 @@ impl Panel for ModeLine {
         TextEditMode.convert_input_to_command(input, ctx)
     }
 
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<Command> {
         self.send_command(command, ctx);
+        None
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
         let mut line_builder = LineBuilder::new_with_length(ctx.viewport_size.0 as _);
 
         for info in &self.infos {
+            // TODO styles for the infos
             line_builder = line_builder.add_right_aligned(&info.text, ());
         }
 

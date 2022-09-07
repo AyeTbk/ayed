@@ -262,7 +262,7 @@ impl std::ops::Sub for Position {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Offset {
     pub line_offset: i32,
     pub column_offset: i32,

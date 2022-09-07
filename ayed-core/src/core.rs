@@ -5,6 +5,7 @@ use crate::buffer::Buffer;
 use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
+use crate::panels::warpdrive_panel::WarpDrivePanel;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{UiPanel, UiState};
 
@@ -13,6 +14,7 @@ pub struct Core {
     active_buffer: Handle<Buffer>,
     active_editor: TextEditor,
     mode_line: ModeLine,
+    warpdrive_panel: Option<WarpDrivePanel>,
     viewport_size: (u32, u32),
     quit: bool,
 }
@@ -29,6 +31,7 @@ impl Core {
             active_buffer,
             active_editor,
             mode_line,
+            warpdrive_panel: None,
             viewport_size: (80, 25),
             quit: false,
         }
@@ -60,10 +63,19 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
+        // TODO convert input mapping so it is done outside of panels, more globally. and configurable!
+
+        if input.key == Key::Char('`') {
+            let wdp = WarpDrivePanel::default();
+            self.warpdrive_panel = Some(wdp);
+        }
+
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
         } else if input.key == Key::Char(':') {
             self.mode_line.set_has_focus(true);
+        } else if self.warpdrive_panel.is_some() {
+            self.input_warpdrive(input);
         } else {
             self.input_active_editor(input);
         }
@@ -84,7 +96,13 @@ impl Core {
         self.mode_line.set_infos(infos);
 
         let mode_line_panel = self.mode_line_panel();
-        let panels = vec![active_editor_panel, mode_line_panel];
+        let mut panels = vec![active_editor_panel, mode_line_panel];
+
+        if self.warpdrive_panel.is_some() {
+            let wdp_panel = self.warpdrive_panel_panel();
+            panels.push(wdp_panel);
+        }
+
         UiState { panels }
     }
 
@@ -147,6 +165,29 @@ impl Core {
         }
     }
 
+    fn input_warpdrive(&mut self, input: Input) {
+        let viewport_size = self.active_editor_viewport_size();
+        let wdp = if let Some(wdp) = &mut self.warpdrive_panel {
+            wdp
+        } else {
+            return;
+        };
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let mut ctx = EditorContextMut {
+            buffer,
+            viewport_size,
+        };
+        let mut hide = false;
+        for command in wdp.convert_input_to_command(input, &mut ctx) {
+            if wdp.execute_command(command, &mut ctx).is_some() {
+                hide = true;
+            }
+        }
+        if hide {
+            self.warpdrive_panel = None
+        }
+    }
+
     fn active_editor_panel(&mut self) -> UiPanel {
         let viewport_size = self.active_editor_viewport_size();
         let buffer = self.buffers.get_mut(self.active_buffer);
@@ -159,6 +200,16 @@ impl Core {
 
     fn active_editor_viewport_size(&self) -> (u32, u32) {
         (self.viewport_size.0, self.viewport_size.1 - 1)
+    }
+
+    fn warpdrive_panel_panel(&mut self) -> UiPanel {
+        let viewport_size = self.active_editor_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let ctx = EditorContextMut {
+            buffer,
+            viewport_size,
+        };
+        self.warpdrive_panel.as_mut().unwrap().panel(&ctx)
     }
 
     fn mode_line_panel(&mut self) -> UiPanel {

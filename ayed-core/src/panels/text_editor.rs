@@ -18,7 +18,7 @@ pub struct TextEditor {
     active_mode_name: &'static str,
     active_mode_is_text_edit_append: bool,
     selections: Selections,
-    viewport_top_left_position: Position,
+    view_top_left_position: Position,
 }
 
 impl TextEditor {
@@ -28,7 +28,7 @@ impl TextEditor {
             active_mode_name: TextCommandMode::NAME,
             active_mode_is_text_edit_append: false,
             selections: Selections::new(),
-            viewport_top_left_position: Position::ZERO,
+            view_top_left_position: Position::ZERO,
         }
     }
 
@@ -43,6 +43,10 @@ impl TextEditor {
             text: file_info,
             style: Style::default().with_foreground_color(Color::BLUE),
         }]
+    }
+
+    pub fn view_top_left_position(&self) -> Position {
+        self.view_top_left_position
     }
 
     pub fn set_mode(&mut self, mode_name: &'static str) {
@@ -267,9 +271,9 @@ impl TextEditor {
     }
 
     fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
-        let mut new_viewport_top_left_position = self.viewport_top_left_position;
+        let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
-        let vp_start_x = self.viewport_top_left_position.column_index;
+        let vp_start_x = self.view_top_left_position.column_index;
         let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
         let selection_x = self.selections.primary().cursor().column_index;
 
@@ -280,7 +284,7 @@ impl TextEditor {
         }
 
         // Vertical
-        let vp_start_y = self.viewport_top_left_position.line_index;
+        let vp_start_y = self.view_top_left_position.line_index;
         let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
         let selection_y = self.selections.primary().cursor().line_index;
 
@@ -290,7 +294,7 @@ impl TextEditor {
             new_viewport_top_left_position.line_index = selection_y - ctx.viewport_size.1 + 1;
         }
 
-        self.viewport_top_left_position = new_viewport_top_left_position;
+        self.view_top_left_position = new_viewport_top_left_position;
     }
 
     fn selections(&self) -> impl Iterator<Item = Selection> + '_ {
@@ -353,10 +357,8 @@ impl TextEditor {
                 Some(Color::WHITE)
             };
 
-            let cursor_from_relative_to_viewport =
-                selection.cursor() - self.viewport_top_left_position;
-            let cursor_to_relative_to_viewport =
-                selection.cursor() - self.viewport_top_left_position;
+            let cursor_from_relative_to_viewport = selection.cursor() - self.view_top_left_position;
+            let cursor_to_relative_to_viewport = selection.cursor() - self.view_top_left_position;
 
             spans.push(Span {
                 from: cursor_from_relative_to_viewport,
@@ -370,8 +372,7 @@ impl TextEditor {
             });
 
             for line_split_selection in selection_split_by_line {
-                if self.viewport_top_left_position.line_index
-                    > line_split_selection.start().line_index
+                if self.view_top_left_position.line_index > line_split_selection.start().line_index
                 {
                     // If line is before the viewport, ignore it
                     continue;
@@ -381,24 +382,24 @@ impl TextEditor {
                 let anchor = line_split_selection.anchor();
                 let viewport_adjusted_selection = Selection::new()
                     .with_anchor(
-                        if self.viewport_top_left_position.column_index > anchor.column_index {
-                            anchor.with_column_index(self.viewport_top_left_position.column_index)
+                        if self.view_top_left_position.column_index > anchor.column_index {
+                            anchor.with_column_index(self.view_top_left_position.column_index)
                         } else {
                             anchor
                         },
                     )
                     .with_cursor(
-                        if self.viewport_top_left_position.column_index > cursor.column_index {
-                            cursor.with_column_index(self.viewport_top_left_position.column_index)
+                        if self.view_top_left_position.column_index > cursor.column_index {
+                            cursor.with_column_index(self.view_top_left_position.column_index)
                         } else {
                             cursor
                         },
                     );
 
                 let from_relative_to_viewport =
-                    viewport_adjusted_selection.start() - self.viewport_top_left_position;
+                    viewport_adjusted_selection.start() - self.view_top_left_position;
                 let to_relative_to_viewport =
-                    viewport_adjusted_selection.end() - self.viewport_top_left_position;
+                    viewport_adjusted_selection.end() - self.view_top_left_position;
 
                 spans.push(Span {
                     from: from_relative_to_viewport,
@@ -431,47 +432,48 @@ impl TextEditor {
     }
 
     fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
+        use Command::*;
+
         match command {
-            Command::ChangeMode(mode_name) => {
+            ChangeMode(mode_name) => {
                 if self.active_mode_is_text_edit_append {
-                    self.execute_command_inner(Command::DragCursorLeft, ctx);
+                    self.execute_command_inner(DragCursorLeft, ctx);
                 }
                 self.set_mode(mode_name);
             }
-            Command::ChangeModeArg(mode_name, arg) => {
+            ChangeModeArg(mode_name, arg) => {
                 if self.active_mode_is_text_edit_append {
-                    self.execute_command_inner(Command::DragCursorLeft, ctx);
+                    self.execute_command_inner(DragCursorLeft, ctx);
                 }
                 self.set_mode_with_arg(mode_name, arg);
             }
-            Command::Insert(ch) => self.insert_char_for_each_selection(ch, ctx.buffer),
-            Command::DeleteSelection => self.delete_selection_for_each_selection(ctx.buffer),
-            Command::DeleteCursor => self.delete_cursor_for_each_selection(ctx.buffer),
-            Command::DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(ctx.buffer),
+            Insert(ch) => self.insert_char_for_each_selection(ch, ctx.buffer),
+            DeleteSelection => self.delete_selection_for_each_selection(ctx.buffer),
+            DeleteCursor => self.delete_cursor_for_each_selection(ctx.buffer),
+            DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(ctx.buffer),
 
             // Wow
-            Command::MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, false),
-            Command::MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, false),
-            Command::MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, false),
-            Command::MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, false),
+            MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, false),
+            MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, false),
+            MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, false),
+            MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, false),
+            DragCursorUp => self.move_cursor_vertically(-1, ctx.buffer, true),
+            DragCursorDown => self.move_cursor_vertically(1, ctx.buffer, true),
+            DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
+            DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
             //
-            Command::DragCursorUp => self.move_cursor_vertically(-1, ctx.buffer, true),
-            Command::DragCursorDown => self.move_cursor_vertically(1, ctx.buffer, true),
-            Command::DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
-            Command::DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
+            MoveCursorTo(line_index, column_index) => todo!(),
+            DragCursorTo(line_index, column_index) => todo!(),
             //
-            Command::MoveCursorToLineStart => self.move_cursor_to_line_start(false),
-            Command::MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),
+            MoveCursorToLineStart => self.move_cursor_to_line_start(false),
+            MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),
+            DragCursorToLineStart => self.move_cursor_to_line_start(true),
+            DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
             //
-            Command::DragCursorToLineStart => self.move_cursor_to_line_start(true),
-            Command::DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
-            //
-            Command::ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
-            Command::FlipSelection => self.map_selections(|sel| sel.flipped()),
-            Command::FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
-            Command::FlipSelectionBackward => {
-                self.map_selections(|sel| sel.flipped_forward().flipped())
-            }
+            ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
+            FlipSelection => self.map_selections(|sel| sel.flipped()),
+            FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
+            FlipSelectionBackward => self.map_selections(|sel| sel.flipped_forward().flipped()),
         }
 
         self.adjust_viewport_to_primary_selection(ctx);
@@ -483,8 +485,9 @@ impl Panel for TextEditor {
         self.active_mode.convert_input_to_command(input, ctx)
     }
 
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<Command> {
         self.execute_command_inner(command, ctx);
+        None
     }
 
     fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
@@ -500,9 +503,9 @@ impl Panel for TextEditor {
         self.adjust_viewport_to_primary_selection(ctx); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
-        let start_line_index = self.viewport_top_left_position.line_index;
+        let start_line_index = self.view_top_left_position.line_index;
         let after_end_line_index = start_line_index + ctx.viewport_size.1;
-        let start_column_index = self.viewport_top_left_position.column_index;
+        let start_column_index = self.view_top_left_position.column_index;
         let line_slice_max_len = ctx.viewport_size.0;
 
         let mut panel_content = Vec::new();

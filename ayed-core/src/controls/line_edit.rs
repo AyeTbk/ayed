@@ -51,8 +51,9 @@ impl LineEdit {
 }
 
 impl Panel for LineEdit {
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) {
+    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<Command> {
         self.send_command(command, ctx);
+        None
     }
 
     fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
