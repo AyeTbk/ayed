@@ -34,8 +34,8 @@ impl ModeLine {
         self.has_focus
     }
 
-    pub fn set_has_focus(&mut self, wants_focus: bool) {
-        self.has_focus = wants_focus;
+    pub fn set_has_focus(&mut self, has_focus: bool) {
+        self.has_focus = has_focus;
     }
 
     pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
