@@ -462,8 +462,12 @@ impl TextEditor {
             DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
             DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
             //
-            MoveCursorTo(line_index, column_index) => todo!(),
-            DragCursorTo(line_index, column_index) => todo!(),
+            MoveCursorTo(_, _) => todo!(),
+            DragCursorTo(_, _) => todo!(),
+            SetSelection { cursor, anchor } => {
+                let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
+                self.selections = Selections::new_with(selection, &[]);
+            }
             //
             MoveCursorToLineStart => self.move_cursor_to_line_start(false),
             MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),

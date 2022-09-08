@@ -1,3 +1,5 @@
+use crate::selection::Position;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
     // Ayed commands
@@ -22,6 +24,7 @@ pub enum Command {
 
     MoveCursorTo(u32, u32),
     DragCursorTo(u32, u32),
+    SetSelection { cursor: Position, anchor: Position },
 
     MoveCursorToLineStart,
     MoveCursorToLineEnd,

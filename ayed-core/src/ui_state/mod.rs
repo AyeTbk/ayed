@@ -191,9 +191,13 @@ impl UiPanel {
     }
 
     pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &Span> {
-        self.spans
-            .iter()
-            .filter(move |span| span.from.line_index == line_index)
+        self.spans.iter().filter(move |span| {
+            let is_before = span.from.line_index < line_index;
+            let is_after = span.to.line_index > line_index;
+            let is_same_line =
+                span.from.line_index == line_index || span.to.line_index == line_index;
+            is_same_line || (is_before && is_after)
+        })
     }
 }
 

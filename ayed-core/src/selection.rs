@@ -14,6 +14,13 @@ impl Selections {
         }
     }
 
+    pub fn new_with(primary: Selection, extra: &[Selection]) -> Self {
+        Self {
+            primary_selection: primary,
+            extra_selections: extra.to_owned(),
+        }
+    }
+
     pub fn primary(&self) -> Selection {
         self.primary_selection
     }
@@ -230,10 +237,24 @@ impl Position {
         }
     }
 
+    pub fn with_line_index(&self, line_index: u32) -> Self {
+        Self {
+            line_index,
+            column_index: self.column_index,
+        }
+    }
+
     pub fn with_column_index(&self, column_index: u32) -> Self {
         Self {
             line_index: self.line_index,
             column_index,
+        }
+    }
+
+    pub fn to_offset(&self) -> Offset {
+        Offset {
+            line_offset: self.line_index as i32,
+            column_offset: self.column_index as i32,
         }
     }
 }

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::Buffer;
+use crate::command::Command;
 use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::panel::Panel;
@@ -66,7 +67,7 @@ impl Core {
         // TODO convert input mapping so it is done outside of panels, more globally. and configurable!
 
         if input.key == Key::Char('`') {
-            let wdp = WarpDrivePanel::default();
+            let wdp = self.make_warp_drive_panel();
             self.warpdrive_panel = Some(wdp);
         }
 
@@ -75,7 +76,9 @@ impl Core {
         } else if input.key == Key::Char(':') {
             self.mode_line.set_has_focus(true);
         } else if self.warpdrive_panel.is_some() {
-            self.input_warpdrive(input);
+            if let Some(command) = self.input_warpdrive(input) {
+                self.execute_command_active_editor(command);
+            }
         } else {
             self.input_active_editor(input);
         }
@@ -104,6 +107,13 @@ impl Core {
         }
 
         UiState { panels }
+    }
+
+    fn make_warp_drive_panel(&mut self) -> WarpDrivePanel {
+        let ui_panel = self.active_editor_panel();
+        let text_content = ui_panel.content;
+        let position_offset = self.active_editor.view_top_left_position().to_offset();
+        WarpDrivePanel::new(text_content, position_offset)
     }
 
     fn interpret_command(&mut self, command_str: &str) {
@@ -161,31 +171,42 @@ impl Core {
             viewport_size,
         };
         for command in self.active_editor.convert_input_to_command(input, &mut ctx) {
-            self.active_editor.execute_command(command, &mut ctx);
+            self.execute_command_active_editor(command);
         }
     }
 
-    fn input_warpdrive(&mut self, input: Input) {
+    fn execute_command_active_editor(&mut self, command: Command) {
+        let viewport_size = self.active_editor_viewport_size();
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let mut ctx = EditorContextMut {
+            buffer,
+            viewport_size,
+        };
+        self.active_editor.execute_command(command, &mut ctx);
+    }
+
+    fn input_warpdrive(&mut self, input: Input) -> Option<Command> {
         let viewport_size = self.active_editor_viewport_size();
         let wdp = if let Some(wdp) = &mut self.warpdrive_panel {
             wdp
         } else {
-            return;
+            return None;
         };
         let buffer = self.buffers.get_mut(self.active_buffer);
         let mut ctx = EditorContextMut {
             buffer,
             viewport_size,
         };
-        let mut hide = false;
+        let mut maybe_cmd = None;
         for command in wdp.convert_input_to_command(input, &mut ctx) {
-            if wdp.execute_command(command, &mut ctx).is_some() {
-                hide = true;
+            if let Some(cmd) = wdp.execute_command(command, &mut ctx) {
+                maybe_cmd = Some(cmd);
             }
         }
-        if hide {
+        if maybe_cmd.is_some() {
             self.warpdrive_panel = None
         }
+        maybe_cmd
     }
 
     fn active_editor_panel(&mut self) -> UiPanel {
