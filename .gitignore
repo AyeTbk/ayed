@@ -1,2 +1,4 @@
 target/
 Cargo.lock
+
+ayed-tui/stderr.txt

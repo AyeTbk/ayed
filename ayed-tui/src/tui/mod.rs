@@ -96,7 +96,7 @@ impl Tui {
 
         //write!(self.screen, "{}", termion::clear::All).unwrap(); // This makes the display blink sometimes
 
-        for mut panel in ui_state.panels {
+        for mut panel in ui_state.panels.into_iter() {
             panel.normalize_spans();
 
             let start_y = panel.position.1;
