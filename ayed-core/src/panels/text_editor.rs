@@ -32,6 +32,10 @@ impl TextEditor {
         }
     }
 
+    pub fn is_command_mode(&self) -> bool {
+        self.active_mode_name == TextCommandMode::NAME
+    }
+
     pub fn mode_line_infos(&self, ctx: &EditorContextMut) -> Vec<ModeLineInfo> {
         let file_info = if let Some(path) = ctx.buffer.filepath() {
             path.to_string_lossy().into_owned()

@@ -69,11 +69,12 @@ impl Core {
         if input.key == Key::Char('`') {
             let wdp = self.make_warp_drive_panel();
             self.warpdrive_panel = Some(wdp);
+            return;
         }
 
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
-        } else if input.key == Key::Char(':') {
+        } else if input.key == Key::Char(':') && self.active_editor.is_command_mode() {
             self.mode_line.set_has_focus(true);
         } else if self.warpdrive_panel.is_some() {
             if let Some(command) = self.input_warpdrive(input) {

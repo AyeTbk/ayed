@@ -23,6 +23,7 @@ impl UiPanel {
         let mut non_overlapping_subspans_by_position: BTreeMap<Position, Option<SpanIndex>> =
             BTreeMap::new();
 
+        // Fill up list of span edges
         for span in spans.iter() {
             non_overlapping_subspans_by_position
                 .entry(span.from)
@@ -32,6 +33,7 @@ impl UiPanel {
                 .or_default();
         }
 
+        // Associate nonoverlapping subspans with the most important span's index that spans it
         for (span_idx, span) in spans.iter().enumerate() {
             let range = span.from..=span.to;
             for (_, most_important_span_idx) in
@@ -48,24 +50,28 @@ impl UiPanel {
             }
         }
 
-        // DEBUG help
-        // let mut cur_line_index = 0;
-        // let mut strn = String::from("\n");
-        // for (pos, edge) in non_overlapping_span_edges_by_position.range(..) {
-        //     if pos.line_index > cur_line_index {
-        //         strn += "\n";
-        //         cur_line_index = pos.line_index;
-        //     }
-        //     strn += &format!(
-        //         "  {:?}]({},{})[{:?}  ",
-        //         edge.end, pos.line_index, pos.column_index, edge.start
-        //     );
-        // }
-        // strn += "\n";
-        // panic!("{}", strn);
+        // (Optional) Merge contiguous nonoverlapping subspans that share the same span index
+        non_overlapping_subspans_by_position = {
+            let mut non_overlapping_merged_subspans_by_position: BTreeMap<
+                Position,
+                Option<SpanIndex>,
+            > = BTreeMap::new();
 
+            let mut subspans = non_overlapping_subspans_by_position.into_iter()/*.peekable()*/;
+            let mut previous_span_idx = None;
+            while let Some((pos, span_idx)) = subspans.next() {
+                if span_idx == previous_span_idx {
+                    continue;
+                }
+                non_overlapping_merged_subspans_by_position.insert(pos, span_idx);
+                previous_span_idx = span_idx;
+            }
+
+            non_overlapping_merged_subspans_by_position
+        };
+
+        // Extract normalized spans
         let mut normalized_spans = Vec::new();
-
         let subspan_start = non_overlapping_subspans_by_position.iter();
         let subspan_end = non_overlapping_subspans_by_position
             .iter()
