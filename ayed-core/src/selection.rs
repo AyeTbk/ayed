@@ -227,6 +227,10 @@ impl Position {
         }
     }
 
+    pub fn offset(&self, offset: Offset) -> Self {
+        self.with_moved_indices(offset.line_offset, offset.column_offset)
+    }
+
     pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
         // FIXME? line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
         let line_index = saturating_add_signed(self.line_index, line_offset);

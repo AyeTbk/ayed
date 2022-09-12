@@ -6,19 +6,19 @@ use crate::{
     input::Input,
     input_mapper::{InputMap, InputMapper},
     panel::Panel,
-    selection::{Offset, Position},
+    selection::{Offset, Position, Selection},
     ui_state::{Color, Span, Style, UiPanel},
 };
 
 // TODO warpdrive improvements
-// - select match instead of just placing selection at start of match
+// - highlight whole match with span
 // - better key inputs (more localized on the keyboard rather than going through the alphabet)
 
 #[derive(Default)]
 pub struct WarpDrivePanel {
     text_content: Vec<String>,
     position_offset: Offset,
-    jump_points: Vec<(Vec<char>, Position)>,
+    jump_points: Vec<(Vec<char>, Selection)>,
     input: Vec<char>,
 }
 
@@ -48,7 +48,7 @@ impl WarpDrivePanel {
         }
     }
 
-    fn add_input(&mut self, ch: char) -> Option<Position> {
+    fn add_input(&mut self, ch: char) -> Option<Selection> {
         let mut new_input = self.input.clone();
         new_input.push(ch);
 
@@ -71,30 +71,40 @@ impl WarpDrivePanel {
         None
     }
 
-    fn jump_points_iter(&self) -> impl Iterator<Item = (&[char], &Position)> + '_ {
+    fn jump_points_iter(&self) -> impl Iterator<Item = (&[char], &Selection)> + '_ {
         self.jump_points.iter().map(|(v, p)| (&v[..], p))
     }
 
-    fn gather_jump_points(text_content: &[String]) -> Vec<(Vec<char>, Position)> {
+    fn gather_jump_points(text_content: &[String]) -> Vec<(Vec<char>, Selection)> {
         // Get matches
-        let re_word_start = regex::Regex::new(r"\b\w").unwrap();
-        let mut matches: Vec<Position> = Vec::new();
+        let re_word_start = regex::Regex::new(r"\b\w+\b").unwrap();
+        let mut matches: Vec<Selection> = Vec::new();
         for (line_index, line) in text_content.iter().enumerate() {
             for m in re_word_start.find_iter(line) {
+                let mut start = None;
+                let mut end = None;
                 for (column_index, (byte_idx, _)) in line.char_indices().enumerate() {
                     if m.start() == byte_idx {
-                        matches.push(Position::new(line_index as _, column_index as _));
+                        start = Some(Position::new(line_index as _, column_index as _));
+                    }
+                    if m.end() == byte_idx {
+                        end = Some(Position::new(line_index as _, (column_index - 1) as _));
                     }
                 }
+                matches.push(
+                    Selection::new()
+                        .with_cursor(start.unwrap())
+                        .with_anchor(end.unwrap()),
+                );
             }
         }
 
         // Do thing
         fn fill_up_jump_points(
-            matches: &[Position],
+            matches: &[Selection],
             input: &[char],
             mut alphabet: impl Iterator<Item = char> + Clone,
-        ) -> Vec<(Vec<char>, Position)> {
+        ) -> Vec<(Vec<char>, Selection)> {
             let make_input = |ch| input.iter().copied().chain(once(ch)).collect::<Vec<char>>();
             let match_per_letter =
                 (matches.len() as f32 / alphabet.clone().count() as f32).ceil() as usize;
@@ -112,12 +122,12 @@ impl WarpDrivePanel {
                 jump_points
             } else {
                 let mut jump_points = Vec::new();
-                for &position in matches {
+                for &selection in matches {
                     let ch = alphabet
                         .next()
                         .expect("there should be enough letter for every match");
                     let chars = make_input(ch);
-                    jump_points.push((chars, position))
+                    jump_points.push((chars, selection))
                 }
 
                 jump_points
@@ -132,14 +142,13 @@ impl WarpDrivePanel {
         match command {
             Insert('\n') => Some(FlipSelection),
             Insert(ch) => {
-                if let Some(position) = self.add_input(ch) {
-                    let offset_position = position.with_moved_indices(
-                        self.position_offset.line_offset,
-                        self.position_offset.column_offset,
-                    );
+                if let Some(selection) = self.add_input(ch) {
+                    let offset_selection = selection
+                        .with_cursor(selection.cursor().offset(self.position_offset))
+                        .with_anchor(selection.anchor().offset(self.position_offset));
                     Some(SetSelection {
-                        cursor: offset_position,
-                        anchor: offset_position,
+                        cursor: offset_selection.cursor(),
+                        anchor: offset_selection.anchor(),
                     })
                 } else {
                     None
@@ -184,7 +193,8 @@ impl Panel for WarpDrivePanel {
             });
         }
 
-        for (chars, &position) in self.jump_points_iter() {
+        for (chars, &selection) in self.jump_points_iter() {
+            let position = selection.start();
             let line = content.get_mut(position.line_index as usize).unwrap();
             let byte_idx = line
                 .char_indices()
