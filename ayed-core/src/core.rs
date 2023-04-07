@@ -66,16 +66,14 @@ impl Core {
     pub fn input(&mut self, input: Input) {
         // TODO convert input mapping so it is done outside of panels, more globally. and configurable!
 
-        if input == Input::try_parse("w").unwrap() && self.active_editor.is_command_mode() {
-            let wdp = self.make_warp_drive_panel();
-            self.warpdrive_panel = Some(wdp);
-            return;
-        }
-
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
         } else if input.key == Key::Char(':') && self.active_editor.is_command_mode() {
             self.mode_line.set_has_focus(true);
+        } else if input == Input::try_parse("w").unwrap() && self.active_editor.is_command_mode() {
+            let wdp = self.make_warp_drive_panel();
+            self.warpdrive_panel = Some(wdp);
+            return;
         } else if self.warpdrive_panel.is_some() {
             if let Some(command) = self.input_warpdrive(input) {
                 self.execute_command_active_editor(command);

@@ -154,7 +154,7 @@ impl Buffer {
             && position.column_index >= (self.line(position.line_index).unwrap().len() - 1) as _
         // FIXME this crashes
         {
-            if position.line_index < self.line_count() - 1 {
+            if position.line_index < self.last_line_index() {
                 new_line_index += 1;
                 new_column_index = 0;
             } else {
@@ -188,7 +188,7 @@ impl Buffer {
                 Err(Position::new(destination_line_index, destination_line_len))
             }
         } else {
-            let last_line_index = self.line_count() - 1; // note: self.line_count() is > 0 because of invariant 1
+            let last_line_index = self.last_line_index();
             let last_line_len = self.line_len(last_line_index).expect("invariant 1") as u32;
             if position.column_index < last_line_len {
                 Ok(Position::new(last_line_index, position.column_index))
@@ -196,6 +196,22 @@ impl Buffer {
                 Err(Position::new(last_line_index, last_line_len))
             }
         }
+    }
+
+    pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
+        let cursor = self.limit_position_to_content(selection.cursor());
+        let anchor = self.limit_position_to_content(selection.anchor());
+        Selection::new().with_cursor(cursor).with_anchor(anchor)
+    }
+
+    pub fn limit_position_to_content(&self, position: Position) -> Position {
+        let line_index = position.line_index.min(self.last_line_index());
+        let line_len = self
+            .line_len(line_index)
+            .expect("line index should be correct because of above");
+        let column_index = position.column_index.min(line_len as u32);
+
+        Position::new(line_index, column_index)
     }
 
     pub fn start_of_content_position(&self) -> Position {
@@ -244,8 +260,8 @@ impl Buffer {
         self.lines.len() as _
     }
 
-    pub fn copy_line(&self, line_index: u32, buf: &mut String) -> Option<()> {
-        let line = self.line(line_index)?;
+    pub fn copy_line(&self, line_index: u32, buf: &mut String) -> Result<(), ()> {
+        let line = self.line(line_index).ok_or(())?;
 
         buf.clear();
         buf.extend(line.chars());
@@ -253,7 +269,7 @@ impl Buffer {
         // Remove '\n', it only exists in the buffer as a way to simplify things internally
         buf.pop();
 
-        Some(())
+        Ok(())
     }
 
     pub fn line(&self, line_index: u32) -> Option<&CharString> {
@@ -288,5 +304,9 @@ impl Buffer {
         } else {
             None
         }
+    }
+
+    fn last_line_index(&self) -> u32 {
+        self.line_count() - 1 // note: self.line_count() is > 0 because of invariant 1
     }
 }

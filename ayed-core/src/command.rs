@@ -31,8 +31,16 @@ pub enum Command {
     DragCursorToLineStart,
     DragCursorToLineEnd,
 
+    MoveCursorToLeftSymbol,
+    MoveCursorToRightSymbol,
+    DragCursorToLeftSymbol,
+    DragCursorToRightSymbol,
+
     ShrinkSelectionToCursor,
     FlipSelection,
     FlipSelectionForward,
     FlipSelectionBackward,
+
+    DuplicateSelectionAbove,
+    DuplicateSelectionBelow,
 }

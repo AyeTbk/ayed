@@ -32,7 +32,7 @@ impl InputMap for TextCommandMode {
         .unwrap();
 
         im.register(
-            // Insert line above and enter edit mode
+            // Insert line below and enter edit mode
             "o",
             [
                 MoveCursorToLineEnd,
@@ -59,6 +59,9 @@ impl InputMap for TextCommandMode {
 
         im.register("<;>", ShrinkSelectionToCursor).unwrap();
         im.register("<a-;>", FlipSelection).unwrap();
+
+        im.register("<sa-c>", DuplicateSelectionAbove).unwrap();
+        im.register("C", DuplicateSelectionBelow).unwrap();
 
         im.convert_input_to_command(input, ctx)
     }
@@ -100,16 +103,16 @@ fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
 
     im.register("<left>", MoveCursorLeft)?;
     im.register("<s-left>", DragCursorLeft)?;
-    im.register("<c-left>", MoveCursorToLineStart)?;
+    im.register("<c-left>", MoveCursorToLeftSymbol)?;
+    im.register("<cs-left>", DragCursorToLeftSymbol)?;
     im.register("<home>", MoveCursorToLineStart)?;
-    im.register("<cs-left>", DragCursorToLineStart)?;
     im.register("<s-home>", DragCursorToLineStart)?;
 
     im.register("<right>", MoveCursorRight)?;
     im.register("<s-right>", DragCursorRight)?;
-    im.register("<c-right>", MoveCursorToLineEnd)?;
+    im.register("<c-right>", MoveCursorToRightSymbol)?;
+    im.register("<cs-right>", DragCursorToRightSymbol)?;
     im.register("<end>", MoveCursorToLineEnd)?;
-    im.register("<cs-right>", DragCursorToLineEnd)?;
     im.register("<s-end>", DragCursorToLineEnd)?;
 
     Ok(())

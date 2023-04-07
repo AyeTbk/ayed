@@ -25,8 +25,32 @@ impl Selections {
         self.primary_selection
     }
 
-    pub fn _merge_overlapping_selections(&self) -> Self {
-        todo!()
+    pub fn overlapping_selections_merged(&self) -> Self {
+        let mut selections = self.extra_selections.clone();
+        selections.insert(0, self.primary_selection);
+
+        let mut i = 0;
+        while i < selections.len() {
+            let mut selection = selections.remove(i);
+            let mut j = i;
+            while j < selections.len() {
+                let other = selections.remove(j);
+                if let Some(merged) = selection.merged_with(&other) {
+                    selection = merged;
+                } else {
+                    selections.insert(j, other);
+                    j += 1;
+                }
+            }
+            selections.insert(i, selection);
+            i += 1;
+        }
+
+        let merged_primary_selection = selections.remove(0);
+        Self {
+            primary_selection: merged_primary_selection,
+            extra_selections: selections,
+        }
     }
 
     pub fn count(&self) -> usize {
@@ -47,6 +71,11 @@ impl Selections {
         } else {
             self.extra_selections[index - 1] = selection;
         }
+    }
+
+    pub fn add(&mut self, selection: Selection) {
+        // TODO maybe add the selection at a sensible location instead of just added at the end
+        self.extra_selections.push(selection);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {
@@ -184,27 +213,39 @@ impl Selection {
     }
 
     fn start_end(&self) -> (Position, Position) {
-        let from;
-        let to;
-        // TODO rewrite using < and > of position
-        if self.cursor.line_index != self.anchor.line_index {
-            if self.cursor.line_index < self.anchor.line_index {
-                from = self.cursor;
-                to = self.anchor;
-            } else {
-                from = self.anchor;
-                to = self.cursor;
-            }
+        if self.cursor <= self.anchor {
+            (self.cursor, self.anchor)
         } else {
-            if self.cursor.column_index < self.anchor.column_index {
-                from = self.cursor;
-                to = self.anchor;
-            } else {
-                from = self.anchor;
-                to = self.cursor;
-            }
+            (self.anchor, self.cursor)
         }
-        (from, to)
+    }
+
+    pub fn merged_with(&self, other: &Self) -> Option<Self> {
+        if self.overlaps_with(other) {
+            let start = self.start().min(other.start());
+            let end = self.end().max(other.end());
+            let (cursor, anchor) = if self.cursor_is_at_start() {
+                (start, end)
+            } else {
+                (end, start)
+            };
+            Some(Self {
+                cursor,
+                anchor,
+                desired_column_index: self.desired_column_index,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn overlaps_with(&self, other: &Self) -> bool {
+        (self.start() <= other.start() && self.end() >= other.start())
+            || (other.start() <= self.start() && other.end() >= self.start())
+    }
+
+    fn cursor_is_at_start(&self) -> bool {
+        self.cursor <= self.anchor
     }
 }
 
@@ -233,8 +274,8 @@ impl Position {
 
     pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
         // FIXME? line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
-        let line_index = saturating_add_signed(self.line_index, line_offset);
-        let column_index = saturating_add_signed(self.column_index, column_offset);
+        let line_index = self.line_index.saturating_add_signed(line_offset);
+        let column_index = self.column_index.saturating_add_signed(column_offset);
         Self {
             line_index,
             column_index,
@@ -322,36 +363,64 @@ impl std::ops::AddAssign for Offset {
     }
 }
 
-fn saturating_add_signed(base: u32, signed: i32) -> u32 {
-    if signed >= 0 {
-        u32::saturating_add(base, signed as u32)
-    } else {
-        u32::saturating_sub(base, signed.unsigned_abs())
-    }
-}
-
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn saturating_add_signed__saturates_down_to_zero() {
-        let result = saturating_add_signed(1, -2);
-        assert_eq!(result, 0);
+    fn selections__overlapping_selections_merged__no_overlap() {
+        let pos0 = Position::new(0, 0);
+        let pos1 = Position::new(0, 2);
+        let pos2 = Position::new(1, 0);
+        let pos3 = Position::new(3, 79);
+
+        let selections = Selections::new_with(
+            Selection::new().with_anchor(pos0).with_cursor(pos1),
+            &[Selection::new().with_anchor(pos2).with_cursor(pos3)],
+        );
+
+        let merged = selections.overlapping_selections_merged();
+
+        assert_eq!(
+            merged.primary_selection.anchor,
+            selections.primary_selection.anchor
+        );
+        assert_eq!(
+            merged.primary_selection.cursor,
+            selections.primary_selection.cursor
+        );
+        assert_eq!(merged.extra_selections.len(), 1);
+        assert_eq!(
+            merged.extra_selections[0].anchor,
+            selections.extra_selections[0].anchor
+        );
+        assert_eq!(
+            merged.extra_selections[0].cursor,
+            selections.extra_selections[0].cursor
+        );
     }
 
     #[test]
-    fn saturating_add_signed__saturates_up_to_MAX() {
-        let result = saturating_add_signed(std::u32::MAX - 1, 5);
-        assert_eq!(result, std::u32::MAX);
-    }
+    fn selections__overlapping_selections_merged__multiple_merged_in_one() {
+        let pos0 = Position::new(0, 0);
+        let pos1 = Position::new(0, 2);
+        let pos2 = Position::new(0, 15);
+        let pos3 = Position::new(1, 0);
+        let pos4 = Position::new(3, 79);
 
-    #[test]
-    fn saturating_add_signed__adds() {
-        let result1 = saturating_add_signed(5, 45);
-        let result2 = saturating_add_signed(24, -8);
-        assert_eq!(result1, 50);
-        assert_eq!(result2, 16);
+        let selections = Selections::new_with(
+            Selection::new().with_anchor(pos0).with_cursor(pos2),
+            &[
+                Selection::new().with_anchor(pos1).with_cursor(pos3),
+                Selection::new().with_anchor(pos3).with_cursor(pos4),
+            ],
+        );
+
+        let merged = selections.overlapping_selections_merged();
+
+        assert_eq!(merged.primary_selection.anchor, pos0);
+        assert_eq!(merged.primary_selection.cursor, pos4);
+        assert!(merged.extra_selections.is_empty());
     }
 }

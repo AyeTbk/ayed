@@ -98,7 +98,11 @@ impl TextEditor {
         selection: Selection,
         buffer: &mut Buffer,
     ) {
-        buffer.delete_selection(selection).unwrap();
+        // FIXME this doesnt behave well with multiple selections when deleting line endings
+        let maybe_offset = buffer.delete_selection(selection).ok();
+        if let Some(offset) = maybe_offset {
+            self.move_selections_because_of_insert_char_or_delete(selection.start(), offset, true);
+        }
         self.selections
             .set(selection_index, selection.shrunk_to_start());
     }
@@ -131,6 +135,7 @@ impl TextEditor {
         offset: Offset,
         is_delete: bool,
     ) {
+        // FIXME this appears to not work properly with multiple selections when deleting EOLs.
         // TODO Change this, find a better simpler more unified way to move positions around that's aware of the buffer's contents
         for selection in self.selections.iter_mut() {
             let before_selection = if is_delete {
@@ -274,31 +279,39 @@ impl TextEditor {
         }
     }
 
-    fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
-        let mut new_viewport_top_left_position = self.view_top_left_position;
-        // Horizontal
-        let vp_start_x = self.view_top_left_position.column_index;
-        let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
-        let selection_x = self.selections.primary().cursor().column_index;
+    fn move_cursor_to_left_symbol(&mut self, buffer: &Buffer, selection_anchored: bool) {
+        todo!("move_cursor_to_left_symbol");
+    }
 
-        if selection_x < vp_start_x {
-            new_viewport_top_left_position.column_index = selection_x;
-        } else if selection_x >= vp_after_end_x {
-            new_viewport_top_left_position.column_index = selection_x - ctx.viewport_size.0 + 1;
+    fn move_cursor_to_right_symbol(&mut self, buffer: &Buffer, selection_anchored: bool) {
+        todo!("move_cursor_to_right_symbol");
+    }
+
+    fn duplicate_selection_above_or_below(&mut self, buffer: &Buffer, above: bool) {
+        let mut new_selections = Vec::new();
+        for selection in self.selections() {
+            let selection_line_count: i32 = selection.line_span().count().try_into().unwrap();
+            let line_offset = if above { -1 } else { 1 } * selection_line_count;
+            let dupe_cursor = selection.cursor().with_moved_indices(line_offset, 0);
+            let dupe_anchor = selection.anchor().with_moved_indices(line_offset, 0);
+            let dupe = Selection::new()
+                .with_cursor(dupe_cursor)
+                .with_anchor(dupe_anchor);
+            let correct_dupe = buffer.limit_selection_to_content(&dupe);
+            new_selections.push(correct_dupe);
         }
 
-        // Vertical
-        let vp_start_y = self.view_top_left_position.line_index;
-        let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
-        let selection_y = self.selections.primary().cursor().line_index;
-
-        if selection_y < vp_start_y {
-            new_viewport_top_left_position.line_index = selection_y;
-        } else if selection_y >= vp_after_end_y {
-            new_viewport_top_left_position.line_index = selection_y - ctx.viewport_size.1 + 1;
+        for selection in new_selections {
+            self.selections.add(selection);
         }
+    }
 
-        self.view_top_left_position = new_viewport_top_left_position;
+    fn normalize_selections(&mut self) {
+        self.merge_overlapping_selections();
+    }
+
+    fn merge_overlapping_selections(&mut self) {
+        self.selections = self.selections.overlapping_selections_merged();
     }
 
     fn selections(&self) -> impl Iterator<Item = Selection> + '_ {
@@ -419,6 +432,33 @@ impl TextEditor {
         }
     }
 
+    fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
+        let mut new_viewport_top_left_position = self.view_top_left_position;
+        // Horizontal
+        let vp_start_x = self.view_top_left_position.column_index;
+        let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
+        let selection_x = self.selections.primary().cursor().column_index;
+
+        if selection_x < vp_start_x {
+            new_viewport_top_left_position.column_index = selection_x;
+        } else if selection_x >= vp_after_end_x {
+            new_viewport_top_left_position.column_index = selection_x - ctx.viewport_size.0 + 1;
+        }
+
+        // Vertical
+        let vp_start_y = self.view_top_left_position.line_index;
+        let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
+        let selection_y = self.selections.primary().cursor().line_index;
+
+        if selection_y < vp_start_y {
+            new_viewport_top_left_position.line_index = selection_y;
+        } else if selection_y >= vp_after_end_y {
+            new_viewport_top_left_position.line_index = selection_y - ctx.viewport_size.1 + 1;
+        }
+
+        self.view_top_left_position = new_viewport_top_left_position;
+    }
+
     fn for_each_selection(&mut self, mut func: impl FnMut(&mut Self, usize, Selection)) {
         for idx in 0..self.selections.count() {
             let selection = self
@@ -478,11 +518,21 @@ impl TextEditor {
             DragCursorToLineStart => self.move_cursor_to_line_start(true),
             DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
             //
+            MoveCursorToLeftSymbol => self.move_cursor_to_left_symbol(ctx.buffer, false),
+            MoveCursorToRightSymbol => self.move_cursor_to_right_symbol(ctx.buffer, false),
+            DragCursorToLeftSymbol => self.move_cursor_to_left_symbol(ctx.buffer, true),
+            DragCursorToRightSymbol => self.move_cursor_to_right_symbol(ctx.buffer, true),
+            //
             ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
             FlipSelection => self.map_selections(|sel| sel.flipped()),
             FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
             FlipSelectionBackward => self.map_selections(|sel| sel.flipped_forward().flipped()),
+            //
+            DuplicateSelectionAbove => self.duplicate_selection_above_or_below(ctx.buffer, true),
+            DuplicateSelectionBelow => self.duplicate_selection_above_or_below(ctx.buffer, false),
         }
+
+        self.normalize_selections();
 
         self.adjust_viewport_to_primary_selection(ctx);
     }
@@ -521,7 +571,7 @@ impl Panel for TextEditor {
 
         for line_index in start_line_index..after_end_line_index {
             let mut line_buf = String::new();
-            let full_line = if ctx.buffer.copy_line(line_index, &mut line_buf).is_some() {
+            let full_line = if ctx.buffer.copy_line(line_index, &mut line_buf).is_ok() {
                 line_buf
             } else {
                 let mut non_existant_line = " ".repeat((ctx.viewport_size.0 - 1) as _);

@@ -33,7 +33,7 @@ impl LineEdit {
         match command {
             Command::Insert('\n') => {
                 let mut line = String::new();
-                self.buffer.copy_line(0, &mut line)?;
+                self.buffer.copy_line(0, &mut line).ok()?;
                 self.reset();
                 Some(line)
             }
