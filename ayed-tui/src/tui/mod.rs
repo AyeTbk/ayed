@@ -44,10 +44,9 @@ impl Tui {
             let event = crossterm::event::read().unwrap();
 
             match event {
-                Event::Key(KeyEvent { code, modifiers }) => {
-                    if code == KeyCode::Esc {
-                        break;
-                    }
+                Event::Key(KeyEvent {
+                    code, modifiers, ..
+                }) => {
                     let key = convert_key_code_to_ayed(code);
                     let modifiers = convert_key_modifiers_to_ayed(modifiers);
                     let input = Input::new(key, modifiers);
