@@ -1,5 +1,5 @@
 use crate::{
-    buffer::Buffer,
+    buffer::TextBuffer,
     command::Command,
     core::EditorContextMut,
     input::Input,
@@ -13,14 +13,14 @@ use crate::{
 
 pub struct LineEdit {
     editor: TextEditor,
-    buffer: Buffer,
+    buffer: TextBuffer,
 }
 
 impl LineEdit {
     pub fn new() -> Self {
         Self {
             editor: TextEditor::new(),
-            buffer: Buffer::new_empty(),
+            buffer: TextBuffer::new_empty(),
         }
     }
 
@@ -46,7 +46,7 @@ impl LineEdit {
 
     fn reset(&mut self) {
         self.editor = TextEditor::new();
-        self.buffer = Buffer::new_empty();
+        self.buffer = TextBuffer::new_empty();
     }
 }
 

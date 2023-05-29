@@ -1,12 +1,12 @@
 use crate::{
-    buffer::Buffer,
+    buffer::TextBuffer,
     command::Command,
     core::EditorContextMut,
     input::Input,
     input_mapper::InputMap,
     mode_line::ModeLineInfo,
     panel::Panel,
-    selection::{Offset, Position, Selection, Selections},
+    selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
     text_mode::{TextCommandMode, TextEditMode},
     ui_state::{Color, Span, Style, UiPanel},
 };
@@ -73,52 +73,42 @@ impl TextEditor {
         }
     }
 
-    fn insert_char_for_each_selection(&mut self, ch: char, buffer: &mut Buffer) {
+    fn insert_char_for_each_selection(&mut self, ch: char, buffer: &mut TextBuffer) {
         self.for_each_selection(|this, _, selection| this.insert_char(ch, selection, buffer));
     }
 
-    fn insert_char(&mut self, ch: char, selection: Selection, buffer: &mut Buffer) {
+    fn insert_char(&mut self, ch: char, selection: Selection, buffer: &mut TextBuffer) {
         let insert_at = selection.cursor();
-        if let Ok(offset) = buffer.insert_char_at(ch, insert_at) {
-            self.move_selections_because_of_insert_char_or_delete(insert_at, offset, false);
+        if let Ok(edit) = buffer.insert_char_at(ch, insert_at) {
+            self.adjust_selections_from_edit(edit);
         } else {
-            panic!("tried to insert char outside of buffer")
+            panic!("tried to insert char outside of buffer {:?}", insert_at);
         }
     }
 
-    fn delete_selection_for_each_selection(&mut self, buffer: &mut Buffer) {
-        self.for_each_selection(|this, idx, selection| {
-            this.delete_selection(idx, selection, buffer)
-        });
+    fn delete_selection_for_each_selection(&mut self, buffer: &mut TextBuffer) {
+        self.for_each_selection(|this, _, selection| this.delete_selection(selection, buffer));
     }
 
-    fn delete_selection(
-        &mut self,
-        selection_index: usize,
-        selection: Selection,
-        buffer: &mut Buffer,
-    ) {
-        // FIXME this doesnt behave well with multiple selections when deleting line endings
-        let maybe_offset = buffer.delete_selection(selection).ok();
-        if let Some(offset) = maybe_offset {
-            self.move_selections_because_of_insert_char_or_delete(selection.start(), offset, true);
+    fn delete_selection(&mut self, selection: Selection, buffer: &mut TextBuffer) {
+        let maybe_edit = buffer.delete_selection(selection).ok();
+        if let Some(edit) = maybe_edit {
+            self.adjust_selections_from_edit(edit.into());
         }
-        self.selections
-            .set(selection_index, selection.shrunk_to_start());
     }
 
-    fn delete_cursor_for_each_selection(&mut self, buffer: &mut Buffer) {
+    fn delete_cursor_for_each_selection(&mut self, buffer: &mut TextBuffer) {
         self.for_each_selection(|this, _, selection| this.delete_cursor(selection, buffer));
     }
 
-    fn delete_cursor(&mut self, selection: Selection, buffer: &mut Buffer) {
-        let offset = buffer
+    fn delete_cursor(&mut self, selection: Selection, buffer: &mut TextBuffer) {
+        let edit = buffer
             .delete_selection(selection.shrunk_to_cursor())
             .unwrap();
-        self.move_selections_because_of_insert_char_or_delete(selection.cursor(), offset, true);
+        self.adjust_selections_from_edit(edit.into());
     }
 
-    fn delete_before_cursor_for_each_selection(&mut self, buffer: &mut Buffer) {
+    fn delete_before_cursor_for_each_selection(&mut self, buffer: &mut TextBuffer) {
         self.for_each_selection(|this, _, selection| {
             if selection.cursor() == Position::ZERO {
                 return;
@@ -129,82 +119,80 @@ impl TextEditor {
         });
     }
 
-    fn move_selections_because_of_insert_char_or_delete(
-        &mut self,
-        position: Position,
-        offset: Offset,
-        is_delete: bool,
-    ) {
-        // FIXME this appears to not work properly with multiple selections when deleting EOLs.
-        // TODO Change this, find a better simpler more unified way to move positions around that's aware of the buffer's contents
-        for selection in self.selections.iter_mut() {
-            let before_selection = if is_delete {
-                position < selection.start()
-            } else {
-                position <= selection.start()
-            };
-            let after_selection = if is_delete {
-                position >= selection.end()
-            } else {
-                position > selection.end()
-            };
-            let within_selection = !before_selection && !after_selection;
-
-            let mut start = selection.start();
-            let mut end = selection.end();
-
-            if after_selection {
-                continue;
-            } else if before_selection {
-                // check if same line to move column index
-                if position.line_index == start.line_index {
-                    if offset.line_offset != 0 {
-                        start.column_index = 0;
+    fn adjust_selections_from_edit(&mut self, edit: EditInfo) {
+        fn adjust_position_from_edit(position: Position, edit: EditInfo) -> Position {
+            match edit {
+                EditInfo::AddedOne(edit_pos) => {
+                    if edit_pos <= position && edit_pos.line_index == position.line_index {
+                        position.with_moved_indices(0, 1)
                     } else {
-                        start.column_index =
-                            (start.column_index as i64 + offset.column_offset as i64) as u32;
+                        position
                     }
                 }
-                if position.line_index == end.line_index {
-                    if offset.line_offset != 0 {
-                        end.column_index = end.column_index - selection.start().column_index
+                EditInfo::LineSplit(edit_pos) => {
+                    if edit_pos <= position {
+                        if edit_pos.line_index == position.line_index {
+                            let column_distance_from_edit =
+                                position.column_index - edit_pos.column_index;
+                            Position::new(edit_pos.line_index + 1, column_distance_from_edit)
+                        } else {
+                            // then position is on a line after the edit
+                            position.with_moved_indices(1, 0)
+                        }
                     } else {
-                        end.column_index =
-                            (end.column_index as i64 + offset.column_offset as i64) as u32;
+                        position
                     }
                 }
+                EditInfo::Deleted(DeletedEditInfo {
+                    pos1_line_index,
+                    pos1_before_delete_start_column_index,
+                    pos2,
+                }) => {
+                    if position.line_index > pos1_line_index
+                        || (position.line_index == pos1_line_index
+                            && (position.column_index as i64)
+                                >= pos1_before_delete_start_column_index)
+                    {
+                        let column_index = pos1_before_delete_start_column_index + 1;
+                        let pos2_new = Position::new(pos1_line_index, column_index as u32);
 
-                // need to ajust line index
-                start.line_index = (start.line_index as i64 + offset.line_offset as i64) as u32;
-                end.line_index = (end.line_index as i64 + offset.line_offset as i64) as u32;
-            } else if within_selection {
-                // check if same line as selection.end() to move column index
-                if position.line_index == end.line_index {
-                    if offset.line_offset != 0 {
-                        end.column_index = 0;
-                    } else {
-                        end.column_index =
-                            (end.column_index as i64 + offset.column_offset as i64) as u32;
+                        // If position within edit, place at edit_pos1 + 1column
+                        if position <= pos2 {
+                            pos2_new
+                        } else
+                        // If position after edit, place relative to edit_pos2's new position
+                        {
+                            let delta = pos2_new.offset_between(&pos2);
+
+                            let line_offset = delta.line_offset;
+                            let column_offset = if position.line_index == pos2.line_index {
+                                delta.column_offset
+                            } else {
+                                0
+                            };
+
+                            position.with_moved_indices(line_offset, column_offset)
+                        }
+                    } else
+                    // If position before edit, do nothing
+                    {
+                        position
                     }
                 }
-                // need to ajust line index
-                end.line_index = (end.line_index as i64 + offset.line_offset as i64) as u32;
             }
-            let mut new_selection = Selection::new()
-                .with_anchor(start)
-                .with_cursor(end)
-                .flipped_forward();
-            if !selection.is_forward() {
-                new_selection = new_selection.flipped();
-            }
-            *selection = new_selection;
+        }
+
+        for sel in self.selections.iter_mut() {
+            let anchor = adjust_position_from_edit(sel.anchor(), edit);
+            let cursor = adjust_position_from_edit(sel.cursor(), edit);
+            *sel = sel.with_anchor(anchor).with_cursor(cursor);
         }
     }
 
     fn move_cursor_horizontally(
         &mut self,
         column_offset: i32,
-        buffer: &Buffer,
+        buffer: &TextBuffer,
         selection_anchored: bool,
     ) {
         for selection in self.selections.iter_mut() {
@@ -230,7 +218,7 @@ impl TextEditor {
     fn move_cursor_vertically(
         &mut self,
         line_offset: i32,
-        buffer: &Buffer,
+        buffer: &TextBuffer,
         selection_anchored: bool,
     ) {
         for selection in self.selections.iter_mut() {
@@ -255,9 +243,25 @@ impl TextEditor {
         }
     }
 
-    fn move_cursor_to_line_start(&mut self, selection_anchored: bool) {
+    fn move_cursor_to_line_start(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
         for selection in self.selections.iter_mut() {
-            let new_cursor = selection.cursor().with_column_index(0);
+            let line_index = selection.cursor().line_index;
+            let line = buffer
+                .line(line_index)
+                .expect("the line should exist if a selection is on it");
+
+            let first_non_white_char_index =
+                line.find(|ch| !char::is_whitespace(ch)).unwrap_or(0) as u32;
+
+            let new_column_index = if selection.cursor().column_index != first_non_white_char_index
+            {
+                first_non_white_char_index
+            } else {
+                0
+            };
+
+            let new_cursor = selection.cursor().with_column_index(new_column_index);
+
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
             } else {
@@ -266,11 +270,21 @@ impl TextEditor {
         }
     }
 
-    fn move_cursor_to_line_end(&mut self, buffer: &Buffer, selection_anchored: bool) {
+    fn move_cursor_to_line_end(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
         for selection in self.selections.iter_mut() {
             let line_index = selection.cursor().line_index;
             let line_len = buffer.line_len(line_index).unwrap();
-            let new_cursor = selection.cursor().with_column_index(line_len as u32);
+
+            // Flip flop between before EOL and at EOL
+            let eol_column_index = line_len as u32;
+            let last_char_column_index = (eol_column_index).saturating_sub(1);
+            let new_column_index = if selection.cursor().column_index != last_char_column_index {
+                last_char_column_index
+            } else {
+                eol_column_index
+            };
+
+            let new_cursor = selection.cursor().with_column_index(new_column_index);
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
             } else {
@@ -279,15 +293,15 @@ impl TextEditor {
         }
     }
 
-    fn move_cursor_to_left_symbol(&mut self, buffer: &Buffer, selection_anchored: bool) {
+    fn move_cursor_to_left_symbol(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
         todo!("move_cursor_to_left_symbol");
     }
 
-    fn move_cursor_to_right_symbol(&mut self, buffer: &Buffer, selection_anchored: bool) {
+    fn move_cursor_to_right_symbol(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
         todo!("move_cursor_to_right_symbol");
     }
 
-    fn duplicate_selection_above_or_below(&mut self, buffer: &Buffer, above: bool) {
+    fn duplicate_selection_above_or_below(&mut self, buffer: &TextBuffer, above: bool) {
         let mut new_selections = Vec::new();
         for selection in self.selections() {
             let selection_line_count: i32 = selection.line_span().count().try_into().unwrap();
@@ -307,6 +321,7 @@ impl TextEditor {
     }
 
     fn normalize_selections(&mut self) {
+        // TODO should I add stuff like limit_selection_to_content and reordering selections?
         self.merge_overlapping_selections();
     }
 
@@ -320,7 +335,7 @@ impl TextEditor {
 
     fn selections_split_by_lines<'a>(
         &'a self,
-        buffer: &'a Buffer,
+        buffer: &'a TextBuffer,
     ) -> impl Iterator<Item = (Selection, impl Iterator<Item = Selection> + 'a)> + 'a {
         self.selections().map(move |s| {
             let anchor = s.anchor();
@@ -360,7 +375,7 @@ impl TextEditor {
         })
     }
 
-    fn compute_selection_spans(&self, spans: &mut Vec<Span>, buffer: &Buffer) {
+    fn compute_selection_spans(&self, spans: &mut Vec<Span>, buffer: &TextBuffer) {
         let selection_color = if self.active_mode_name == TextEditMode::NAME {
             Some(Color::rgb(150, 32, 96))
         } else {
@@ -513,9 +528,9 @@ impl TextEditor {
                 self.selections = Selections::new_with(selection, &[]);
             }
             //
-            MoveCursorToLineStart => self.move_cursor_to_line_start(false),
+            MoveCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, false),
             MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),
-            DragCursorToLineStart => self.move_cursor_to_line_start(true),
+            DragCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, true),
             DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
             //
             MoveCursorToLeftSymbol => self.move_cursor_to_left_symbol(ctx.buffer, false),

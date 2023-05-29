@@ -44,6 +44,14 @@ impl CharString {
         self.inner.iter().copied()
     }
 
+    pub fn char_indices(&self) -> impl Iterator<Item = (usize, char)> + '_ {
+        self.inner.iter().copied().enumerate()
+    }
+
+    pub fn find<P: CharPattern>(&self, pat: P) -> Option<usize> {
+        pat.next_match(self).map(|(i, _)| i)
+    }
+
     pub fn drain<R>(&mut self, range: R) -> std::vec::Drain<'_, char>
     where
         R: std::ops::RangeBounds<usize>,
@@ -97,5 +105,24 @@ impl FromIterator<char> for CharString {
             this.push(ch);
         }
         this
+    }
+}
+
+pub trait CharPattern {
+    fn next_match(self, haystack: &CharString) -> Option<(usize, usize)>;
+}
+
+impl<T> CharPattern for T
+where
+    T: FnMut(char) -> bool,
+{
+    fn next_match(mut self, haystack: &CharString) -> Option<(usize, usize)> {
+        for (i, ch) in haystack.char_indices() {
+            if self(ch) {
+                return Some((i, i + 1));
+            }
+        }
+
+        None
     }
 }

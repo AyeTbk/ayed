@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::arena::{Arena, Handle};
-use crate::buffer::Buffer;
+use crate::buffer::TextBuffer;
 use crate::command::Command;
 use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
@@ -11,8 +11,8 @@ use crate::text_editor::TextEditor;
 use crate::ui_state::{UiPanel, UiState};
 
 pub struct Core {
-    buffers: Arena<Buffer>,
-    active_buffer: Handle<Buffer>,
+    buffers: Arena<TextBuffer>,
+    active_buffer: Handle<TextBuffer>,
     active_editor: TextEditor,
     mode_line: ModeLine,
     warpdrive_panel: Option<WarpDrivePanel>,
@@ -23,7 +23,7 @@ pub struct Core {
 impl Core {
     pub fn new() -> Self {
         let mut buffers = Arena::new();
-        let active_buffer = buffers.allocate(Buffer::new_empty());
+        let active_buffer = buffers.allocate(TextBuffer::new_empty());
         let active_editor = TextEditor::new();
         let mode_line = ModeLine::new();
 
@@ -46,20 +46,21 @@ impl Core {
         self.quit = true;
     }
 
-    pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<Buffer> {
-        self.buffers.allocate(Buffer::from_filepath(path.as_ref()))
+    pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
+        self.buffers
+            .allocate(TextBuffer::from_filepath(path.as_ref()))
     }
 
-    pub fn create_scratch_buffer(&mut self) -> Handle<Buffer> {
-        self.buffers.allocate(Buffer::new_empty())
+    pub fn create_scratch_buffer(&mut self) -> Handle<TextBuffer> {
+        self.buffers.allocate(TextBuffer::new_empty())
     }
 
-    pub fn edit_buffer(&mut self, buffer: Handle<Buffer>) {
+    pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
         self.active_editor = TextEditor::new();
         self.active_buffer = buffer;
     }
 
-    pub fn save_buffer(&mut self, buffer: Handle<Buffer>) {
+    pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
         self.buffers.get(buffer).save().unwrap();
     }
 
@@ -261,6 +262,6 @@ impl Core {
 }
 
 pub struct EditorContextMut<'a> {
-    pub buffer: &'a mut Buffer,
+    pub buffer: &'a mut TextBuffer,
     pub viewport_size: (u32, u32),
 }

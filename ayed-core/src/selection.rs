@@ -212,14 +212,6 @@ impl Selection {
         self.start().line_index..=self.end().line_index
     }
 
-    fn start_end(&self) -> (Position, Position) {
-        if self.cursor <= self.anchor {
-            (self.cursor, self.anchor)
-        } else {
-            (self.anchor, self.cursor)
-        }
-    }
-
     pub fn merged_with(&self, other: &Self) -> Option<Self> {
         if self.overlaps_with(other) {
             let start = self.start().min(other.start());
@@ -244,9 +236,41 @@ impl Selection {
             || (other.start() <= self.start() && other.end() >= self.start())
     }
 
+    pub fn contains(&self, position: Position) -> bool {
+        self.start() <= position && position <= self.end()
+    }
+
     fn cursor_is_at_start(&self) -> bool {
         self.cursor <= self.anchor
     }
+
+    fn start_end(&self) -> (Position, Position) {
+        if self.cursor <= self.anchor {
+            (self.cursor, self.anchor)
+        } else {
+            (self.anchor, self.cursor)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum EditInfo {
+    Deleted(DeletedEditInfo),
+    AddedOne(Position),
+    LineSplit(Position), // position points where the char (now first char of the new line) was.
+}
+
+impl From<DeletedEditInfo> for EditInfo {
+    fn from(value: DeletedEditInfo) -> Self {
+        Self::Deleted(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DeletedEditInfo {
+    pub pos1_line_index: u32,
+    pub pos1_before_delete_start_column_index: i64, // Can be -1
+    pub pos2: Position,                             // Position after deleted content end
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -294,6 +318,10 @@ impl Position {
             line_index: self.line_index,
             column_index,
         }
+    }
+
+    pub fn offset_between(&self, other: &Self) -> Offset {
+        self.to_offset() - other.to_offset()
     }
 
     pub fn to_offset(&self) -> Offset {
@@ -360,6 +388,15 @@ impl std::ops::Add for Offset {
 impl std::ops::AddAssign for Offset {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
+    }
+}
+impl std::ops::Sub for Offset {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            column_offset: self.column_offset - rhs.column_offset,
+            line_offset: self.line_offset - rhs.line_offset,
+        }
     }
 }
 

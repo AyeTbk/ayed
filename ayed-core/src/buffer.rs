@@ -3,22 +3,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::selection::{Offset, Position, Selection};
+use crate::selection::{DeletedEditInfo, EditInfo, Position, Selection};
 
 pub mod char_string;
 use self::char_string::CharString;
 
-// Notes:
-// The lines of text must uphold some invariants:
-// 1. There is always at least one line.
-// 2. Every line must have one and only one '\n' and it must be at the end.
+/// Notes:
+/// The lines of text must uphold some invariants:
+/// 1. There is always at least one line.
+/// 2. Every line must have one and only one '\n' and it must be at the end.
 #[derive(Debug, Default)]
-pub struct Buffer {
+pub struct TextBuffer {
     lines: Vec<CharString>,
     filepath: Option<PathBuf>,
 }
 
-impl Buffer {
+impl TextBuffer {
     pub fn new_empty() -> Self {
         Self {
             lines: vec![CharString::from("\n")],
@@ -60,18 +60,17 @@ impl Buffer {
         }
     }
 
-    pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<Offset, ()> {
+    pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<EditInfo, ()> {
         if let Some(mut line) = self.take_line(position.line_index) {
             if (position.column_index as usize) > line.len() {
                 return Err(());
             }
 
-            let mut offset = Offset::ZERO;
-            offset.column_offset += 1;
+            let mut edit = EditInfo::AddedOne(position);
 
             if ch == '\n' {
-                offset.line_offset += 1;
-                offset.column_offset = 0;
+                edit = EditInfo::LineSplit(position);
+
                 let new_line_content = line.drain(position.column_index as usize..).collect();
                 self.insert_line(position.line_index + 1, new_line_content);
             }
@@ -79,25 +78,42 @@ impl Buffer {
 
             self.set_line(position.line_index, line);
 
-            Ok(offset)
+            Ok(edit)
         } else {
             Err(())
         }
     }
 
-    pub fn delete_selection(&mut self, selection: Selection) -> Result<Offset, ()> {
+    pub fn delete_selection(&mut self, selection: Selection) -> Result<DeletedEditInfo, ()> {
         let selection_length = self.selection_length(selection).unwrap();
-        let mut cumulative_offset = Offset::ZERO;
+        let mut pos2: Option<Position> = None;
         for _ in 0..selection_length {
-            let offset = self.delete_position(selection.start())?;
-            cumulative_offset += offset;
+            let edit = self.delete_position(selection.start())?;
+
+            if let Some(pos2) = pos2.as_mut() {
+                if edit.pos1_line_index < edit.pos2.line_index {
+                    *pos2 = pos2.with_moved_indices(1, 0).with_column_index(0);
+                } else {
+                    *pos2 = pos2.with_moved_indices(0, 1);
+                }
+            } else {
+                pos2 = Some(edit.pos2);
+            }
         }
-        Ok(cumulative_offset)
+
+        let edit = DeletedEditInfo {
+            pos1_line_index: selection.start().line_index,
+            pos1_before_delete_start_column_index: (selection.start().column_index) as i64 - 1,
+            pos2: pos2.expect(
+                "selection length shouldn't be zero which is the only way this would still be None",
+            ),
+        };
+        Ok(edit)
     }
 
-    fn delete_position(&mut self, position: Position) -> Result<Offset, ()> {
+    fn delete_position(&mut self, position: Position) -> Result<DeletedEditInfo, ()> {
         let mut line = self.take_line(position.line_index).ok_or(())?;
-        let mut offset = Offset::ZERO;
+        let mut edit_pos2 = position.with_moved_indices(0, 1);
 
         match line.get(position.column_index as usize) {
             Some('\n') => {
@@ -105,12 +121,12 @@ impl Buffer {
                     assert_eq!(position.column_index as usize, line.len() - 1);
                     line.pop();
                     line.extend(next_line);
-                    offset.line_offset = -1;
+
+                    edit_pos2 = Position::new(position.line_index + 1, 0);
                 }
             }
             Some(_) => {
                 line.remove(position.column_index as usize);
-                offset.column_offset = -1;
             }
             None => {
                 return Err(());
@@ -119,7 +135,12 @@ impl Buffer {
 
         self.set_line(position.line_index, line);
 
-        Ok(offset)
+        let edit = DeletedEditInfo {
+            pos1_line_index: position.line_index,
+            pos1_before_delete_start_column_index: position.column_index as i64 - 1,
+            pos2: edit_pos2,
+        };
+        Ok(edit)
     }
 
     pub fn moved_position_horizontally(
