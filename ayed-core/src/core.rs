@@ -72,8 +72,7 @@ impl Core {
         } else if input.key == Key::Char(':') && self.active_editor.is_command_mode() {
             self.mode_line.set_has_focus(true);
         } else if input == Input::parse("w").unwrap() && self.active_editor.is_command_mode() {
-            let wdp = self.make_warp_drive_panel();
-            self.warpdrive_panel = Some(wdp);
+            self.warpdrive_panel = self.make_warp_drive_panel();
             return;
         } else if self.warpdrive_panel.is_some() {
             if let Some(command) = self.input_warpdrive(input) {
@@ -109,7 +108,7 @@ impl Core {
         UiState { panels }
     }
 
-    fn make_warp_drive_panel(&mut self) -> WarpDrivePanel {
+    fn make_warp_drive_panel(&mut self) -> Option<WarpDrivePanel> {
         let ui_panel = self.active_editor_panel();
         let text_content = ui_panel.content;
         let position_offset = self.active_editor.view_top_left_position().to_offset();

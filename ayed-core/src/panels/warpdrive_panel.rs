@@ -23,13 +23,18 @@ pub struct WarpDrivePanel {
 }
 
 impl WarpDrivePanel {
-    pub fn new(text_content: Vec<String>, position_offset: Offset) -> Self {
+    pub fn new(text_content: Vec<String>, position_offset: Offset) -> Option<Self> {
         let jump_points = Self::gather_jump_points(&text_content);
-        Self {
-            text_content,
-            position_offset,
-            jump_points,
-            input: Vec::default(),
+
+        if jump_points.is_empty() {
+            None
+        } else {
+            Some(Self {
+                text_content,
+                position_offset,
+                jump_points,
+                input: Vec::default(),
+            })
         }
     }
 
