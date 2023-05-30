@@ -16,9 +16,10 @@ pub struct TextEditor {
     // TODO features Id like: execute predefined commands on mode enter / exit,
     active_mode: Box<dyn InputMap>,
     active_mode_name: &'static str,
-    active_mode_is_text_edit_append: bool,
     selections: Selections,
     view_top_left_position: Position,
+    anchor_down: bool,
+    anchor_next: AnchorNextState,
 }
 
 impl TextEditor {
@@ -26,9 +27,10 @@ impl TextEditor {
         Self {
             active_mode: Box::new(TextCommandMode),
             active_mode_name: TextCommandMode::NAME,
-            active_mode_is_text_edit_append: false,
             selections: Selections::new(),
             view_top_left_position: Position::ZERO,
+            anchor_down: false,
+            anchor_next: AnchorNextState::Unset,
         }
     }
 
@@ -54,7 +56,6 @@ impl TextEditor {
     }
 
     pub fn set_mode(&mut self, mode_name: &'static str) {
-        self.active_mode_is_text_edit_append = false;
         self.active_mode_name = mode_name;
         match mode_name {
             TextCommandMode::NAME => self.active_mode = Box::new(TextCommandMode),
@@ -63,13 +64,27 @@ impl TextEditor {
         }
     }
 
-    pub fn set_mode_with_arg(&mut self, mode_name: &'static str, arg: usize) {
-        self.set_mode(mode_name);
-        match mode_name {
-            TextEditMode::NAME => {
-                self.active_mode_is_text_edit_append = arg != 0;
-            }
-            _ => (),
+    fn anchored(&self) -> bool {
+        self.anchor_down
+    }
+
+    fn lower_anchor(&mut self, anchor_next: bool) {
+        self.anchor_down = true;
+        if anchor_next {
+            self.anchor_next = AnchorNextState::JustSet;
+        }
+    }
+
+    fn raise_anchor(&mut self) {
+        self.anchor_down = false;
+    }
+
+    fn anchor_check(&mut self) {
+        if let AnchorNextState::JustSet = self.anchor_next {
+            self.anchor_next = AnchorNextState::Set
+        } else if let AnchorNextState::Set = self.anchor_next {
+            self.anchor_next = AnchorNextState::Unset;
+            self.anchor_down = false;
         }
     }
 
@@ -80,7 +95,7 @@ impl TextEditor {
     fn insert_char(&mut self, ch: char, selection: Selection, buffer: &mut TextBuffer) {
         let insert_at = selection.cursor();
         if let Ok(edit) = buffer.insert_char_at(ch, insert_at) {
-            self.adjust_selections_from_edit(edit);
+            self.adjust_selections_from_edit(edit, self.anchored());
         } else {
             panic!("tried to insert char outside of buffer {:?}", insert_at);
         }
@@ -93,7 +108,7 @@ impl TextEditor {
     fn delete_selection(&mut self, selection: Selection, buffer: &mut TextBuffer) {
         let maybe_edit = buffer.delete_selection(selection).ok();
         if let Some(edit) = maybe_edit {
-            self.adjust_selections_from_edit(edit.into());
+            self.adjust_selections_from_edit(edit.into(), self.anchored());
         }
     }
 
@@ -105,7 +120,7 @@ impl TextEditor {
         let edit = buffer
             .delete_selection(selection.shrunk_to_cursor())
             .unwrap();
-        self.adjust_selections_from_edit(edit.into());
+        self.adjust_selections_from_edit(edit.into(), self.anchored());
     }
 
     fn delete_before_cursor_for_each_selection(&mut self, buffer: &mut TextBuffer) {
@@ -119,7 +134,7 @@ impl TextEditor {
         });
     }
 
-    fn adjust_selections_from_edit(&mut self, edit: EditInfo) {
+    fn adjust_selections_from_edit(&mut self, edit: EditInfo, selection_anchored: bool) {
         fn adjust_position_from_edit(position: Position, edit: EditInfo) -> Position {
             match edit {
                 EditInfo::AddedOne(edit_pos) => {
@@ -183,7 +198,11 @@ impl TextEditor {
         }
 
         for sel in self.selections.iter_mut() {
-            let anchor = adjust_position_from_edit(sel.anchor(), edit);
+            let anchor = if selection_anchored && sel.anchor() == edit.pos() {
+                sel.anchor()
+            } else {
+                adjust_position_from_edit(sel.anchor(), edit)
+            };
             let cursor = adjust_position_from_edit(sel.cursor(), edit);
             *sel = sel.with_anchor(anchor).with_cursor(cursor);
         }
@@ -291,14 +310,6 @@ impl TextEditor {
                 selection.with_position(new_cursor)
             };
         }
-    }
-
-    fn move_cursor_to_left_symbol(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
-        todo!("move_cursor_to_left_symbol");
-    }
-
-    fn move_cursor_to_right_symbol(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
-        todo!("move_cursor_to_right_symbol");
     }
 
     fn duplicate_selection_above_or_below(&mut self, buffer: &TextBuffer, above: bool) {
@@ -494,17 +505,13 @@ impl TextEditor {
         use Command::*;
 
         match command {
+            AnchorNext => self.lower_anchor(true),
+            AnchorDown => self.lower_anchor(false),
+            AnchorUp => self.raise_anchor(),
+
             ChangeMode(mode_name) => {
-                if self.active_mode_is_text_edit_append {
-                    self.execute_command_inner(DragCursorLeft, ctx);
-                }
                 self.set_mode(mode_name);
-            }
-            ChangeModeArg(mode_name, arg) => {
-                if self.active_mode_is_text_edit_append {
-                    self.execute_command_inner(DragCursorLeft, ctx);
-                }
-                self.set_mode_with_arg(mode_name, arg);
+                self.raise_anchor();
             }
             Insert(ch) => self.insert_char_for_each_selection(ch, ctx.buffer),
             DeleteSelection => self.delete_selection_for_each_selection(ctx.buffer),
@@ -512,31 +519,19 @@ impl TextEditor {
             DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(ctx.buffer),
 
             // Wow
-            MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, false),
-            MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, false),
-            MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, false),
-            MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, false),
-            DragCursorUp => self.move_cursor_vertically(-1, ctx.buffer, true),
-            DragCursorDown => self.move_cursor_vertically(1, ctx.buffer, true),
-            DragCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, true),
-            DragCursorRight => self.move_cursor_horizontally(1, ctx.buffer, true),
+            MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, self.anchored()),
+            MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, self.anchored()),
+            MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, self.anchored()),
+            MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, self.anchored()),
             //
             MoveCursorTo(_, _) => todo!(),
-            DragCursorTo(_, _) => todo!(),
             SetSelection { cursor, anchor } => {
                 let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
                 self.selections = Selections::new_with(selection, &[]);
             }
             //
-            MoveCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, false),
-            MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, false),
-            DragCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, true),
-            DragCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, true),
-            //
-            MoveCursorToLeftSymbol => self.move_cursor_to_left_symbol(ctx.buffer, false),
-            MoveCursorToRightSymbol => self.move_cursor_to_right_symbol(ctx.buffer, false),
-            DragCursorToLeftSymbol => self.move_cursor_to_left_symbol(ctx.buffer, true),
-            DragCursorToRightSymbol => self.move_cursor_to_right_symbol(ctx.buffer, true),
+            MoveCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, self.anchored()),
+            MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, self.anchored()),
             //
             ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
             FlipSelection => self.map_selections(|sel| sel.flipped()),
@@ -546,6 +541,8 @@ impl TextEditor {
             DuplicateSelectionAbove => self.duplicate_selection_above_or_below(ctx.buffer, true),
             DuplicateSelectionBelow => self.duplicate_selection_above_or_below(ctx.buffer, false),
         }
+
+        self.anchor_check();
 
         self.normalize_selections();
 
@@ -636,4 +633,11 @@ impl Panel for TextEditor {
             spans: panel_spans,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum AnchorNextState {
+    Unset,
+    JustSet,
+    Set,
 }

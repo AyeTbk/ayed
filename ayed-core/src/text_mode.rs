@@ -16,17 +16,37 @@ impl InputMap for TextCommandMode {
         use Command::*;
 
         let mut im = InputMapper::default();
+
         im.register("<tab>", ChangeMode(TextEditMode::NAME))
             .unwrap();
 
         im.register("i", [FlipSelectionBackward, ChangeMode(TextEditMode::NAME)])
             .unwrap();
         im.register(
+            "<s-i>",
+            [
+                FlipSelectionBackward,
+                ChangeMode(TextEditMode::NAME),
+                AnchorNext,
+            ],
+        )
+        .unwrap();
+        im.register(
             "a",
             [
                 FlipSelectionForward,
-                DragCursorRight,
-                ChangeModeArg(TextEditMode::NAME, 1),
+                ChangeMode(TextEditMode::NAME),
+                MoveCursorRight,
+            ],
+        )
+        .unwrap();
+        im.register(
+            "<s-a>",
+            [
+                FlipSelectionForward,
+                ChangeMode(TextEditMode::NAME),
+                AnchorNext,
+                MoveCursorRight,
             ],
         )
         .unwrap();
@@ -97,23 +117,23 @@ fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
     use Command::*;
 
     im.register("<up>", MoveCursorUp)?;
-    im.register("<s-up>", DragCursorUp)?;
+    im.register("<s-up>", [AnchorNext, MoveCursorUp])?;
     im.register("<down>", MoveCursorDown)?;
-    im.register("<s-down>", DragCursorDown)?;
+    im.register("<s-down>", [AnchorNext, MoveCursorDown])?;
 
     im.register("<left>", MoveCursorLeft)?;
-    im.register("<s-left>", DragCursorLeft)?;
-    im.register("<c-left>", MoveCursorToLeftSymbol)?;
-    im.register("<cs-left>", DragCursorToLeftSymbol)?;
+    im.register("<s-left>", [AnchorNext, MoveCursorLeft])?;
+    // im.register("<c-left>", MoveCursorToLeftSymbol)?;
+    // im.register("<cs-left>", [AnchorNext, MoveCursorToLeftSymbol])?;
     im.register("<home>", MoveCursorToLineStart)?;
-    im.register("<s-home>", DragCursorToLineStart)?;
+    im.register("<s-home>", [AnchorNext, MoveCursorToLineStart])?;
 
     im.register("<right>", MoveCursorRight)?;
-    im.register("<s-right>", DragCursorRight)?;
-    im.register("<c-right>", MoveCursorToRightSymbol)?;
-    im.register("<cs-right>", DragCursorToRightSymbol)?;
+    im.register("<s-right>", [AnchorNext, MoveCursorRight])?;
+    // im.register("<c-right>", MoveCursorToRightSymbol)?;
+    // im.register("<cs-right>", [AnchorNext, MoveCursorToRightSymbol])?;
     im.register("<end>", MoveCursorToLineEnd)?;
-    im.register("<s-end>", DragCursorToLineEnd)?;
+    im.register("<s-end>", [AnchorNext, MoveCursorToLineEnd])?;
 
     Ok(())
 }

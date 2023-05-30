@@ -65,13 +65,13 @@ impl Selections {
         }
     }
 
-    pub fn set(&mut self, index: usize, selection: Selection) {
-        if index == 0 {
-            self.primary_selection = selection;
-        } else {
-            self.extra_selections[index - 1] = selection;
-        }
-    }
+    // pub fn set(&mut self, index: usize, selection: Selection) {
+    //     if index == 0 {
+    //         self.primary_selection = selection;
+    //     } else {
+    //         self.extra_selections[index - 1] = selection;
+    //     }
+    // }
 
     pub fn add(&mut self, selection: Selection) {
         // TODO maybe add the selection at a sensible location instead of just added at the end
@@ -258,6 +258,19 @@ pub enum EditInfo {
     Deleted(DeletedEditInfo),
     AddedOne(Position),
     LineSplit(Position), // position points where the char (now first char of the new line) was.
+}
+
+impl EditInfo {
+    pub fn pos(&self) -> Position {
+        match self {
+            &Self::Deleted(edit) => Position::new(
+                edit.pos1_line_index,
+                (edit.pos1_before_delete_start_column_index + 1) as u32,
+            ),
+            &Self::AddedOne(pos) => pos,
+            &Self::LineSplit(pos) => pos,
+        }
+    }
 }
 
 impl From<DeletedEditInfo> for EditInfo {

@@ -4,7 +4,6 @@ use crate::selection::Position;
 pub enum Command {
     // Ayed commands
     ChangeMode(&'static str),
-    ChangeModeArg(&'static str, usize),
 
     // Text edit commands
     Insert(char),
@@ -13,28 +12,20 @@ pub enum Command {
     DeleteBeforeCursor,
 
     // Selection manipulation commands
+    AnchorNext,
+    AnchorDown,
+    AnchorUp,
+
     MoveCursorUp,
     MoveCursorDown,
     MoveCursorLeft,
     MoveCursorRight,
-    DragCursorUp,
-    DragCursorDown,
-    DragCursorLeft,
-    DragCursorRight,
 
     MoveCursorTo(u32, u32),
-    DragCursorTo(u32, u32),
     SetSelection { cursor: Position, anchor: Position },
 
     MoveCursorToLineStart,
     MoveCursorToLineEnd,
-    DragCursorToLineStart,
-    DragCursorToLineEnd,
-
-    MoveCursorToLeftSymbol,
-    MoveCursorToRightSymbol,
-    DragCursorToLeftSymbol,
-    DragCursorToRightSymbol,
 
     ShrinkSelectionToCursor,
     FlipSelection,
