@@ -18,7 +18,7 @@ impl InputMapper {
     }
 
     pub fn register(&mut self, input: &str, command: impl Into<MappedCommand>) -> Result<(), ()> {
-        let input = Input::try_parse(input)?;
+        let input = Input::parse(input)?;
         self.register_input(input, command);
         Ok(())
     }

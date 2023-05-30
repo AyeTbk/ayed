@@ -71,7 +71,7 @@ impl Core {
             self.input_mode_line(input);
         } else if input.key == Key::Char(':') && self.active_editor.is_command_mode() {
             self.mode_line.set_has_focus(true);
-        } else if input == Input::try_parse("w").unwrap() && self.active_editor.is_command_mode() {
+        } else if input == Input::parse("w").unwrap() && self.active_editor.is_command_mode() {
             let wdp = self.make_warp_drive_panel();
             self.warpdrive_panel = Some(wdp);
             return;

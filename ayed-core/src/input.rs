@@ -45,7 +45,7 @@ impl Input {
         }
     }
 
-    pub fn try_parse(s: &str) -> Result<Input, ()> {
+    pub fn parse(s: &str) -> Result<Input, ()> {
         fn char_group_to_key(src: &str) -> Result<Key, ()> {
             Ok(match src {
                 "space" => Key::Char(' '),
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn try_parse_input__one_modifier_and_uppercase_letter() {
-        let result = Input::try_parse("<c-M>").unwrap();
+        let result = Input::parse("<c-M>").unwrap();
         assert_eq!(
             result,
             Input::from_char_mods('m', Modifiers::default().with_ctrl().with_shift())
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn try_parse_input__two_modifiers() {
-        let result = Input::try_parse("<ca-l>").unwrap();
+        let result = Input::parse("<ca-l>").unwrap();
         assert_eq!(
             result,
             Input::from_char_mods('l', Modifiers::default().with_ctrl().with_alt())
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn try_parse_input__three_modifiers() {
-        let result = Input::try_parse("<sac-space>").unwrap();
+        let result = Input::parse("<sac-space>").unwrap();
         assert_eq!(
             result,
             Input::from_char_mods(
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn try_parse_input__named_key() {
-        let result = Input::try_parse("<left>").unwrap();
+        let result = Input::parse("<left>").unwrap();
         assert_eq!(
             result,
             Input {

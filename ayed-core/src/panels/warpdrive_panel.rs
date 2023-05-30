@@ -91,11 +91,10 @@ impl WarpDrivePanel {
                         end = Some(Position::new(line_index as _, (column_index - 1) as _));
                     }
                 }
-                matches.push(
-                    Selection::new()
-                        .with_cursor(start.unwrap())
-                        .with_anchor(end.unwrap()),
-                );
+
+                let Some(start) = start else { continue };
+                let Some(end) = end else { continue };
+                matches.push(Selection::new().with_cursor(start).with_anchor(end));
             }
         }
 
@@ -134,7 +133,7 @@ impl WarpDrivePanel {
             }
         }
 
-        fill_up_jump_points(&matches, &[], 'a'..='z')
+        fill_up_jump_points(&matches, &[], ('a'..='v').chain('x'..='z')) // skip 'w' because it's the Warpdrive keybind at the moment
     }
 
     fn execute_command_inner(&mut self, command: Command) -> Option<Command> {
@@ -204,6 +203,10 @@ impl Panel for WarpDrivePanel {
                 .next()
                 .unwrap();
             for (i, ch) in chars.iter().enumerate() {
+                let char_replace_idx = byte_idx + i;
+                if char_replace_idx >= line.len() {
+                    continue;
+                }
                 line.remove(byte_idx + i);
                 line.insert(byte_idx + i, *ch);
             }
