@@ -11,23 +11,19 @@ use crate::{
     ui_state::{Color, Span, Style, UiPanel},
 };
 
-pub struct ModeLine {
+pub struct ModeLinePanel {
     infos: Vec<ModeLineInfo>,
     has_focus: bool,
     line_edit: LineEdit,
 }
 
-impl ModeLine {
+impl ModeLinePanel {
     pub fn new() -> Self {
         Self {
             infos: Default::default(),
             has_focus: Default::default(),
             line_edit: LineEdit::new(),
         }
-    }
-
-    pub fn set_infos(&mut self, infos: Vec<ModeLineInfo>) {
-        self.infos = infos;
     }
 
     pub fn has_focus(&self) -> bool {
@@ -38,12 +34,16 @@ impl ModeLine {
         self.has_focus = has_focus;
     }
 
+    pub fn set_infos(&mut self, infos: Vec<ModeLineInfo>) {
+        self.infos = infos;
+    }
+
     pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
         self.line_edit.send_command(command, ctx)
     }
 }
 
-impl Panel for ModeLine {
+impl Panel for ModeLinePanel {
     fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
         TextEditMode.convert_input_to_command(input, ctx)
     }

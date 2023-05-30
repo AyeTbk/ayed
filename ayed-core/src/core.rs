@@ -4,7 +4,8 @@ use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
 use crate::command::Command;
 use crate::input::{Input, Key};
-use crate::mode_line::{ModeLine, ModeLineInfo};
+use crate::mode_line::ModeLine;
+use crate::mode_line_panel::ModeLineInfo;
 use crate::panel::Panel;
 use crate::panels::warpdrive_panel::WarpDrivePanel;
 use crate::text_editor::TextEditor;
@@ -139,26 +140,18 @@ impl Core {
 
     fn input_mode_line(&mut self, input: Input) {
         let viewport_size = self.mode_line_viewport_size();
-        // FIXME this code stinks, gotta recreate the same ctx at multiple different place? ew
-        let commands = {
-            let buffer = self.buffers.get_mut(self.active_buffer);
-            let mut ctx = EditorContextMut {
-                buffer,
-                viewport_size,
-            };
-            self.mode_line.convert_input_to_command(input, &mut ctx)
+
+        let buffer = self.buffers.get_mut(self.active_buffer);
+        let mut ctx = EditorContextMut {
+            buffer,
+            viewport_size,
         };
 
-        for command in commands {
-            let buffer = self.buffers.get_mut(self.active_buffer);
-            let mut ctx = EditorContextMut {
-                buffer,
-                viewport_size,
-            };
-            if let Some(line) = self.mode_line.send_command(command, &mut ctx) {
-                self.mode_line.set_has_focus(false);
-                self.interpret_command(&line);
-            }
+        let maybe_line = self.mode_line.input(input, &mut ctx);
+
+        if let Some(line) = maybe_line {
+            self.mode_line.set_has_focus(false);
+            self.interpret_command(&line);
         }
     }
 
@@ -240,7 +233,7 @@ impl Core {
             viewport_size,
         };
 
-        let mut panel = self.mode_line.panel(&ctx);
+        let mut panel = self.mode_line.ui_panel(&ctx);
         panel.position.1 = self.viewport_size.1 - 1;
         panel
     }

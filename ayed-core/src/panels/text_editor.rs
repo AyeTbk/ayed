@@ -4,7 +4,7 @@ use crate::{
     core::EditorContextMut,
     input::Input,
     input_mapper::InputMap,
-    mode_line::ModeLineInfo,
+    mode_line_panel::ModeLineInfo,
     panel::Panel,
     selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
     text_mode::{TextCommandMode, TextEditMode},
