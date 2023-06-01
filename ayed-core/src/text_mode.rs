@@ -1,8 +1,8 @@
 use crate::{
     command::Command,
-    core::EditorContextMut,
     input::Input,
     input_mapper::{InputMap, InputMapper},
+    state::State,
 };
 
 pub struct TextCommandMode;
@@ -12,7 +12,7 @@ impl TextCommandMode {
 }
 
 impl InputMap for TextCommandMode {
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
         use Command::*;
 
         let mut im = InputMapper::default();
@@ -83,7 +83,7 @@ impl InputMap for TextCommandMode {
         im.register("<sa-c>", DuplicateSelectionAbove).unwrap();
         im.register("C", DuplicateSelectionBelow).unwrap();
 
-        im.convert_input_to_command(input, ctx)
+        im.convert_input_to_command(input, state)
     }
 }
 
@@ -94,7 +94,7 @@ impl TextEditMode {
 }
 
 impl InputMap for TextEditMode {
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
         use Command::*;
 
         let mut im = InputMapper::default();
@@ -109,7 +109,7 @@ impl InputMap for TextEditMode {
         im.register("<del>", DeleteCursor).unwrap();
         im.register("<backspace>", DeleteBeforeCursor).unwrap();
 
-        im.convert_input_to_command(input, ctx)
+        im.convert_input_to_command(input, state)
     }
 }
 

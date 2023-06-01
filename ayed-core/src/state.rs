@@ -1,0 +1,23 @@
+use crate::{
+    arena::{Arena, Handle},
+    buffer::TextBuffer,
+    mode_line::ModeLineInfos,
+};
+
+#[derive(Debug)]
+pub struct State {
+    pub buffers: Arena<TextBuffer>,
+    pub active_buffer_handle: Handle<TextBuffer>,
+    pub viewport_size: (u32, u32),
+    pub mode_line_infos: ModeLineInfos,
+}
+
+impl State {
+    pub fn active_buffer(&self) -> &TextBuffer {
+        self.buffers.get(self.active_buffer_handle)
+    }
+
+    pub fn active_buffer_mut(&mut self) -> &mut TextBuffer {
+        self.buffers.get_mut(self.active_buffer_handle)
+    }
+}

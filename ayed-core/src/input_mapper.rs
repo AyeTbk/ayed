@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{command::Command, core::EditorContextMut, input::Input};
+use crate::{command::Command, input::Input, state::State};
 
 pub trait InputMap {
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command>;
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command>;
 }
 
 #[derive(Default)]
@@ -29,7 +29,7 @@ impl InputMapper {
 }
 
 impl InputMap for InputMapper {
-    fn convert_input_to_command(&self, input: Input, _ctx: &mut EditorContextMut) -> Vec<Command> {
+    fn convert_input_to_command(&self, input: Input, _state: &State) -> Vec<Command> {
         let mut commands = Vec::new();
 
         if let Some(command) = self.mapping.get(&input).cloned() {

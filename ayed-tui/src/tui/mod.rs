@@ -91,7 +91,7 @@ impl Tui {
 
         self.update_viewport_size_if_needed();
 
-        let ui_state = self.core.ui_state();
+        let ui_state = self.core.render();
 
         //write!(self.screen, "{}", termion::clear::All).unwrap(); // This makes the display blink sometimes
 

@@ -10,7 +10,9 @@ mod mode_line;
 mod panel;
 mod panels;
 mod selection;
+pub mod state;
 mod text_mode;
 pub mod ui_state;
+pub mod utils;
 
-use panels::{mode_line_panel, text_editor};
+use panels::text_editor;

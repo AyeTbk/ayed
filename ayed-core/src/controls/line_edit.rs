@@ -1,87 +1,85 @@
 use crate::{
+    arena::Arena,
     buffer::TextBuffer,
     command::Command,
-    core::EditorContextMut,
     input::Input,
     input_mapper::InputMap,
     panel::Panel,
     selection::Position,
+    state::State,
     text_editor::TextEditor,
     text_mode::TextEditMode,
     ui_state::{Color, Span, Style, UiPanel},
+    utils::Rect,
 };
 
 pub struct LineEdit {
     editor: TextEditor,
-    buffer: TextBuffer,
+    inner_state: State,
+    rect: Rect,
 }
 
 impl LineEdit {
     pub fn new() -> Self {
+        let mut buffers = Arena::new();
+        let active_buffer_handle = buffers.allocate(TextBuffer::new_empty());
+        let inner_state = State {
+            buffers,
+            active_buffer_handle,
+            viewport_size: (0, 0),
+            mode_line_infos: Default::default(),
+        };
+
         Self {
             editor: TextEditor::new(),
-            buffer: TextBuffer::new_empty(),
+            inner_state,
+            rect: Rect::new(0, 0, 25, 1),
         }
     }
 
-    pub fn send_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<String> {
-        let (w, h) = ctx.viewport_size;
-        let mut line_edit_ctx = EditorContextMut {
-            viewport_size: (w - 1, h),
-            buffer: &mut self.buffer,
-        };
-        match command {
-            Command::Insert('\n') => {
-                let mut line = String::new();
-                self.buffer.copy_line(0, &mut line).ok()?;
-                self.reset();
-                Some(line)
-            }
-            _ => {
-                self.editor.execute_command(command, &mut line_edit_ctx);
-                None
+    pub fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
+    pub fn input(&mut self, input: Input, state: &mut State) -> Option<String> {
+        let commands = TextEditMode.convert_input_to_command(input, state);
+        for command in commands {
+            match command {
+                Command::Insert('\n') => {
+                    let mut line = String::new();
+                    self.buffer().copy_line(0, &mut line).ok()?;
+                    self.reset();
+                    return Some(line);
+                }
+                _ => {
+                    self.editor.execute_command(command, &mut self.inner_state);
+                }
             }
         }
-    }
 
-    fn reset(&mut self) {
-        self.editor = TextEditor::new();
-        self.buffer = TextBuffer::new_empty();
-    }
-}
-
-impl Panel for LineEdit {
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<Command> {
-        self.send_command(command, ctx);
         None
     }
 
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
-        TextEditMode.convert_input_to_command(input, ctx)
-    }
+    pub fn render(&mut self, _state: &State) -> UiPanel {
+        let (w, h) = self.rect.size();
+        let editor_width = w - 1;
+        self.inner_state.viewport_size = (editor_width, h);
+        let mut editor_panel = self.editor.render(&self.inner_state);
 
-    fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
-        let (w, h) = ctx.viewport_size;
-        let line_edit_width = w - 1;
-        let line_edit_ctx = EditorContextMut {
-            viewport_size: (line_edit_width, h),
-            buffer: &mut self.buffer,
-        };
-        let mut panel = self.editor.panel(&line_edit_ctx);
+        editor_panel.position = self.rect.top_left();
+        editor_panel.size = self.rect.size();
 
-        panel.size = (w, h);
-
-        for span in &mut panel.spans {
+        for span in &mut editor_panel.spans {
             span.from.column_index += 1;
             span.to.column_index += 1;
         }
 
-        for line in &mut panel.content {
+        for line in &mut editor_panel.content {
             line.insert(0, '›');
         }
 
         // Prompt color
-        panel.spans.push(Span {
+        editor_panel.spans.push(Span {
             from: Position::ZERO,
             to: Position::ZERO,
             style: Style {
@@ -93,7 +91,7 @@ impl Panel for LineEdit {
         });
 
         // Bg color
-        panel.spans.push(Span {
+        editor_panel.spans.push(Span {
             from: Position::ZERO,
             to: Position::ZERO.with_moved_indices(0, w as _),
             style: Style {
@@ -104,6 +102,15 @@ impl Panel for LineEdit {
             importance: 0,
         });
 
-        panel
+        editor_panel
+    }
+
+    fn buffer(&self) -> &TextBuffer {
+        self.inner_state.active_buffer()
+    }
+
+    fn reset(&mut self) {
+        self.editor = TextEditor::new();
+        *self.inner_state.active_buffer_mut() = TextBuffer::new_empty();
     }
 }

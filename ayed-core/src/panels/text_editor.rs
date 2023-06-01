@@ -1,12 +1,12 @@
 use crate::{
     buffer::TextBuffer,
     command::Command,
-    core::EditorContextMut,
     input::Input,
     input_mapper::InputMap,
-    mode_line_panel::ModeLineInfo,
+    mode_line::ModeLineInfo,
     panel::Panel,
     selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
+    state::State,
     text_mode::{TextCommandMode, TextEditMode},
     ui_state::{Color, Span, Style, UiPanel},
 };
@@ -38,8 +38,8 @@ impl TextEditor {
         self.active_mode_name == TextCommandMode::NAME
     }
 
-    pub fn mode_line_infos(&self, ctx: &EditorContextMut) -> Vec<ModeLineInfo> {
-        let file_info = if let Some(path) = ctx.buffer.filepath() {
+    pub fn mode_line_infos(&self, state: &State) -> Vec<ModeLineInfo> {
+        let file_info = if let Some(path) = state.active_buffer().filepath() {
             path.to_string_lossy().into_owned()
         } else {
             "*scratch*".to_string()
@@ -458,28 +458,28 @@ impl TextEditor {
         }
     }
 
-    fn adjust_viewport_to_primary_selection(&mut self, ctx: &EditorContextMut) {
+    fn adjust_viewport_to_primary_selection(&mut self, state: &State) {
         let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
         let vp_start_x = self.view_top_left_position.column_index;
-        let vp_after_end_x = vp_start_x + ctx.viewport_size.0;
+        let vp_after_end_x = vp_start_x + state.viewport_size.0;
         let selection_x = self.selections.primary().cursor().column_index;
 
         if selection_x < vp_start_x {
             new_viewport_top_left_position.column_index = selection_x;
         } else if selection_x >= vp_after_end_x {
-            new_viewport_top_left_position.column_index = selection_x - ctx.viewport_size.0 + 1;
+            new_viewport_top_left_position.column_index = selection_x - state.viewport_size.0 + 1;
         }
 
         // Vertical
         let vp_start_y = self.view_top_left_position.line_index;
-        let vp_after_end_y = vp_start_y + ctx.viewport_size.1;
+        let vp_after_end_y = vp_start_y + state.viewport_size.1;
         let selection_y = self.selections.primary().cursor().line_index;
 
         if selection_y < vp_start_y {
             new_viewport_top_left_position.line_index = selection_y;
         } else if selection_y >= vp_after_end_y {
-            new_viewport_top_left_position.line_index = selection_y - ctx.viewport_size.1 + 1;
+            new_viewport_top_left_position.line_index = selection_y - state.viewport_size.1 + 1;
         }
 
         self.view_top_left_position = new_viewport_top_left_position;
@@ -501,9 +501,10 @@ impl TextEditor {
         }
     }
 
-    fn execute_command_inner(&mut self, command: Command, ctx: &mut EditorContextMut) {
-        use Command::*;
+    fn execute_command_inner(&mut self, command: Command, state: &mut State) {
+        let active_buffer = state.active_buffer_mut();
 
+        use Command::*;
         match command {
             AnchorNext => self.lower_anchor(true),
             AnchorDown => self.lower_anchor(false),
@@ -513,16 +514,16 @@ impl TextEditor {
                 self.set_mode(mode_name);
                 self.raise_anchor();
             }
-            Insert(ch) => self.insert_char_for_each_selection(ch, ctx.buffer),
-            DeleteSelection => self.delete_selection_for_each_selection(ctx.buffer),
-            DeleteCursor => self.delete_cursor_for_each_selection(ctx.buffer),
-            DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(ctx.buffer),
+            Insert(ch) => self.insert_char_for_each_selection(ch, active_buffer),
+            DeleteSelection => self.delete_selection_for_each_selection(active_buffer),
+            DeleteCursor => self.delete_cursor_for_each_selection(active_buffer),
+            DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(active_buffer),
 
             // Wow
-            MoveCursorUp => self.move_cursor_vertically(-1, ctx.buffer, self.anchored()),
-            MoveCursorDown => self.move_cursor_vertically(1, ctx.buffer, self.anchored()),
-            MoveCursorLeft => self.move_cursor_horizontally(-1, ctx.buffer, self.anchored()),
-            MoveCursorRight => self.move_cursor_horizontally(1, ctx.buffer, self.anchored()),
+            MoveCursorUp => self.move_cursor_vertically(-1, active_buffer, self.anchored()),
+            MoveCursorDown => self.move_cursor_vertically(1, active_buffer, self.anchored()),
+            MoveCursorLeft => self.move_cursor_horizontally(-1, active_buffer, self.anchored()),
+            MoveCursorRight => self.move_cursor_horizontally(1, active_buffer, self.anchored()),
             //
             MoveCursorTo(_, _) => todo!(),
             SetSelection { cursor, anchor } => {
@@ -530,63 +531,68 @@ impl TextEditor {
                 self.selections = Selections::new_with(selection, &[]);
             }
             //
-            MoveCursorToLineStart => self.move_cursor_to_line_start(ctx.buffer, self.anchored()),
-            MoveCursorToLineEnd => self.move_cursor_to_line_end(ctx.buffer, self.anchored()),
+            MoveCursorToLineStart => self.move_cursor_to_line_start(active_buffer, self.anchored()),
+            MoveCursorToLineEnd => self.move_cursor_to_line_end(active_buffer, self.anchored()),
             //
             ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
             FlipSelection => self.map_selections(|sel| sel.flipped()),
             FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
             FlipSelectionBackward => self.map_selections(|sel| sel.flipped_forward().flipped()),
             //
-            DuplicateSelectionAbove => self.duplicate_selection_above_or_below(ctx.buffer, true),
-            DuplicateSelectionBelow => self.duplicate_selection_above_or_below(ctx.buffer, false),
+            DuplicateSelectionAbove => self.duplicate_selection_above_or_below(active_buffer, true),
+            DuplicateSelectionBelow => {
+                self.duplicate_selection_above_or_below(active_buffer, false)
+            }
         }
 
         self.anchor_check();
 
         self.normalize_selections();
 
-        self.adjust_viewport_to_primary_selection(ctx);
+        self.adjust_viewport_to_primary_selection(state);
     }
 }
 
 impl Panel for TextEditor {
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
-        self.active_mode.convert_input_to_command(input, ctx)
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
+        self.active_mode.convert_input_to_command(input, state)
     }
 
-    fn execute_command(&mut self, command: Command, ctx: &mut EditorContextMut) -> Option<Command> {
-        self.execute_command_inner(command, ctx);
+    fn execute_command(&mut self, command: Command, state: &mut State) -> Option<Command> {
+        self.execute_command_inner(command, state);
         None
     }
 
-    fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
-        if ctx.viewport_size.0 == 0 || ctx.viewport_size.1 == 0 {
+    fn render(&mut self, state: &State) -> UiPanel {
+        let viewport_size = state.viewport_size;
+        let active_buffer = state.active_buffer();
+
+        if viewport_size.0 == 0 || viewport_size.1 == 0 {
             return UiPanel {
                 position: (0, 0),
-                size: ctx.viewport_size,
+                size: viewport_size,
                 content: Default::default(),
                 spans: Default::default(),
             };
         }
 
-        self.adjust_viewport_to_primary_selection(ctx); // this is here to keep the cursor in view when resizing the window
+        self.adjust_viewport_to_primary_selection(state); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
         let start_line_index = self.view_top_left_position.line_index;
-        let after_end_line_index = start_line_index + ctx.viewport_size.1;
+        let after_end_line_index = start_line_index + viewport_size.1;
         let start_column_index = self.view_top_left_position.column_index;
-        let line_slice_max_len = ctx.viewport_size.0;
+        let line_slice_max_len = viewport_size.0;
 
         let mut panel_content = Vec::new();
         let mut panel_spans = Vec::new();
 
         for line_index in start_line_index..after_end_line_index {
             let mut line_buf = String::new();
-            let full_line = if ctx.buffer.copy_line(line_index, &mut line_buf).is_ok() {
+            let full_line = if active_buffer.copy_line(line_index, &mut line_buf).is_ok() {
                 line_buf
             } else {
-                let mut non_existant_line = " ".repeat((ctx.viewport_size.0 - 1) as _);
+                let mut non_existant_line = " ".repeat((viewport_size.0 - 1) as _);
                 non_existant_line.insert(0, '~');
                 panel_content.push(non_existant_line);
                 let line_index_relative_to_viewport = line_index - start_line_index;
@@ -623,12 +629,12 @@ impl Panel for TextEditor {
         }
 
         // Selection spans
-        self.compute_selection_spans(&mut panel_spans, &ctx.buffer);
+        self.compute_selection_spans(&mut panel_spans, &active_buffer);
 
         // Wooowie done
         UiPanel {
             position: (0, 0),
-            size: ctx.viewport_size,
+            size: viewport_size,
             content: panel_content,
             spans: panel_spans,
         }

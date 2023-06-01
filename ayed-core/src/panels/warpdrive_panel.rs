@@ -2,11 +2,11 @@ use std::iter::once;
 
 use crate::{
     command::Command,
-    core::EditorContextMut,
     input::Input,
     input_mapper::{InputMap, InputMapper},
     panel::Panel,
     selection::{Offset, Position, Selection},
+    state::State,
     ui_state::{Color, Span, Style, UiPanel},
 };
 
@@ -164,21 +164,17 @@ impl WarpDrivePanel {
 }
 
 impl Panel for WarpDrivePanel {
-    fn convert_input_to_command(&self, input: Input, ctx: &mut EditorContextMut) -> Vec<Command> {
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
         let mut im = InputMapper::default();
         im.register_char_insert();
-        im.convert_input_to_command(input, ctx)
+        im.convert_input_to_command(input, state)
     }
 
-    fn execute_command(
-        &mut self,
-        command: Command,
-        _ctx: &mut EditorContextMut,
-    ) -> Option<Command> {
+    fn execute_command(&mut self, command: Command, _state: &mut State) -> Option<Command> {
         self.execute_command_inner(command)
     }
 
-    fn panel(&mut self, ctx: &EditorContextMut) -> UiPanel {
+    fn render(&mut self, state: &State) -> UiPanel {
         let mut content = self.text_content.clone();
         let mut spans = Vec::new();
 
@@ -187,7 +183,7 @@ impl Panel for WarpDrivePanel {
             let position = Position::ZERO.with_line_index(line_index as u32);
             spans.push(Span {
                 from: position,
-                to: position.with_column_index(ctx.viewport_size.0 as _),
+                to: position.with_column_index(state.viewport_size.0 as _),
                 style: Style {
                     foreground_color: Some(Color::rgb(100, 100, 100)),
                     background_color: Some(Color::rgb(25, 25, 25)),
@@ -230,7 +226,7 @@ impl Panel for WarpDrivePanel {
 
         UiPanel {
             position: (0, 0),
-            size: ctx.viewport_size,
+            size: state.viewport_size,
             content,
             spans,
         }
