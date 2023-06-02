@@ -5,30 +5,29 @@ use crate::buffer::TextBuffer;
 use crate::command::Command;
 use crate::input::{Input, Key};
 use crate::mode_line::{ModeLine, ModeLineInfo};
-use crate::panel::Panel;
-use crate::panels::warpdrive_panel::WarpDrivePanel;
 use crate::state::State;
 use crate::text_editor::TextEditor;
-use crate::ui_state::{UiPanel, UiState};
+use crate::ui_state::{Color, Style, UiPanel, UiState};
 use crate::utils::Rect;
+use crate::warpdrive::WarpDrive;
 
 pub struct Core {
     state: State,
     editor: TextEditor,
     mode_line: ModeLine,
-    warpdrive_panel: Option<WarpDrivePanel>,
+    warpdrive: Option<WarpDrive>,
     quit: bool,
 }
 
 impl Core {
     pub fn new() -> Self {
         let mut buffers = Arena::new();
-        let active_buffer_handle = buffers.allocate(TextBuffer::new_empty());
-        let editor = TextEditor::new();
+        let buffer = buffers.allocate(TextBuffer::new_empty());
+        let editor = TextEditor::new(buffer);
         let viewport_size = (80, 25);
         let state = State {
             buffers,
-            active_buffer_handle,
+            active_buffer_handle: buffer, // TODO rethink this
             viewport_size,
             mode_line_infos: Default::default(),
         };
@@ -39,7 +38,7 @@ impl Core {
             state,
             editor,
             mode_line,
-            warpdrive_panel: None,
+            warpdrive: None,
             quit: false,
         }
     }
@@ -63,7 +62,7 @@ impl Core {
     }
 
     pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        self.editor = TextEditor::new();
+        self.editor = TextEditor::new(buffer);
         self.state.active_buffer_handle = buffer;
     }
 
@@ -79,11 +78,11 @@ impl Core {
         } else if input.key == Key::Char(':') && self.editor.is_command_mode() {
             self.mode_line.set_has_focus(true);
         } else if input == Input::parse("w").unwrap() && self.editor.is_command_mode() {
-            self.warpdrive_panel = self.make_warp_drive_panel();
+            self.warpdrive = self.make_warp_drive_panel();
             return;
-        } else if self.warpdrive_panel.is_some() {
+        } else if self.warpdrive.is_some() {
             if let Some(command) = self.input_warpdrive(input) {
-                self.execute_command_active_editor(command);
+                self.execute_command_in_editor(command);
             }
         } else {
             self.input_editor(input);
@@ -98,11 +97,11 @@ impl Core {
         self.state.viewport_size = viewport_size;
     }
 
-    fn make_warp_drive_panel(&mut self) -> Option<WarpDrivePanel> {
+    fn make_warp_drive_panel(&mut self) -> Option<WarpDrive> {
         let ui_panel = self.render_editor();
         let text_content = ui_panel.content;
         let position_offset = self.editor.view_top_left_position().to_offset();
-        WarpDrivePanel::new(text_content, position_offset)
+        WarpDrive::new(text_content, position_offset)
     }
 
     fn interpret_command(&mut self, command_str: &str) {
@@ -138,16 +137,16 @@ impl Core {
 
     fn input_editor(&mut self, input: Input) {
         for command in self.editor.convert_input_to_command(input, &self.state) {
-            self.execute_command_active_editor(command);
+            self.execute_command_in_editor(command);
         }
     }
 
-    fn execute_command_active_editor(&mut self, command: Command) {
+    fn execute_command_in_editor(&mut self, command: Command) {
         self.editor.execute_command(command, &mut self.state);
     }
 
     fn input_warpdrive(&mut self, input: Input) -> Option<Command> {
-        let wdp = if let Some(wdp) = &mut self.warpdrive_panel {
+        let wdp = if let Some(wdp) = &mut self.warpdrive {
             wdp
         } else {
             return None;
@@ -160,7 +159,7 @@ impl Core {
             }
         }
         if maybe_cmd.is_some() {
-            self.warpdrive_panel = None
+            self.warpdrive = None
         }
         maybe_cmd
     }
@@ -174,7 +173,7 @@ impl Core {
         let mode_line_panel = self.render_mode_line();
         let mut panels = vec![editor_panel, mode_line_panel];
 
-        if self.warpdrive_panel.is_some() {
+        if self.warpdrive.is_some() {
             let wdp_panel = self.render_warpdrive_panel();
             panels.push(wdp_panel);
         }
@@ -183,19 +182,18 @@ impl Core {
     }
 
     fn render_editor(&mut self) -> UiPanel {
-        let rect = self.compute_editor_rect();
-        // TODO rect the editor plz
+        self.editor.set_rect(self.compute_editor_rect());
+
         self.editor.render(&self.state)
     }
 
     fn render_warpdrive_panel(&mut self) -> UiPanel {
-        let viewport_size = self.compute_editor_rect();
-        // TODO rect the warpdrive plz
-        self.warpdrive_panel.as_mut().unwrap().render(&self.state)
+        self.warpdrive.as_mut().unwrap().render(&self.state)
     }
 
     fn render_mode_line(&mut self) -> UiPanel {
         self.mode_line.set_rect(self.compute_mode_line_rect());
+
         let mut panel = self.mode_line.render(&self.state);
         panel.position.1 = self.state.viewport_size.1 - 1;
         panel
@@ -220,7 +218,16 @@ impl Core {
     }
 
     fn mode_line_infos(&mut self) -> Vec<ModeLineInfo> {
-        self.editor.mode_line_infos(&self.state)
+        let file_info = if let Some(path) = self.state.active_buffer().filepath() {
+            path.to_string_lossy().into_owned()
+        } else {
+            "*scratch*".to_string()
+        };
+
+        vec![ModeLineInfo {
+            text: file_info,
+            style: Style::default().with_foreground_color(Color::BLUE),
+        }]
     }
 }
 

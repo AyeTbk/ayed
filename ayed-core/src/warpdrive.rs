@@ -4,7 +4,6 @@ use crate::{
     command::Command,
     input::Input,
     input_mapper::{InputMap, InputMapper},
-    panel::Panel,
     selection::{Offset, Position, Selection},
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
@@ -15,14 +14,14 @@ use crate::{
 // - better key inputs (more localized on the keyboard rather than going through the alphabet)
 
 #[derive(Default)]
-pub struct WarpDrivePanel {
+pub struct WarpDrive {
     text_content: Vec<String>,
     position_offset: Offset,
     jump_points: Vec<(Vec<char>, Selection)>,
     input: Vec<char>,
 }
 
-impl WarpDrivePanel {
+impl WarpDrive {
     pub fn new(text_content: Vec<String>, position_offset: Offset) -> Option<Self> {
         let jump_points = Self::gather_jump_points(&text_content);
 
@@ -35,6 +34,74 @@ impl WarpDrivePanel {
                 jump_points,
                 input: Vec::default(),
             })
+        }
+    }
+
+    pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
+        let mut im = InputMapper::default();
+        im.register_char_insert();
+        im.convert_input_to_command(input, state)
+    }
+
+    pub fn execute_command(&mut self, command: Command, _state: &mut State) -> Option<Command> {
+        self.execute_command_inner(command)
+    }
+
+    pub fn render(&mut self, state: &State) -> UiPanel {
+        let mut content = self.text_content.clone();
+        let mut spans = Vec::new();
+
+        // Bg - fg
+        for (line_index, _) in content.iter().enumerate() {
+            let position = Position::ZERO.with_line_index(line_index as u32);
+            spans.push(Span {
+                from: position,
+                to: position.with_column_index(state.viewport_size.0 as _),
+                style: Style {
+                    foreground_color: Some(Color::rgb(100, 100, 100)),
+                    background_color: Some(Color::rgb(25, 25, 25)),
+                    invert: false,
+                },
+                importance: 10,
+            });
+        }
+
+        for (chars, &selection) in self.jump_points_iter() {
+            let position = selection.start();
+            let line = content.get_mut(position.line_index as usize).unwrap();
+            let byte_idx = line
+                .char_indices()
+                .enumerate()
+                .filter(|&(char_idx, _)| char_idx == position.column_index as usize)
+                .map(|(_, (byte_idx, _))| byte_idx)
+                .next()
+                .unwrap();
+            for (i, ch) in chars.iter().enumerate() {
+                let char_replace_idx = byte_idx + i;
+                if char_replace_idx >= line.len() {
+                    continue;
+                }
+                line.remove(byte_idx + i);
+                line.insert(byte_idx + i, *ch);
+            }
+
+            spans.push(Span {
+                from: position,
+                to: position.with_moved_indices(0, (chars.len() - 1) as _),
+                style: Style {
+                    foreground_color: Some(Color::rgb(200, 200, 200)),
+                    background_color: Some(Color::rgb(25, 25, 25)),
+                    invert: false,
+                },
+                importance: 20,
+            });
+        }
+
+        UiPanel {
+            position: (0, 0),
+            size: state.viewport_size,
+            content,
+            spans,
         }
     }
 
@@ -159,76 +226,6 @@ impl WarpDrivePanel {
                 }
             }
             _ => None,
-        }
-    }
-}
-
-impl Panel for WarpDrivePanel {
-    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
-        let mut im = InputMapper::default();
-        im.register_char_insert();
-        im.convert_input_to_command(input, state)
-    }
-
-    fn execute_command(&mut self, command: Command, _state: &mut State) -> Option<Command> {
-        self.execute_command_inner(command)
-    }
-
-    fn render(&mut self, state: &State) -> UiPanel {
-        let mut content = self.text_content.clone();
-        let mut spans = Vec::new();
-
-        // Bg - fg
-        for (line_index, _) in content.iter().enumerate() {
-            let position = Position::ZERO.with_line_index(line_index as u32);
-            spans.push(Span {
-                from: position,
-                to: position.with_column_index(state.viewport_size.0 as _),
-                style: Style {
-                    foreground_color: Some(Color::rgb(100, 100, 100)),
-                    background_color: Some(Color::rgb(25, 25, 25)),
-                    invert: false,
-                },
-                importance: 10,
-            });
-        }
-
-        for (chars, &selection) in self.jump_points_iter() {
-            let position = selection.start();
-            let line = content.get_mut(position.line_index as usize).unwrap();
-            let byte_idx = line
-                .char_indices()
-                .enumerate()
-                .filter(|&(char_idx, _)| char_idx == position.column_index as usize)
-                .map(|(_, (byte_idx, _))| byte_idx)
-                .next()
-                .unwrap();
-            for (i, ch) in chars.iter().enumerate() {
-                let char_replace_idx = byte_idx + i;
-                if char_replace_idx >= line.len() {
-                    continue;
-                }
-                line.remove(byte_idx + i);
-                line.insert(byte_idx + i, *ch);
-            }
-
-            spans.push(Span {
-                from: position,
-                to: position.with_moved_indices(0, (chars.len() - 1) as _),
-                style: Style {
-                    foreground_color: Some(Color::rgb(200, 200, 200)),
-                    background_color: Some(Color::rgb(25, 25, 25)),
-                    invert: false,
-                },
-                importance: 20,
-            });
-        }
-
-        UiPanel {
-            position: (0, 0),
-            size: state.viewport_size,
-            content,
-            spans,
         }
     }
 }

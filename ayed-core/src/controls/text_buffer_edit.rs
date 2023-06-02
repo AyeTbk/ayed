@@ -1,66 +1,167 @@
 use crate::{
     buffer::TextBuffer,
     command::Command,
-    input::Input,
-    input_mapper::InputMap,
-    mode_line::ModeLineInfo,
-    panel::Panel,
     selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
     state::State,
-    text_mode::{TextCommandMode, TextEditMode},
     ui_state::{Color, Span, Style, UiPanel},
+    utils::Rect,
 };
 
-pub struct TextEditor {
-    // TODO active mode sucks right now, make it better.
-    // TODO features Id like: execute predefined commands on mode enter / exit,
-    active_mode: Box<dyn InputMap>,
-    active_mode_name: &'static str,
+pub struct TextBufferEdit {
+    rect: Rect,
     selections: Selections,
     view_top_left_position: Position,
     anchor_down: bool,
     anchor_next: AnchorNextState,
+    pub use_alt_cursor_style: bool,
 }
 
-impl TextEditor {
+impl TextBufferEdit {
     pub fn new() -> Self {
         Self {
-            active_mode: Box::new(TextCommandMode),
-            active_mode_name: TextCommandMode::NAME,
+            rect: Rect::new(0, 0, 25, 25),
             selections: Selections::new(),
             view_top_left_position: Position::ZERO,
             anchor_down: false,
             anchor_next: AnchorNextState::Unset,
+            use_alt_cursor_style: false,
         }
     }
 
-    pub fn is_command_mode(&self) -> bool {
-        self.active_mode_name == TextCommandMode::NAME
+    pub fn rect(&self) -> Rect {
+        self.rect
     }
 
-    pub fn mode_line_infos(&self, state: &State) -> Vec<ModeLineInfo> {
-        let file_info = if let Some(path) = state.active_buffer().filepath() {
-            path.to_string_lossy().into_owned()
-        } else {
-            "*scratch*".to_string()
-        };
-
-        vec![ModeLineInfo {
-            text: file_info,
-            style: Style::default().with_foreground_color(Color::BLUE),
-        }]
+    pub fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
     }
 
     pub fn view_top_left_position(&self) -> Position {
         self.view_top_left_position
     }
 
-    pub fn set_mode(&mut self, mode_name: &'static str) {
-        self.active_mode_name = mode_name;
-        match mode_name {
-            TextCommandMode::NAME => self.active_mode = Box::new(TextCommandMode),
-            TextEditMode::NAME => self.active_mode = Box::new(TextEditMode),
-            _ => panic!("unsupported mode: {:?}", mode_name),
+    pub fn execute_command(
+        &mut self,
+        command: Command,
+        buffer: &mut TextBuffer,
+        state: &mut State,
+    ) {
+        use Command::*;
+        match command {
+            AnchorNext => self.lower_anchor(true),
+            AnchorDown => self.lower_anchor(false),
+            AnchorUp => self.raise_anchor(),
+
+            Insert(ch) => self.insert_char_for_each_selection(ch, buffer),
+            DeleteSelection => self.delete_selection_for_each_selection(buffer),
+            DeleteCursor => self.delete_cursor_for_each_selection(buffer),
+            DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(buffer),
+
+            // Wow
+            MoveCursorUp => self.move_cursor_vertically(-1, buffer, self.anchored()),
+            MoveCursorDown => self.move_cursor_vertically(1, buffer, self.anchored()),
+            MoveCursorLeft => self.move_cursor_horizontally(-1, buffer, self.anchored()),
+            MoveCursorRight => self.move_cursor_horizontally(1, buffer, self.anchored()),
+            //
+            MoveCursorTo(_, _) => todo!(),
+            SetSelection { cursor, anchor } => {
+                let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
+                self.selections = Selections::new_with(selection, &[]);
+            }
+            //
+            MoveCursorToLineStart => self.move_cursor_to_line_start(buffer, self.anchored()),
+            MoveCursorToLineEnd => self.move_cursor_to_line_end(buffer, self.anchored()),
+            //
+            ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
+            FlipSelection => self.map_selections(|sel| sel.flipped()),
+            FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
+            FlipSelectionBackward => self.map_selections(|sel| sel.flipped_forward().flipped()),
+            //
+            DuplicateSelectionAbove => self.duplicate_selection_above_or_below(buffer, true),
+            DuplicateSelectionBelow => self.duplicate_selection_above_or_below(buffer, false),
+
+            cmd => unimplemented!("{:?}", cmd),
+        }
+
+        self.anchor_check();
+
+        self.normalize_selections();
+
+        self.adjust_viewport_to_primary_selection(state);
+    }
+
+    pub fn render(&mut self, buffer: &TextBuffer, state: &State) -> UiPanel {
+        let viewport_size = self.rect.size();
+
+        if viewport_size.0 == 0 || viewport_size.1 == 0 {
+            return UiPanel {
+                position: (0, 0),
+                size: viewport_size,
+                content: Default::default(),
+                spans: Default::default(),
+            };
+        }
+
+        self.adjust_viewport_to_primary_selection(state); // this is here to keep the cursor in view when resizing the window
+
+        // Compute content
+        let start_line_index = self.view_top_left_position.line_index;
+        let after_end_line_index = start_line_index + viewport_size.1;
+        let start_column_index = self.view_top_left_position.column_index;
+        let line_slice_max_len = viewport_size.0;
+
+        let mut panel_content = Vec::new();
+        let mut panel_spans = Vec::new();
+
+        for line_index in start_line_index..after_end_line_index {
+            let mut line_buf = String::new();
+            let full_line = if buffer.copy_line(line_index, &mut line_buf).is_ok() {
+                line_buf
+            } else {
+                let mut non_existant_line = " ".repeat((viewport_size.0 - 1) as _);
+                non_existant_line.insert(0, '~');
+                panel_content.push(non_existant_line);
+                let line_index_relative_to_viewport = line_index - start_line_index;
+                let from =
+                    Position::ZERO.with_moved_indices(line_index_relative_to_viewport as _, 0);
+                let to = from.with_moved_indices(0, 1);
+                panel_spans.push(Span {
+                    from,
+                    to,
+                    style: Style {
+                        foreground_color: Some(Color::rgb(155, 100, 200)),
+                        background_color: None,
+                        invert: false,
+                    },
+                    importance: !0,
+                });
+                continue;
+            };
+
+            let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
+                (0, 0)
+            } else {
+                let expected_end = start_column_index as usize + line_slice_max_len as usize;
+                let end = expected_end.min(full_line.len());
+                (start_column_index as usize, end)
+            };
+
+            let mut line = full_line.to_string()[start_column..end_column].to_string();
+            let line_visible_part_length = end_column - start_column;
+            let padlen = line_slice_max_len as usize - line_visible_part_length;
+            line.extend(" ".repeat(padlen).chars());
+
+            panel_content.push(line);
+        }
+
+        // Selection spans
+        self.compute_selection_spans(&mut panel_spans, buffer);
+
+        UiPanel {
+            position: (0, 0),
+            size: viewport_size,
+            content: panel_content,
+            spans: panel_spans,
         }
     }
 
@@ -387,14 +488,14 @@ impl TextEditor {
     }
 
     fn compute_selection_spans(&self, spans: &mut Vec<Span>, buffer: &TextBuffer) {
-        let selection_color = if self.active_mode_name == TextEditMode::NAME {
+        let selection_color = if self.use_alt_cursor_style {
             Some(Color::rgb(150, 32, 96))
         } else {
             Some(Color::rgb(18, 72, 139))
         };
 
         for (selection, selection_split_by_line) in self.selections_split_by_lines(buffer) {
-            let cursor_color = if self.active_mode_name == TextEditMode::NAME {
+            let cursor_color = if self.use_alt_cursor_style {
                 Some(Color::RED)
             } else {
                 Some(Color::WHITE)
@@ -458,28 +559,28 @@ impl TextEditor {
         }
     }
 
-    fn adjust_viewport_to_primary_selection(&mut self, state: &State) {
+    fn adjust_viewport_to_primary_selection(&mut self, _state: &State) {
         let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
         let vp_start_x = self.view_top_left_position.column_index;
-        let vp_after_end_x = vp_start_x + state.viewport_size.0;
+        let vp_after_end_x = vp_start_x + self.rect.width;
         let selection_x = self.selections.primary().cursor().column_index;
 
         if selection_x < vp_start_x {
             new_viewport_top_left_position.column_index = selection_x;
         } else if selection_x >= vp_after_end_x {
-            new_viewport_top_left_position.column_index = selection_x - state.viewport_size.0 + 1;
+            new_viewport_top_left_position.column_index = selection_x - self.rect.width + 1;
         }
 
         // Vertical
         let vp_start_y = self.view_top_left_position.line_index;
-        let vp_after_end_y = vp_start_y + state.viewport_size.1;
+        let vp_after_end_y = vp_start_y + self.rect.height;
         let selection_y = self.selections.primary().cursor().line_index;
 
         if selection_y < vp_start_y {
             new_viewport_top_left_position.line_index = selection_y;
         } else if selection_y >= vp_after_end_y {
-            new_viewport_top_left_position.line_index = selection_y - state.viewport_size.1 + 1;
+            new_viewport_top_left_position.line_index = selection_y - self.rect.height + 1;
         }
 
         self.view_top_left_position = new_viewport_top_left_position;
@@ -498,145 +599,6 @@ impl TextEditor {
     fn map_selections(&mut self, func: impl Fn(Selection) -> Selection) {
         for selection in self.selections.iter_mut() {
             *selection = func(*selection);
-        }
-    }
-
-    fn execute_command_inner(&mut self, command: Command, state: &mut State) {
-        let active_buffer = state.active_buffer_mut();
-
-        use Command::*;
-        match command {
-            AnchorNext => self.lower_anchor(true),
-            AnchorDown => self.lower_anchor(false),
-            AnchorUp => self.raise_anchor(),
-
-            ChangeMode(mode_name) => {
-                self.set_mode(mode_name);
-                self.raise_anchor();
-            }
-            Insert(ch) => self.insert_char_for_each_selection(ch, active_buffer),
-            DeleteSelection => self.delete_selection_for_each_selection(active_buffer),
-            DeleteCursor => self.delete_cursor_for_each_selection(active_buffer),
-            DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(active_buffer),
-
-            // Wow
-            MoveCursorUp => self.move_cursor_vertically(-1, active_buffer, self.anchored()),
-            MoveCursorDown => self.move_cursor_vertically(1, active_buffer, self.anchored()),
-            MoveCursorLeft => self.move_cursor_horizontally(-1, active_buffer, self.anchored()),
-            MoveCursorRight => self.move_cursor_horizontally(1, active_buffer, self.anchored()),
-            //
-            MoveCursorTo(_, _) => todo!(),
-            SetSelection { cursor, anchor } => {
-                let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
-                self.selections = Selections::new_with(selection, &[]);
-            }
-            //
-            MoveCursorToLineStart => self.move_cursor_to_line_start(active_buffer, self.anchored()),
-            MoveCursorToLineEnd => self.move_cursor_to_line_end(active_buffer, self.anchored()),
-            //
-            ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
-            FlipSelection => self.map_selections(|sel| sel.flipped()),
-            FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
-            FlipSelectionBackward => self.map_selections(|sel| sel.flipped_forward().flipped()),
-            //
-            DuplicateSelectionAbove => self.duplicate_selection_above_or_below(active_buffer, true),
-            DuplicateSelectionBelow => {
-                self.duplicate_selection_above_or_below(active_buffer, false)
-            }
-        }
-
-        self.anchor_check();
-
-        self.normalize_selections();
-
-        self.adjust_viewport_to_primary_selection(state);
-    }
-}
-
-impl Panel for TextEditor {
-    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
-        self.active_mode.convert_input_to_command(input, state)
-    }
-
-    fn execute_command(&mut self, command: Command, state: &mut State) -> Option<Command> {
-        self.execute_command_inner(command, state);
-        None
-    }
-
-    fn render(&mut self, state: &State) -> UiPanel {
-        let viewport_size = state.viewport_size;
-        let active_buffer = state.active_buffer();
-
-        if viewport_size.0 == 0 || viewport_size.1 == 0 {
-            return UiPanel {
-                position: (0, 0),
-                size: viewport_size,
-                content: Default::default(),
-                spans: Default::default(),
-            };
-        }
-
-        self.adjust_viewport_to_primary_selection(state); // this is here to keep the cursor in view when resizing the window
-
-        // Compute content
-        let start_line_index = self.view_top_left_position.line_index;
-        let after_end_line_index = start_line_index + viewport_size.1;
-        let start_column_index = self.view_top_left_position.column_index;
-        let line_slice_max_len = viewport_size.0;
-
-        let mut panel_content = Vec::new();
-        let mut panel_spans = Vec::new();
-
-        for line_index in start_line_index..after_end_line_index {
-            let mut line_buf = String::new();
-            let full_line = if active_buffer.copy_line(line_index, &mut line_buf).is_ok() {
-                line_buf
-            } else {
-                let mut non_existant_line = " ".repeat((viewport_size.0 - 1) as _);
-                non_existant_line.insert(0, '~');
-                panel_content.push(non_existant_line);
-                let line_index_relative_to_viewport = line_index - start_line_index;
-                let from =
-                    Position::ZERO.with_moved_indices(line_index_relative_to_viewport as _, 0);
-                let to = from.with_moved_indices(0, 1);
-                panel_spans.push(Span {
-                    from,
-                    to,
-                    style: Style {
-                        foreground_color: Some(Color::rgb(155, 100, 200)),
-                        background_color: None,
-                        invert: false,
-                    },
-                    importance: !0,
-                });
-                continue;
-            };
-
-            let (start_column, end_column) = if start_column_index as usize >= full_line.len() {
-                (0, 0)
-            } else {
-                let expected_end = start_column_index as usize + line_slice_max_len as usize;
-                let end = expected_end.min(full_line.len());
-                (start_column_index as usize, end)
-            };
-
-            let mut line = full_line.to_string()[start_column..end_column].to_string();
-            let line_visible_part_length = end_column - start_column;
-            let padlen = line_slice_max_len as usize - line_visible_part_length;
-            line.extend(" ".repeat(padlen).chars());
-
-            panel_content.push(line);
-        }
-
-        // Selection spans
-        self.compute_selection_spans(&mut panel_spans, &active_buffer);
-
-        // Wooowie done
-        UiPanel {
-            position: (0, 0),
-            size: viewport_size,
-            content: panel_content,
-            spans: panel_spans,
         }
     }
 }
