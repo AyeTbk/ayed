@@ -28,16 +28,16 @@ impl TextBuffer {
 
     pub fn from_filepath(filepath: &Path) -> Self {
         let file = std::fs::File::open(filepath).expect("TODO error handling");
-        let mut inner: Vec<CharString> = std::io::BufReader::new(file)
+        let mut lines: Vec<CharString> = std::io::BufReader::new(file)
             .lines()
             .map(|res| res.expect("TODO error handling").into())
             .collect();
-        for line in inner.iter_mut() {
+        for line in lines.iter_mut() {
             line.push('\n');
         }
 
         Self {
-            lines: inner,
+            lines,
             filepath: Some(filepath.to_owned()),
         }
     }

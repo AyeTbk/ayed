@@ -15,6 +15,7 @@ use super::TextBufferEdit;
 pub struct LineEdit {
     editor: TextBufferEdit,
     buffer: TextBuffer,
+    buffer_string: String,
 }
 
 impl LineEdit {
@@ -24,7 +25,11 @@ impl LineEdit {
         let mut editor = TextBufferEdit::new();
         editor.set_rect(Rect::new(0, 0, 25, 1));
 
-        Self { editor, buffer }
+        Self {
+            editor,
+            buffer,
+            buffer_string: Default::default(),
+        }
     }
 
     pub fn rect(&mut self) -> Rect {
@@ -33,6 +38,10 @@ impl LineEdit {
 
     pub fn set_rect(&mut self, rect: Rect) {
         self.editor.set_rect(rect);
+    }
+
+    pub fn text(&self) -> &str {
+        &self.buffer_string
     }
 
     pub fn input(&mut self, input: Input, state: &mut State) -> Option<String> {
@@ -48,6 +57,10 @@ impl LineEdit {
                 _ => {
                     self.editor
                         .execute_command(command, &mut self.buffer, state);
+
+                    self.buffer
+                        .copy_line(0, &mut self.buffer_string)
+                        .expect("buffer invariant 1 says there should always be at least one line");
                 }
             }
         }
@@ -100,5 +113,6 @@ impl LineEdit {
     fn reset(&mut self) {
         self.editor = TextBufferEdit::new();
         self.buffer = TextBuffer::new_empty();
+        self.buffer_string = Default::default();
     }
 }

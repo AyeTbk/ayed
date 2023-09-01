@@ -13,7 +13,7 @@ use crate::warpdrive::WarpDrive;
 
 pub struct Core {
     state: State,
-    editor: TextEditor,
+    editors: Editors,
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
     quit: bool,
@@ -23,12 +23,14 @@ impl Core {
     pub fn new() -> Self {
         let mut buffers = Arena::new();
         let buffer = buffers.allocate(TextBuffer::new_empty());
-        let editor = TextEditor::new(buffer);
-        let viewport_size = (80, 25);
+
+        let mut editors_arena = Arena::new();
+        let active_editor = editors_arena.allocate(TextEditor::new(buffer));
+
         let state = State {
             buffers,
-            active_buffer_handle: buffer, // TODO rethink this
-            viewport_size,
+            active_buffer_handle: buffer,
+            viewport_size: (80, 25),
             mode_line_infos: Default::default(),
         };
 
@@ -36,7 +38,10 @@ impl Core {
 
         Self {
             state,
-            editor,
+            editors: Editors {
+                editors: editors_arena,
+                active_editor,
+            },
             mode_line,
             warpdrive: None,
             quit: false,
@@ -51,10 +56,28 @@ impl Core {
         self.quit = true;
     }
 
-    pub fn create_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
-        self.state
-            .buffers
-            .allocate(TextBuffer::from_filepath(path.as_ref()))
+    pub fn get_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
+        let path = path.as_ref();
+
+        let alreay_opened_buffer = self.state.buffers.elements().find_map(|(hnd, buf)| {
+            if let Some(f) = buf.filepath() {
+                if f == path {
+                    Some(hnd)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+
+        if let Some(buffer) = alreay_opened_buffer {
+            buffer
+        } else {
+            self.state
+                .buffers
+                .allocate(TextBuffer::from_filepath(path.as_ref()))
+        }
     }
 
     pub fn create_scratch_buffer(&mut self) -> Handle<TextBuffer> {
@@ -62,7 +85,21 @@ impl Core {
     }
 
     pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        self.editor = TextEditor::new(buffer);
+        let maybe_preexisting_editor = self.editors.editors.elements().find_map(|(hnd, ed)| {
+            if ed.buffer() == buffer {
+                Some(hnd)
+            } else {
+                None
+            }
+        });
+
+        let editor = if let Some(preexisting_editor) = maybe_preexisting_editor {
+            preexisting_editor
+        } else {
+            self.editors.editors.allocate(TextEditor::new(buffer))
+        };
+
+        self.editors.active_editor = editor;
         self.state.active_buffer_handle = buffer;
     }
 
@@ -75,9 +112,11 @@ impl Core {
 
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
-        } else if input.key == Key::Char(':') && self.editor.is_command_mode() {
+        } else if input.key == Key::Char(':') && self.editors.active_editor().is_command_mode() {
             self.mode_line.set_has_focus(true);
-        } else if input == Input::parse("w").unwrap() && self.editor.is_command_mode() {
+        } else if input == Input::parse("w").unwrap()
+            && self.editors.active_editor().is_command_mode()
+        {
             self.warpdrive = self.make_warp_drive_panel();
             return;
         } else if self.warpdrive.is_some() {
@@ -100,11 +139,15 @@ impl Core {
     fn make_warp_drive_panel(&mut self) -> Option<WarpDrive> {
         let ui_panel = self.render_editor();
         let text_content = ui_panel.content;
-        let position_offset = self.editor.view_top_left_position().to_offset();
+        let position_offset = self
+            .editors
+            .active_editor()
+            .view_top_left_position()
+            .to_offset();
         WarpDrive::new(text_content, position_offset)
     }
 
-    fn interpret_command(&mut self, command_str: &str) {
+    fn interpret_prompt_command(&mut self, command_str: &str) {
         let mut parts = command_str.split(' ');
         let command = parts.next().expect("command expected");
         match command {
@@ -112,10 +155,10 @@ impl Core {
             "q" | "quit" => self.request_quit(),
             "e" | "edit" => {
                 let arg = parts.next().expect("name expected");
-                let buffer = self.create_buffer_from_filepath(arg);
+                let buffer = self.get_buffer_from_filepath(arg);
                 self.edit_buffer(buffer);
             }
-            "w" | "write" | "s" | "save" => {
+            "w" | "write" => {
                 self.save_buffer(self.state.active_buffer_handle);
             }
             "wq" | "write-quit" => {
@@ -131,18 +174,24 @@ impl Core {
 
         if let Some(line) = maybe_line {
             self.mode_line.set_has_focus(false);
-            self.interpret_command(&line);
+            self.interpret_prompt_command(&line);
         }
     }
 
     fn input_editor(&mut self, input: Input) {
-        for command in self.editor.convert_input_to_command(input, &self.state) {
+        for command in self
+            .editors
+            .active_editor_mut()
+            .convert_input_to_command(input, &self.state)
+        {
             self.execute_command_in_editor(command);
         }
     }
 
     fn execute_command_in_editor(&mut self, command: Command) {
-        self.editor.execute_command(command, &mut self.state);
+        self.editors
+            .active_editor_mut()
+            .execute_command(command, &mut self.state);
     }
 
     fn input_warpdrive(&mut self, input: Input) -> Option<Command> {
@@ -182,9 +231,10 @@ impl Core {
     }
 
     fn render_editor(&mut self) -> UiPanel {
-        self.editor.set_rect(self.compute_editor_rect());
+        let rect = self.compute_editor_rect();
+        self.editors.active_editor_mut().set_rect(rect);
 
-        self.editor.render(&self.state)
+        self.editors.active_editor_mut().render(&self.state)
     }
 
     fn render_warpdrive_panel(&mut self) -> UiPanel {
@@ -194,9 +244,7 @@ impl Core {
     fn render_mode_line(&mut self) -> UiPanel {
         self.mode_line.set_rect(self.compute_mode_line_rect());
 
-        let mut panel = self.mode_line.render(&self.state);
-        panel.position.1 = self.state.viewport_size.1 - 1;
-        panel
+        self.mode_line.render(&self.state)
     }
 
     fn compute_editor_rect(&self) -> Rect {
@@ -231,7 +279,17 @@ impl Core {
     }
 }
 
-pub struct EditorContextMut<'a> {
-    pub buffer: &'a mut TextBuffer,
-    pub viewport_size: (u32, u32),
+struct Editors {
+    editors: Arena<TextEditor>,
+    active_editor: Handle<TextEditor>,
+}
+
+impl Editors {
+    pub fn active_editor(&self) -> &TextEditor {
+        self.editors.get(self.active_editor)
+    }
+
+    pub fn active_editor_mut(&mut self) -> &mut TextEditor {
+        self.editors.get_mut(self.active_editor)
+    }
 }

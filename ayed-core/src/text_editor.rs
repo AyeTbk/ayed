@@ -13,15 +13,15 @@ use crate::{
 };
 
 pub struct TextEditor {
-    buffer_handle: Handle<TextBuffer>,
+    buffer: Handle<TextBuffer>,
     inner: TextBufferEdit,
     is_command_mode: bool,
 }
 
 impl TextEditor {
-    pub fn new(buffer_handle: Handle<TextBuffer>) -> Self {
+    pub fn new(buffer: Handle<TextBuffer>) -> Self {
         Self {
-            buffer_handle,
+            buffer,
             inner: TextBufferEdit::new(),
             is_command_mode: true,
         }
@@ -29,6 +29,10 @@ impl TextEditor {
 
     pub fn set_rect(&mut self, rect: Rect) {
         self.inner.set_rect(rect);
+    }
+
+    pub fn buffer(&self) -> Handle<TextBuffer> {
+        self.buffer
     }
 
     pub fn is_command_mode(&self) -> bool {
@@ -49,12 +53,20 @@ impl TextEditor {
 
     pub fn execute_command(&mut self, command: Command, state: &mut State) {
         let mut fake_state = state.dummy_clone();
-        let buffer = state.buffers.get_mut(self.buffer_handle);
-        self.inner.execute_command(command, buffer, &mut fake_state);
+        let buffer = state.buffers.get_mut(self.buffer);
+        match command {
+            Command::ChangeMode(mode) => {
+                self.is_command_mode = mode == TextCommandMode::NAME;
+                self.inner.use_alt_cursor_style = !self.is_command_mode;
+            }
+            _ => {
+                self.inner.execute_command(command, buffer, &mut fake_state);
+            }
+        }
     }
 
     pub fn render(&mut self, state: &State) -> UiPanel {
-        let buffer = state.buffers.get(self.buffer_handle);
+        let buffer = state.buffers.get(self.buffer);
         self.inner.render(buffer, state)
     }
 }
