@@ -12,7 +12,6 @@ impl Regex {
     pub fn new(pattern: &str) -> Result<Self, String> {
         let ast = ast::parse(pattern)?;
         let nfa = build_nfa(&ast);
-        dbg!(&nfa);
         Ok(Self { nfa })
     }
 

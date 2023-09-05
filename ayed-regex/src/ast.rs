@@ -13,7 +13,7 @@ pub enum Node {
         node: Box<Self>,
         quantifier: Quantifier,
     },
-    Group(Box<Self>),
+    Group(Group),
 }
 
 #[derive(Debug)]
@@ -21,6 +21,13 @@ pub struct Quantifier {
     pub min: u16,
     pub max: Option<u16>,
     pub lazy: bool,
+}
+
+#[derive(Debug)]
+pub struct Group {
+    pub node: Box<Node>,
+    pub capturing: bool,
+    pub name: Option<String>,
 }
 
 pub fn parse(pattern: &str) -> Result<Ast, String> {
@@ -115,7 +122,11 @@ impl<'a> Parser<'a> {
         let node = self.parse_alternatives()?;
         self.expect_token(')')?;
 
-        Ok(Node::Group(Box::new(node)))
+        Ok(Node::Group(Group {
+            node: Box::new(node),
+            capturing: true,
+            name: None,
+        }))
     }
 
     fn try_parse_quantifier(&mut self) -> Result<Option<Quantifier>, String> {

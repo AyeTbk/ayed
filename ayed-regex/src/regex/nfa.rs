@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::ast::{self, Quantifier};
 
 pub type NodeId = usize;
 pub type ConnectionId = usize;
@@ -64,8 +64,6 @@ pub struct Repeat {
 }
 
 pub fn build_nfa(ast: &ast::Ast) -> Automaton {
-    dbg!(ast);
-
     let mut builder = NfaBuilder::new();
     let start = builder.build_nfa(&ast.root);
     Automaton {
@@ -131,7 +129,7 @@ impl NfaBuilder {
             }
             Quantified {
                 node: ast_node,
-                quantifier,
+                quantifier: Quantifier { min, max, lazy },
             } => {
                 let current_node = self.create_node();
                 let start = self.build_nfa(ast_node);
@@ -140,13 +138,17 @@ impl NfaBuilder {
                     current_node,
                     ConnectionKind::Subautomata {
                         start,
-                        repeat_min: quantifier.min,
-                        repeat_max: quantifier.max,
+                        repeat_min: *min,
+                        repeat_max: *max,
                     },
                 );
                 current_node
             }
-            Group(ast_node) => self.build_node(ast_node, previous_node),
+            Group(ast::Group {
+                node: ast_node,
+                capturing,
+                name,
+            }) => self.build_node(ast_node, previous_node),
         }
     }
 
