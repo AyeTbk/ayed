@@ -1,24 +1,22 @@
-use crate::AsIterator;
+use crate::{ast, AsIterator};
 
-use self::nfa::build_nfa;
+use self::nfa::{build_nfa, run_nfa};
 
 mod nfa;
 
 pub struct Regex {
-    //
+    nfa: nfa::Automaton,
 }
 
 impl Regex {
     pub fn new(pattern: &str) -> Result<Self, String> {
-        build_nfa(pattern)?;
-        Ok(Self {})
+        let ast = ast::parse(pattern)?;
+        let nfa = build_nfa(&ast);
+        dbg!(&nfa);
+        Ok(Self { nfa })
     }
 
     pub fn is_match(&self, text: impl AsIterator<Item = char>) -> bool {
-        for ch in text.as_iter() {
-            print!("{}", ch);
-        }
-        println!();
-        false
+        run_nfa(&self.nfa, &text.as_iter())
     }
 }

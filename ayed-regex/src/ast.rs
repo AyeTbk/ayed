@@ -18,9 +18,9 @@ pub enum Node {
 
 #[derive(Debug)]
 pub struct Quantifier {
-    min: u16,
-    max: Option<u16>,
-    lazy: bool,
+    pub min: u16,
+    pub max: Option<u16>,
+    pub lazy: bool,
 }
 
 pub fn parse(pattern: &str) -> Result<Ast, String> {

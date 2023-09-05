@@ -1,6 +1,6 @@
 pub trait AsIterator {
     type Item;
-    type AsIter: Iterator<Item = Self::Item>;
+    type AsIter: Iterator<Item = Self::Item> + Clone;
 
     fn as_iter(self) -> Self::AsIter;
 }
