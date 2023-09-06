@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
+
 use crate::ast::{self, Quantifier};
 
 pub type NodeId = usize;
 pub type ConnectionId = usize;
+pub type CaptureGroupId = usize;
 
 #[derive(Debug)]
 pub struct Automaton {
@@ -50,10 +53,20 @@ pub enum ConnectionKind {
     Char(char),
     AnyChar,
     Direct,
-    Subautomata {
+    Subautomaton {
         start: NodeId,
+        kind: SubautomatonKind,
+    },
+}
+
+#[derive(Debug)]
+pub enum SubautomatonKind {
+    Repeating {
         repeat_min: u16,
         repeat_max: Option<u16>,
+    },
+    Capturing {
+        capturing_group_idx: u16,
     },
 }
 
@@ -76,6 +89,7 @@ pub fn build_nfa(ast: &ast::Ast) -> Automaton {
 struct NfaBuilder {
     nodes: Vec<Node>,
     connections: Vec<Connection>,
+    capture_group_count: u16,
 }
 
 impl NfaBuilder {
@@ -83,6 +97,7 @@ impl NfaBuilder {
         Self {
             nodes: Default::default(),
             connections: Default::default(),
+            capture_group_count: 0,
         }
     }
 
@@ -136,10 +151,12 @@ impl NfaBuilder {
                 self.connect_nodes(
                     previous_node,
                     current_node,
-                    ConnectionKind::Subautomata {
+                    ConnectionKind::Subautomaton {
                         start,
-                        repeat_min: *min,
-                        repeat_max: *max,
+                        kind: SubautomatonKind::Repeating {
+                            repeat_min: *min,
+                            repeat_max: *max,
+                        },
                     },
                 );
                 current_node
@@ -148,7 +165,28 @@ impl NfaBuilder {
                 node: ast_node,
                 capturing,
                 name,
-            }) => self.build_node(ast_node, previous_node),
+            }) => {
+                if *capturing {
+                    let capturing_group_idx = self.capture_group_count;
+                    self.capture_group_count += 1;
+
+                    let current_node = self.create_node();
+                    let start = self.build_nfa(ast_node);
+                    self.connect_nodes(
+                        previous_node,
+                        current_node,
+                        ConnectionKind::Subautomaton {
+                            start,
+                            kind: SubautomatonKind::Capturing {
+                                capturing_group_idx,
+                            },
+                        },
+                    );
+                    current_node
+                } else {
+                    self.build_node(ast_node, previous_node)
+                }
+            }
         }
     }
 
@@ -187,6 +225,7 @@ where
     if node.is_end() {
         return Ok(RunNodeSuccess {
             remaining_haystack: haystack.clone(),
+            captures: Default::default(),
         });
     }
 
@@ -204,33 +243,8 @@ where
             if connection.matches_char(chr) {
                 if let Ok(success) = run_node(a, connection.to, &h) {
                     return Ok(success);
-                }
-            }
-        } else if let ConnectionKind::Subautomata {
-            start,
-            repeat_min,
-            repeat_max,
-        } = connection.kind
-        {
-            // Run node 'start' on repeat and it must return true at least 'repeat_min'
-            // times to be successful.
-            // Greedy by default so try to match as much as possible.
-            if let Some(repeat_max) = repeat_max {
-                assert!(repeat_min <= repeat_max); // TODO use type system to remove this sanity check?
-            }
-            let mut h = haystack.clone();
-            let mut times_matched: i32 = 0;
-            while repeat_max.is_none() || times_matched < repeat_max.unwrap().into() {
-                if let Ok(success) = run_node(a, start, &h) {
-                    times_matched += 1;
-                    h = success.remaining_haystack;
                 } else {
-                    break;
-                }
-            }
-            if times_matched >= repeat_min.into() {
-                if let Ok(success) = run_node(a, connection.to, &h) {
-                    return Ok(success);
+                    continue 'conn;
                 }
             } else {
                 continue 'conn;
@@ -238,6 +252,58 @@ where
         } else if let ConnectionKind::Direct = connection.kind {
             if let Ok(success) = run_node(a, connection.to, haystack) {
                 return Ok(success);
+            } else {
+                continue 'conn;
+            }
+        } else if let ConnectionKind::Subautomaton { start, kind } = &connection.kind {
+            match kind {
+                SubautomatonKind::Capturing {
+                    capturing_group_idx,
+                } => {
+                    if let Ok(success) = run_node(a, *start, haystack) {
+                        println!("captured group: {}", capturing_group_idx);
+                        return run_node(a, connection.to, &success.remaining_haystack);
+                    } else {
+                        continue 'conn;
+                    }
+                }
+                SubautomatonKind::Repeating {
+                    repeat_min,
+                    repeat_max,
+                } => {
+                    // FIXME this doesnt completely work, it needs to be able to give up some
+                    // of the matches to allow the whole thing to match ok.
+                    // ex: regex "hello (.*)!" with haystack "hello world!" should match and
+                    // capture "world".
+                    // One way to do this might be to match as much as possible while
+                    // remembering the start of every match so that you can progressively
+                    // try unmatch the repetition to allow the rest of the regex to possibly
+                    // match.
+
+                    // Run node 'start' on repeat and it must return true at least 'repeat_min'
+                    // times to be successful.
+                    // Greedy by default so try to match as much as possible.
+                    if let Some(repeat_max) = repeat_max {
+                        assert!(repeat_min <= repeat_max); // TODO use type system to remove this sanity check?
+                    }
+                    let mut h = haystack.clone();
+                    let mut times_matched: i32 = 0;
+                    while repeat_max.is_none() || times_matched < repeat_max.unwrap().into() {
+                        if let Ok(success) = run_node(a, *start, &h) {
+                            times_matched += 1;
+                            h = success.remaining_haystack;
+                        } else {
+                            break;
+                        }
+                    }
+                    if times_matched >= (*repeat_min).into() {
+                        if let Ok(success) = run_node(a, connection.to, &h) {
+                            return Ok(success);
+                        }
+                    } else {
+                        continue 'conn;
+                    }
+                }
             }
         }
     }
@@ -247,4 +313,10 @@ where
 
 struct RunNodeSuccess<T> {
     remaining_haystack: T,
+    captures: BTreeMap<CaptureGroupId, Capture>,
+}
+
+struct Capture {
+    start_idx: usize,
+    end_idx: usize,
 }

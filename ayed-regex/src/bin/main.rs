@@ -1,7 +1,7 @@
 use ayed_regex::Regex;
 
 fn main() {
-    let re = Regex::new(r"h(e|a)llo .*|bye my guy").unwrap();
+    let re = Regex::new(r"h((e|a)llo) (.*)(!|.)").unwrap();
 
     dbg!(re.is_match("ab"));
     dbg!(re.is_match("abc"));
