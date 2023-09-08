@@ -271,37 +271,42 @@ where
                     repeat_min,
                     repeat_max,
                 } => {
-                    // FIXME this doesnt completely work, it needs to be able to give up some
-                    // of the matches to allow the whole thing to match ok.
-                    // ex: regex "hello (.*)!" with haystack "hello world!" should match and
-                    // capture "world".
-                    // One way to do this might be to match as much as possible while
-                    // remembering the start of every match so that you can progressively
-                    // try unmatch the repetition to allow the rest of the regex to possibly
-                    // match.
-
                     // Run node 'start' on repeat and it must return true at least 'repeat_min'
                     // times to be successful.
                     // Greedy by default so try to match as much as possible.
                     if let Some(repeat_max) = repeat_max {
                         assert!(repeat_min <= repeat_max); // TODO use type system to remove this sanity check?
                     }
-                    let mut h = haystack.clone();
-                    let mut times_matched: i32 = 0;
-                    while repeat_max.is_none() || times_matched < repeat_max.unwrap().into() {
-                        if let Ok(success) = run_node(a, *start, &h) {
+                    let mut current_haystack = haystack.clone();
+                    let mut times_matched = 0;
+                    let mut backtrack_haystacks = vec![];
+                    // Greedily match as much as possible, respecting the max, while keeping track of where
+                    // every repetition starts to allow backtracking.
+                    while repeat_max.is_none() || times_matched < repeat_max.unwrap() {
+                        backtrack_haystacks.push(current_haystack.clone());
+                        if let Ok(success) = run_node(a, *start, &current_haystack) {
                             times_matched += 1;
-                            h = success.remaining_haystack;
+                            current_haystack = success.remaining_haystack;
                         } else {
                             break;
                         }
                     }
-                    if times_matched >= (*repeat_min).into() {
-                        if let Ok(success) = run_node(a, connection.to, &h) {
+                    backtrack_haystacks.pop();
+
+                    // Try to match the rest of the regex. If it fails, backtrack and try again. Respect
+                    // min repetition.
+                    while !backtrack_haystacks.is_empty() {
+                        if times_matched < *repeat_min {
+                            continue 'conn;
+                        } else if let Ok(success) = run_node(a, connection.to, &current_haystack) {
                             return Ok(success);
+                        } else {
+                            let Some(backtrack_haystack) = backtrack_haystacks.pop() else {
+                                continue 'conn;
+                            };
+                            current_haystack = backtrack_haystack;
+                            times_matched -= 1;
                         }
-                    } else {
-                        continue 'conn;
                     }
                 }
             }
