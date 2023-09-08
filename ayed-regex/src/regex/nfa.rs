@@ -16,6 +16,7 @@ pub struct Automaton {
 #[derive(Debug)]
 pub struct Node {
     next: Vec<ConnectionId>,
+    is_really_end: bool,
 }
 
 impl Node {
@@ -103,7 +104,8 @@ impl NfaBuilder {
 
     pub fn build_nfa(&mut self, ast_root: &ast::Node) -> NodeId {
         let root_node = self.create_node();
-        self.build_node(ast_root, root_node);
+        let end_node = self.build_node(ast_root, root_node);
+        self.nodes[end_node as usize].is_really_end = true;
         root_node
     }
 
@@ -146,46 +148,63 @@ impl NfaBuilder {
                 node: ast_node,
                 quantifier: Quantifier { min, max, lazy },
             } => {
-                let current_node = self.create_node();
-                let start = self.build_nfa(ast_node);
-                self.connect_nodes(
-                    previous_node,
-                    current_node,
-                    ConnectionKind::Subautomaton {
-                        start,
-                        kind: SubautomatonKind::Repeating {
-                            repeat_min: *min,
-                            repeat_max: *max,
-                        },
-                    },
-                );
-                current_node
+                let mut start_node = previous_node;
+                let end_node = self.create_node();
+
+                for _ in 0..*min {
+                    let midway_node = self.build_node(ast_node, start_node);
+                    start_node = midway_node;
+                }
+                if *min == 0 {
+                    self.connect_nodes(start_node, end_node, ConnectionKind::Direct);
+                }
+
+                if let Some(max) = max {
+                    let extra_repetitions = *max - *min;
+                    if extra_repetitions > 0 {
+                        for i in 0..extra_repetitions {
+                            let mut post_start_node = start_node;
+                            for _ in 0..(i + 1) {
+                                let midway_node = self.build_node(ast_node, post_start_node);
+                                post_start_node = midway_node;
+                            }
+                            self.connect_nodes(post_start_node, end_node, ConnectionKind::Direct);
+                        }
+                    } else {
+                        self.connect_nodes(start_node, end_node, ConnectionKind::Direct);
+                    }
+                } else {
+                    let midway_node = self.build_node(ast_node, start_node);
+                    self.connect_nodes(midway_node, end_node, ConnectionKind::Direct);
+                    self.connect_nodes(midway_node, start_node, ConnectionKind::Direct);
+                }
+                end_node
             }
             Group(ast::Group {
                 node: ast_node,
                 capturing,
                 name,
             }) => {
-                if *capturing {
-                    let capturing_group_idx = self.capture_group_count;
-                    self.capture_group_count += 1;
+                // if *capturing {
+                //     let capturing_group_idx = self.capture_group_count;
+                //     self.capture_group_count += 1;
 
-                    let current_node = self.create_node();
-                    let start = self.build_nfa(ast_node);
-                    self.connect_nodes(
-                        previous_node,
-                        current_node,
-                        ConnectionKind::Subautomaton {
-                            start,
-                            kind: SubautomatonKind::Capturing {
-                                capturing_group_idx,
-                            },
-                        },
-                    );
-                    current_node
-                } else {
-                    self.build_node(ast_node, previous_node)
-                }
+                //     let current_node = self.create_node();
+                //     let start = self.build_nfa(ast_node);
+                //     self.connect_nodes(
+                //         previous_node,
+                //         current_node,
+                //         ConnectionKind::Subautomaton {
+                //             start,
+                //             kind: SubautomatonKind::Capturing {
+                //                 capturing_group_idx,
+                //             },
+                //         },
+                //     );
+                //     current_node
+                // } else {
+                self.build_node(ast_node, previous_node)
+                // }
             }
         }
     }
@@ -199,7 +218,10 @@ impl NfaBuilder {
 
     fn create_node(&mut self) -> NodeId {
         let id = self.nodes.len();
-        self.nodes.push(Node { next: vec![] });
+        self.nodes.push(Node {
+            next: vec![],
+            is_really_end: false,
+        });
         id
     }
 
@@ -223,6 +245,7 @@ where
 {
     let node = &a.nodes[node_id];
     if node.is_end() {
+        assert!(node.is_really_end);
         return Ok(RunNodeSuccess {
             remaining_haystack: haystack.clone(),
             captures: Default::default(),
@@ -254,61 +277,6 @@ where
                 return Ok(success);
             } else {
                 continue 'conn;
-            }
-        } else if let ConnectionKind::Subautomaton { start, kind } = &connection.kind {
-            match kind {
-                SubautomatonKind::Capturing {
-                    capturing_group_idx,
-                } => {
-                    if let Ok(success) = run_node(a, *start, haystack) {
-                        println!("captured group: {}", capturing_group_idx);
-                        return run_node(a, connection.to, &success.remaining_haystack);
-                    } else {
-                        continue 'conn;
-                    }
-                }
-                SubautomatonKind::Repeating {
-                    repeat_min,
-                    repeat_max,
-                } => {
-                    // Run node 'start' on repeat and it must return true at least 'repeat_min'
-                    // times to be successful.
-                    // Greedy by default so try to match as much as possible.
-                    if let Some(repeat_max) = repeat_max {
-                        assert!(repeat_min <= repeat_max); // TODO use type system to remove this sanity check?
-                    }
-                    let mut current_haystack = haystack.clone();
-                    let mut times_matched = 0;
-                    let mut backtrack_haystacks = vec![];
-                    // Greedily match as much as possible, respecting the max, while keeping track of where
-                    // every repetition starts to allow backtracking.
-                    while repeat_max.is_none() || times_matched < repeat_max.unwrap() {
-                        backtrack_haystacks.push(current_haystack.clone());
-                        if let Ok(success) = run_node(a, *start, &current_haystack) {
-                            times_matched += 1;
-                            current_haystack = success.remaining_haystack;
-                        } else {
-                            break;
-                        }
-                    }
-                    backtrack_haystacks.pop();
-
-                    // Try to match the rest of the regex. If it fails, backtrack and try again. Respect
-                    // min repetition.
-                    while !backtrack_haystacks.is_empty() {
-                        if times_matched < *repeat_min {
-                            continue 'conn;
-                        } else if let Ok(success) = run_node(a, connection.to, &current_haystack) {
-                            return Ok(success);
-                        } else {
-                            let Some(backtrack_haystack) = backtrack_haystacks.pop() else {
-                                continue 'conn;
-                            };
-                            current_haystack = backtrack_haystack;
-                            times_matched -= 1;
-                        }
-                    }
-                }
             }
         }
     }
