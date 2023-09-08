@@ -16,6 +16,6 @@ impl Regex {
     }
 
     pub fn is_match(&self, text: impl AsIterator<Item = char>) -> bool {
-        run_nfa(&self.nfa, &text.as_iter())
+        run_nfa(&self.nfa, text.as_iter()).is_ok()
     }
 }

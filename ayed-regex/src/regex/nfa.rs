@@ -4,7 +4,7 @@ use crate::ast::{self, Quantifier};
 
 pub type NodeId = usize;
 pub type ConnectionId = usize;
-pub type CaptureGroupId = usize;
+pub type CaptureGroupId = u16;
 
 #[derive(Debug)]
 pub struct Automaton {
@@ -16,7 +16,6 @@ pub struct Automaton {
 #[derive(Debug)]
 pub struct Node {
     next: Vec<ConnectionId>,
-    is_really_end: bool,
 }
 
 impl Node {
@@ -32,14 +31,6 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn needs_char(&self) -> bool {
-        match &self.kind {
-            ConnectionKind::AnyChar => true,
-            ConnectionKind::Char(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn matches_char(&self, chr: char) -> bool {
         match &self.kind {
             ConnectionKind::AnyChar => true,
@@ -53,22 +44,11 @@ impl Connection {
 pub enum ConnectionKind {
     Char(char),
     AnyChar,
+    Capture {
+        start: bool,
+        capture_group_idx: CaptureGroupId,
+    },
     Direct,
-    Subautomaton {
-        start: NodeId,
-        kind: SubautomatonKind,
-    },
-}
-
-#[derive(Debug)]
-pub enum SubautomatonKind {
-    Repeating {
-        repeat_min: u16,
-        repeat_max: Option<u16>,
-    },
-    Capturing {
-        capturing_group_idx: u16,
-    },
 }
 
 #[derive(Debug)]
@@ -104,8 +84,7 @@ impl NfaBuilder {
 
     pub fn build_nfa(&mut self, ast_root: &ast::Node) -> NodeId {
         let root_node = self.create_node();
-        let end_node = self.build_node(ast_root, root_node);
-        self.nodes[end_node as usize].is_really_end = true;
+        self.build_node(ast_root, root_node);
         root_node
     }
 
@@ -148,6 +127,9 @@ impl NfaBuilder {
                 node: ast_node,
                 quantifier: Quantifier { min, max, lazy },
             } => {
+                // Connections to establish, given in such an order that matching is "lazy".
+                let mut connections = vec![];
+
                 let mut start_node = previous_node;
                 let end_node = self.create_node();
 
@@ -156,7 +138,7 @@ impl NfaBuilder {
                     start_node = midway_node;
                 }
                 if *min == 0 {
-                    self.connect_nodes(start_node, end_node, ConnectionKind::Direct);
+                    connections.push((start_node, end_node, ConnectionKind::Direct));
                 }
 
                 if let Some(max) = max {
@@ -168,16 +150,26 @@ impl NfaBuilder {
                                 let midway_node = self.build_node(ast_node, post_start_node);
                                 post_start_node = midway_node;
                             }
-                            self.connect_nodes(post_start_node, end_node, ConnectionKind::Direct);
+                            connections.push((post_start_node, end_node, ConnectionKind::Direct));
                         }
                     } else {
-                        self.connect_nodes(start_node, end_node, ConnectionKind::Direct);
+                        connections.push((start_node, end_node, ConnectionKind::Direct));
                     }
                 } else {
                     let midway_node = self.build_node(ast_node, start_node);
-                    self.connect_nodes(midway_node, end_node, ConnectionKind::Direct);
-                    self.connect_nodes(midway_node, start_node, ConnectionKind::Direct);
+                    connections.push((midway_node, end_node, ConnectionKind::Direct));
+                    connections.push((midway_node, start_node, ConnectionKind::Direct));
                 }
+
+                if !lazy {
+                    connections.reverse();
+                }
+
+                // Establish connections
+                for (node_a, node_b, conn_kind) in connections {
+                    self.connect_nodes(node_a, node_b, conn_kind);
+                }
+
                 end_node
             }
             Group(ast::Group {
@@ -185,26 +177,36 @@ impl NfaBuilder {
                 capturing,
                 name,
             }) => {
-                // if *capturing {
-                //     let capturing_group_idx = self.capture_group_count;
-                //     self.capture_group_count += 1;
+                if *capturing {
+                    let capture_group_idx = self.capture_group_count;
+                    self.capture_group_count += 1;
 
-                //     let current_node = self.create_node();
-                //     let start = self.build_nfa(ast_node);
-                //     self.connect_nodes(
-                //         previous_node,
-                //         current_node,
-                //         ConnectionKind::Subautomaton {
-                //             start,
-                //             kind: SubautomatonKind::Capturing {
-                //                 capturing_group_idx,
-                //             },
-                //         },
-                //     );
-                //     current_node
-                // } else {
-                self.build_node(ast_node, previous_node)
-                // }
+                    let capture_start_node = self.create_node();
+                    self.connect_nodes(
+                        previous_node,
+                        capture_start_node,
+                        ConnectionKind::Capture {
+                            start: true,
+                            capture_group_idx,
+                        },
+                    );
+
+                    let pattern_node = self.build_node(ast_node, capture_start_node);
+
+                    let capture_end_node = self.create_node();
+                    self.connect_nodes(
+                        pattern_node,
+                        capture_end_node,
+                        ConnectionKind::Capture {
+                            start: false,
+                            capture_group_idx,
+                        },
+                    );
+
+                    capture_end_node
+                } else {
+                    self.build_node(ast_node, previous_node)
+                }
             }
         }
     }
@@ -218,10 +220,7 @@ impl NfaBuilder {
 
     fn create_node(&mut self) -> NodeId {
         let id = self.nodes.len();
-        self.nodes.push(Node {
-            next: vec![],
-            is_really_end: false,
-        });
+        self.nodes.push(Node { next: vec![] });
         id
     }
 
@@ -232,51 +231,106 @@ impl NfaBuilder {
     }
 }
 
-pub fn run_nfa<I>(a: &Automaton, haystack: &I) -> bool
+#[derive(Clone)]
+struct Input<I> {
+    idx: usize,
+    haystack: I,
+}
+
+impl<I: Iterator<Item = char> + Clone> Input<I> {
+    pub fn new(haystack: I) -> Self {
+        Self { idx: 0, haystack }
+    }
+
+    pub fn next(&mut self) -> Option<char> {
+        let next = self.haystack.next();
+        if next.is_some() {
+            self.idx += 1;
+        }
+        next
+    }
+}
+
+pub fn run_nfa<I>(a: &Automaton, haystack: I) -> Result<RunNodeSuccess, ()>
 where
     I: Iterator<Item = char> + Clone,
 {
-    run_node(a, a.start, haystack).is_ok()
+    run_node(a, a.start, &Input::new(haystack))
 }
 
-fn run_node<I>(a: &Automaton, node_id: NodeId, haystack: &I) -> Result<RunNodeSuccess<I>, ()>
+fn run_node<I>(a: &Automaton, node_id: NodeId, haystack: &Input<I>) -> Result<RunNodeSuccess, ()>
 where
     I: Iterator<Item = char> + Clone,
 {
     let node = &a.nodes[node_id];
     if node.is_end() {
-        assert!(node.is_really_end);
         return Ok(RunNodeSuccess {
-            remaining_haystack: haystack.clone(),
             captures: Default::default(),
         });
     }
 
     'conn: for &connection_id in &node.next {
         let connection = &a.connections[connection_id];
-        if connection.needs_char() {
-            let mut h = haystack.clone();
-            let maybe_chr = h.next();
-            let chr = if let Some(chr) = maybe_chr {
-                chr
-            } else {
-                // Reached the end of haystack but the node was not the end: failed to match
-                return Err(());
-            };
-            if connection.matches_char(chr) {
-                if let Ok(success) = run_node(a, connection.to, &h) {
+        match &connection.kind {
+            ConnectionKind::Char(_) | ConnectionKind::AnyChar => {
+                let mut h = haystack.clone();
+                let maybe_chr = h.next();
+                let chr = if let Some(chr) = maybe_chr {
+                    chr
+                } else {
+                    // Reached the end of haystack but the node was not the end: failed to match
+                    return Err(());
+                };
+                if connection.matches_char(chr) {
+                    if let Ok(success) = run_node(a, connection.to, &h) {
+                        return Ok(success);
+                    } else {
+                        continue 'conn;
+                    }
+                } else {
+                    continue 'conn;
+                }
+            }
+            &ConnectionKind::Capture {
+                start,
+                capture_group_idx,
+            } => {
+                if start {
+                    if let Ok(mut success) = run_node(a, connection.to, haystack) {
+                        let maybe_start_idx = &mut success
+                            .captures
+                            .entry(capture_group_idx)
+                            .or_default()
+                            .start_idx;
+                        if maybe_start_idx.is_none() {
+                            *maybe_start_idx = Some(haystack.idx);
+                        }
+                        return Ok(success);
+                    } else {
+                        continue 'conn;
+                    }
+                } else {
+                    if let Ok(mut success) = run_node(a, connection.to, haystack) {
+                        let maybe_end_idx = &mut success
+                            .captures
+                            .entry(capture_group_idx)
+                            .or_default()
+                            .end_idx;
+                        if maybe_end_idx.is_none() {
+                            *maybe_end_idx = Some(haystack.idx);
+                        }
+                        return Ok(success);
+                    } else {
+                        continue 'conn;
+                    }
+                }
+            }
+            ConnectionKind::Direct => {
+                if let Ok(success) = run_node(a, connection.to, haystack) {
                     return Ok(success);
                 } else {
                     continue 'conn;
                 }
-            } else {
-                continue 'conn;
-            }
-        } else if let ConnectionKind::Direct = connection.kind {
-            if let Ok(success) = run_node(a, connection.to, haystack) {
-                return Ok(success);
-            } else {
-                continue 'conn;
             }
         }
     }
@@ -284,12 +338,12 @@ where
     Err(())
 }
 
-struct RunNodeSuccess<T> {
-    remaining_haystack: T,
+pub struct RunNodeSuccess {
     captures: BTreeMap<CaptureGroupId, Capture>,
 }
 
-struct Capture {
-    start_idx: usize,
-    end_idx: usize,
+#[derive(Debug, Default)]
+pub struct Capture {
+    start_idx: Option<usize>,
+    end_idx: Option<usize>,
 }
