@@ -16,6 +16,8 @@ pub struct TextEditor {
     buffer: Handle<TextBuffer>,
     inner: TextBufferEdit,
     is_command_mode: bool,
+    text_command_mode: TextCommandMode,
+    text_edit_mode: TextEditMode,
 }
 
 impl TextEditor {
@@ -24,6 +26,8 @@ impl TextEditor {
             buffer,
             inner: TextBufferEdit::new(),
             is_command_mode: true,
+            text_command_mode: TextCommandMode::new(),
+            text_edit_mode: TextEditMode::new(),
         }
     }
 
@@ -45,9 +49,10 @@ impl TextEditor {
 
     pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
         if self.is_command_mode {
-            TextCommandMode.convert_input_to_command(input, state)
+            self.text_command_mode
+                .convert_input_to_command(input, state)
         } else {
-            TextEditMode.convert_input_to_command(input, state)
+            self.text_edit_mode.convert_input_to_command(input, state)
         }
     }
 

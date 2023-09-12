@@ -16,6 +16,7 @@ pub struct LineEdit {
     editor: TextBufferEdit,
     buffer: TextBuffer,
     buffer_string: String,
+    text_edit_mode: TextEditMode,
 }
 
 impl LineEdit {
@@ -29,6 +30,7 @@ impl LineEdit {
             editor,
             buffer,
             buffer_string: Default::default(),
+            text_edit_mode: TextEditMode::new(),
         }
     }
 
@@ -45,7 +47,7 @@ impl LineEdit {
     }
 
     pub fn input(&mut self, input: Input, state: &mut State) -> Option<String> {
-        let commands = TextEditMode.convert_input_to_command(input, state);
+        let commands = self.text_edit_mode.convert_input_to_command(input, state);
         for command in commands {
             match command {
                 Command::Insert('\n') => {
