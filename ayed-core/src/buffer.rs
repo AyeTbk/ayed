@@ -27,18 +27,23 @@ impl TextBuffer {
     }
 
     pub fn from_filepath(filepath: &Path) -> Self {
-        let file = std::fs::File::open(filepath).expect("TODO error handling");
-        let mut lines: Vec<CharString> = std::io::BufReader::new(file)
-            .lines()
-            .map(|res| res.expect("TODO error handling").into())
-            .collect();
-        for line in lines.iter_mut() {
-            line.push('\n');
-        }
+        if let Ok(file) = std::fs::File::open(filepath) {
+            let mut lines: Vec<CharString> = std::io::BufReader::new(file)
+                .lines()
+                .map(|res| res.expect("TODO error handling").into())
+                .collect();
+            for line in lines.iter_mut() {
+                line.push('\n');
+            }
 
-        Self {
-            lines,
-            filepath: Some(filepath.to_owned()),
+            Self {
+                lines,
+                filepath: Some(filepath.to_owned()),
+            }
+        } else {
+            let mut this = Self::new_empty();
+            this.filepath = Some(filepath.to_owned());
+            this
         }
     }
 

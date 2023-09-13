@@ -46,6 +46,7 @@ impl ModeLine {
         for info in state.mode_line_infos.iter() {
             // TODO styles for the infos
             line_builder = line_builder.add_right_aligned(&info.text, ());
+            line_builder = line_builder.add_right_aligned("  ", ());
         }
 
         if self.has_focus() {

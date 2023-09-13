@@ -47,28 +47,7 @@ impl Input {
 
     pub fn parse(s: &str) -> Result<Input, ()> {
         fn char_group_to_key(src: &str) -> Result<Key, ()> {
-            Ok(match src {
-                "space" => Key::Char(' '),
-                "tab" => Key::Char('\t'),
-                "ret" => Key::Return,
-                "backspace" => Key::Backspace,
-                "del" => Key::Delete,
-                "home" => Key::Home,
-                "end" => Key::End,
-                "up" => Key::Up,
-                "down" => Key::Down,
-                "left" => Key::Left,
-                "right" => Key::Right,
-                "lt" => Key::Char('<'),
-                "gt" => Key::Char('>'),
-                s => {
-                    if s.len() != 1 {
-                        return Err(());
-                    }
-                    let ch = s.chars().next().unwrap();
-                    Key::Char(ch)
-                }
-            })
+            Key::from_string(src).ok_or(())
         }
         fn mod_group_to_modifiers(src: &str) -> Result<Modifiers, ()> {
             let mut modifiers = Modifiers::default();
@@ -109,6 +88,19 @@ impl Input {
         } else {
             Err(())
         }
+    }
+
+    pub fn serialize(&self, buf: &mut String) {
+        if self.key == Key::Char('\0') {
+            return;
+        }
+        buf.push_str("<");
+        if self.modifiers.any() {
+            self.modifiers.serialize(buf);
+            buf.push_str("-");
+        }
+        self.key.serialize(buf);
+        buf.push_str(">");
     }
 }
 
@@ -158,6 +150,59 @@ impl Key {
         let normalized_ch = ch.to_lowercase().next().unwrap();
         Self::Char(normalized_ch)
     }
+
+    pub fn serialize(&self, buf: &mut String) {
+        let s = match self {
+            Key::Char(' ') => "space",
+            Key::Char('\t') => "tab",
+            Key::Return => "ret",
+            Key::Backspace => "backspace",
+            Key::Delete => "del",
+            Key::Home => "home",
+            Key::End => "end",
+            Key::Up => "up",
+            Key::Down => "down",
+            Key::Left => "left",
+            Key::Right => "right",
+            Key::PageUp => "pageup",
+            Key::PageDown => "pagedown",
+            Key::Char('<') => "lt",
+            Key::Char('>') => "gt",
+            Key::Char(ch) => {
+                buf.push(*ch);
+                return;
+            }
+        };
+        buf.push_str(s);
+    }
+
+    pub fn from_string(src: &str) -> Option<Self> {
+        let key = match src {
+            "space" => Key::Char(' '),
+            "tab" => Key::Char('\t'),
+            "ret" => Key::Return,
+            "backspace" => Key::Backspace,
+            "del" => Key::Delete,
+            "home" => Key::Home,
+            "end" => Key::End,
+            "up" => Key::Up,
+            "down" => Key::Down,
+            "left" => Key::Left,
+            "right" => Key::Right,
+            "pageup" => Key::PageUp,
+            "pagedown" => Key::PageDown,
+            "lt" => Key::Char('<'),
+            "gt" => Key::Char('>'),
+            s => {
+                if s.len() != 1 {
+                    return None;
+                }
+                let ch = s.chars().next().unwrap();
+                Key::Char(ch)
+            }
+        };
+        Some(key)
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -193,6 +238,22 @@ impl Modifiers {
     pub fn with_alt(mut self) -> Self {
         self.alt = true;
         self
+    }
+
+    pub fn any(&self) -> bool {
+        self.ctrl || self.shift || self.alt
+    }
+
+    pub fn serialize(&self, buf: &mut String) {
+        if self.ctrl {
+            buf.push('c');
+        }
+        if self.shift {
+            buf.push('s');
+        }
+        if self.alt {
+            buf.push('a');
+        }
     }
 }
 

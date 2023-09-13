@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
 use crate::command::Command;
-use crate::input::{Input, Key};
+use crate::input::{Input, Key, Modifiers};
 use crate::mode_line::{ModeLine, ModeLineInfo};
 use crate::state::State;
 use crate::text_editor::TextEditor;
@@ -17,6 +17,7 @@ pub struct Core {
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
     quit: bool,
+    last_input: Input,
 }
 
 impl Core {
@@ -45,6 +46,10 @@ impl Core {
             mode_line,
             warpdrive: None,
             quit: false,
+            last_input: Input {
+                key: Key::Char('\0'),
+                modifiers: Modifiers::default(),
+            },
         }
     }
 
@@ -109,6 +114,8 @@ impl Core {
 
     pub fn input(&mut self, input: Input) {
         // TODO convert input mapping so it is done outside of panels, more globally. and configurable!
+
+        self.last_input = input;
 
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
@@ -266,16 +273,24 @@ impl Core {
     }
 
     fn mode_line_infos(&mut self) -> Vec<ModeLineInfo> {
-        let file_info = if let Some(path) = self.state.active_buffer().filepath() {
+        let filepath_text = if let Some(path) = self.state.active_buffer().filepath() {
             path.to_string_lossy().into_owned()
         } else {
             "*scratch*".to_string()
         };
-
-        vec![ModeLineInfo {
-            text: file_info,
+        let file_info = ModeLineInfo {
+            text: filepath_text,
             style: Style::default().with_foreground_color(Color::BLUE),
-        }]
+        };
+
+        let mut input_text = String::new();
+        self.last_input.serialize(&mut input_text);
+        let input_info = ModeLineInfo {
+            text: input_text,
+            style: Style::default(),
+        };
+
+        vec![input_info, file_info]
     }
 }
 
