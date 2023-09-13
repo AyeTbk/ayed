@@ -91,16 +91,20 @@ impl Input {
     }
 
     pub fn serialize(&self, buf: &mut String) {
+        buf.clear();
         if self.key == Key::Char('\0') {
             return;
         }
-        buf.push_str("<");
         if self.modifiers.any() {
             self.modifiers.serialize(buf);
             buf.push_str("-");
         }
-        self.key.serialize(buf);
-        buf.push_str(">");
+
+        let is_word = self.key.serialize(buf);
+        if is_word || self.modifiers.any() {
+            buf.insert_str(0, "<");
+            buf.push_str(">");
+        }
     }
 }
 
@@ -151,7 +155,8 @@ impl Key {
         Self::Char(normalized_ch)
     }
 
-    pub fn serialize(&self, buf: &mut String) {
+    pub fn serialize(&self, buf: &mut String) -> bool {
+        // Returns whether the key is serialized as a word (true) or as a singular char (false).
         let s = match self {
             Key::Char(' ') => "space",
             Key::Char('\t') => "tab",
@@ -170,10 +175,11 @@ impl Key {
             Key::Char('>') => "gt",
             Key::Char(ch) => {
                 buf.push(*ch);
-                return;
+                return false;
             }
         };
         buf.push_str(s);
+        return true;
     }
 
     pub fn from_string(src: &str) -> Option<Self> {
