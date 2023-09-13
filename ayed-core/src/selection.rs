@@ -25,6 +25,20 @@ impl Selections {
         self.primary_selection
     }
 
+    pub fn change_primary(&mut self, idx_of_new_primary: usize) {
+        if idx_of_new_primary == 0 {
+            return;
+        }
+        std::mem::swap(
+            &mut self.primary_selection,
+            &mut self.extra_selections[idx_of_new_primary - 1],
+        );
+    }
+
+    pub fn clear_extras(&mut self) {
+        self.extra_selections.clear();
+    }
+
     pub fn overlapping_selections_merged(&self) -> Self {
         let mut selections = self.extra_selections.clone();
         selections.insert(0, self.primary_selection);
@@ -65,17 +79,11 @@ impl Selections {
         }
     }
 
-    // pub fn set(&mut self, index: usize, selection: Selection) {
-    //     if index == 0 {
-    //         self.primary_selection = selection;
-    //     } else {
-    //         self.extra_selections[index - 1] = selection;
-    //     }
-    // }
-
-    pub fn add(&mut self, selection: Selection) {
+    pub fn add(&mut self, selection: Selection) -> usize {
         // TODO maybe add the selection at a sensible location instead of just added at the end
+        let len = self.extra_selections.len();
         self.extra_selections.push(selection);
+        len + 1
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Selection> {
@@ -95,7 +103,8 @@ impl Selections {
 pub struct Selection {
     cursor: Position,
     anchor: Position,
-    desired_column_index: u32,
+    desired_cursor_column_index: u32,
+    desired_anchor_column_index: u32,
 }
 
 impl Selection {
@@ -103,7 +112,8 @@ impl Selection {
         Self {
             cursor: Position::ZERO,
             anchor: Position::ZERO,
-            desired_column_index: 0,
+            desired_cursor_column_index: 0,
+            desired_anchor_column_index: 0,
         }
     }
 
@@ -111,7 +121,8 @@ impl Selection {
         Self {
             cursor: position,
             anchor: position,
-            desired_column_index: position.column_index,
+            desired_cursor_column_index: position.column_index,
+            desired_anchor_column_index: position.column_index,
         }
     }
 
@@ -119,7 +130,8 @@ impl Selection {
         Self {
             cursor,
             anchor: self.anchor,
-            desired_column_index: cursor.column_index,
+            desired_cursor_column_index: cursor.column_index,
+            desired_anchor_column_index: self.desired_anchor_column_index,
         }
     }
 
@@ -127,7 +139,8 @@ impl Selection {
         Self {
             cursor,
             anchor: self.anchor,
-            desired_column_index: self.desired_column_index,
+            desired_cursor_column_index: self.desired_cursor_column_index,
+            desired_anchor_column_index: self.desired_anchor_column_index,
         }
     }
 
@@ -135,7 +148,17 @@ impl Selection {
         Self {
             cursor: self.cursor,
             anchor,
-            desired_column_index: self.desired_column_index,
+            desired_cursor_column_index: self.desired_cursor_column_index,
+            desired_anchor_column_index: anchor.column_index,
+        }
+    }
+
+    pub fn with_provisional_anchor(&self, anchor: Position) -> Self {
+        Self {
+            cursor: self.cursor,
+            anchor,
+            desired_cursor_column_index: self.desired_cursor_column_index,
+            desired_anchor_column_index: self.desired_anchor_column_index,
         }
     }
 
@@ -172,7 +195,8 @@ impl Selection {
         Self {
             cursor: self.anchor,
             anchor: self.cursor,
-            desired_column_index: self.anchor.column_index,
+            desired_cursor_column_index: self.desired_anchor_column_index,
+            desired_anchor_column_index: self.desired_cursor_column_index,
         }
     }
 
@@ -189,11 +213,17 @@ impl Selection {
     }
 
     pub fn desired_cursor(&self) -> Position {
-        self.cursor.with_column_index(self.desired_column_index)
+        self.cursor
+            .with_column_index(self.desired_cursor_column_index)
     }
 
     pub fn anchor(&self) -> Position {
         self.anchor
+    }
+
+    pub fn desired_anchor(&self) -> Position {
+        self.anchor
+            .with_column_index(self.desired_anchor_column_index)
     }
 
     pub fn start(&self) -> Position {
@@ -224,7 +254,8 @@ impl Selection {
             Some(Self {
                 cursor,
                 anchor,
-                desired_column_index: self.desired_column_index,
+                desired_cursor_column_index: self.desired_cursor_column_index,
+                desired_anchor_column_index: self.desired_anchor_column_index,
             })
         } else {
             None
@@ -363,8 +394,8 @@ impl std::ops::Sub for Position {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            column_index: self.column_index - rhs.column_index,
-            line_index: self.line_index - rhs.line_index,
+            column_index: self.column_index.saturating_sub(rhs.column_index),
+            line_index: self.line_index.saturating_sub(rhs.line_index),
         }
     }
 }

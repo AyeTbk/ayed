@@ -69,9 +69,14 @@ impl TextBufferEdit {
                 self.selections = Selections::new_with(selection, &[]);
             }
             //
-            MoveCursorToLineStart => self.move_cursor_to_line_start(buffer, self.anchored()),
-            MoveCursorToLineEnd => self.move_cursor_to_line_end(buffer, self.anchored()),
+            MoveCursorToLineStart => self.move_cursor_to_line_start(buffer, self.anchored(), false),
+            MoveCursorToLineStartSmart => {
+                self.move_cursor_to_line_start(buffer, self.anchored(), true)
+            }
+            MoveCursorToLineEnd => self.move_cursor_to_line_end(buffer, self.anchored(), false),
+            MoveCursorToLineEndSmart => self.move_cursor_to_line_end(buffer, self.anchored(), true),
             //
+            DismissSecondarySelections => self.dismiss_secondary_selections(),
             ShrinkSelectionToCursor => self.map_selections(|sel| sel.shrunk_to_cursor()),
             FlipSelection => self.map_selections(|sel| sel.flipped()),
             FlipSelectionForward => self.map_selections(|sel| sel.flipped_forward()),
@@ -187,6 +192,10 @@ impl TextBufferEdit {
             self.anchor_next = AnchorNextState::Unset;
             self.anchor_down = false;
         }
+    }
+
+    fn dismiss_secondary_selections(&mut self) {
+        self.selections.clear_extras();
     }
 
     fn insert_char_for_each_selection(&mut self, ch: char, buffer: &mut TextBuffer) {
@@ -341,6 +350,8 @@ impl TextBufferEdit {
         buffer: &TextBuffer,
         selection_anchored: bool,
     ) {
+        // TODO I wonder if this can be written more clearly, maybe using buffer.limit_to_content or something...
+
         for selection in self.selections.iter_mut() {
             match buffer.moved_position_vertically(selection.desired_cursor(), line_offset) {
                 Ok(position) => {
@@ -356,14 +367,19 @@ impl TextBufferEdit {
                     } else {
                         selection
                             .with_provisional_cursor(provisional_position)
-                            .with_anchor(provisional_position)
+                            .with_provisional_anchor(provisional_position)
                     };
                 }
             }
         }
     }
 
-    fn move_cursor_to_line_start(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
+    fn move_cursor_to_line_start(
+        &mut self,
+        buffer: &TextBuffer,
+        selection_anchored: bool,
+        smart: bool,
+    ) {
         for selection in self.selections.iter_mut() {
             let line_index = selection.cursor().line_index;
             let line = buffer
@@ -373,12 +389,12 @@ impl TextBufferEdit {
             let first_non_white_char_index =
                 line.find(|ch| !char::is_whitespace(ch)).unwrap_or(0) as u32;
 
-            let new_column_index = if selection.cursor().column_index != first_non_white_char_index
-            {
-                first_non_white_char_index
-            } else {
-                0
-            };
+            let new_column_index =
+                if smart && selection.cursor().column_index != first_non_white_char_index {
+                    first_non_white_char_index
+                } else {
+                    0
+                };
 
             let new_cursor = selection.cursor().with_column_index(new_column_index);
 
@@ -390,7 +406,12 @@ impl TextBufferEdit {
         }
     }
 
-    fn move_cursor_to_line_end(&mut self, buffer: &TextBuffer, selection_anchored: bool) {
+    fn move_cursor_to_line_end(
+        &mut self,
+        buffer: &TextBuffer,
+        selection_anchored: bool,
+        smart: bool,
+    ) {
         for selection in self.selections.iter_mut() {
             let line_index = selection.cursor().line_index;
             let line_len = buffer.line_len(line_index).unwrap();
@@ -398,11 +419,12 @@ impl TextBufferEdit {
             // Flip flop between before EOL and at EOL
             let eol_column_index = line_len as u32;
             let last_char_column_index = (eol_column_index).saturating_sub(1);
-            let new_column_index = if selection.cursor().column_index != last_char_column_index {
-                last_char_column_index
-            } else {
-                eol_column_index
-            };
+            let new_column_index =
+                if smart && selection.cursor().column_index != last_char_column_index {
+                    last_char_column_index
+                } else {
+                    eol_column_index
+                };
 
             let new_cursor = selection.cursor().with_column_index(new_column_index);
             *selection = if selection_anchored {
@@ -420,15 +442,23 @@ impl TextBufferEdit {
             let line_offset = if above { -1 } else { 1 } * selection_line_count;
             let dupe_cursor = selection.cursor().with_moved_indices(line_offset, 0);
             let dupe_anchor = selection.anchor().with_moved_indices(line_offset, 0);
-            let dupe = Selection::new()
-                .with_cursor(dupe_cursor)
-                .with_anchor(dupe_anchor);
-            let correct_dupe = buffer.limit_selection_to_content(&dupe);
-            new_selections.push(correct_dupe);
+            let dupe = selection
+                .with_provisional_cursor(dupe_cursor)
+                .with_provisional_anchor(dupe_anchor);
+            // Try to put the cursor and anchor at their desired column indices.
+            let dupe = dupe
+                .with_provisional_cursor(dupe.desired_cursor())
+                .with_provisional_anchor(dupe.desired_anchor());
+            let dupe = buffer.limit_selection_to_content(&dupe);
+
+            new_selections.push(dupe);
         }
 
-        for selection in new_selections {
-            self.selections.add(selection);
+        for (i, selection) in new_selections.into_iter().enumerate() {
+            let index = self.selections.add(selection);
+            if i == 0 {
+                self.selections.change_primary(index);
+            }
         }
     }
 
@@ -488,17 +518,36 @@ impl TextBufferEdit {
     }
 
     fn compute_selection_spans(&self, spans: &mut Vec<Span>, buffer: &TextBuffer) {
-        let selection_color = if self.use_alt_cursor_style {
-            Some(Color::rgb(150, 32, 96))
-        } else {
-            Some(Color::rgb(18, 72, 139))
-        };
+        for (i, (selection, selection_split_by_line)) in
+            self.selections_split_by_lines(buffer).enumerate()
+        {
+            let is_primary = i == 0;
 
-        for (selection, selection_split_by_line) in self.selections_split_by_lines(buffer) {
             let cursor_color = if self.use_alt_cursor_style {
-                Some(Color::RED)
+                if is_primary {
+                    Some(Color::RED)
+                } else {
+                    Some(Color::rgb(170, 10, 10))
+                }
             } else {
-                Some(Color::WHITE)
+                if is_primary {
+                    Some(Color::WHITE)
+                } else {
+                    Some(Color::rgb(180, 180, 180))
+                }
+            };
+            let selection_color = if self.use_alt_cursor_style {
+                if is_primary {
+                    Some(Color::rgb(100, 32, 96))
+                } else {
+                    Some(Color::rgb(80, 26, 76))
+                }
+            } else {
+                if is_primary {
+                    Some(Color::rgb(18, 72, 150))
+                } else {
+                    Some(Color::rgb(12, 52, 100))
+                }
             };
 
             let cursor_from_relative_to_viewport = selection.cursor() - self.view_top_left_position;

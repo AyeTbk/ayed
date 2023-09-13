@@ -47,8 +47,7 @@ impl Tui {
                 Event::Key(KeyEvent {
                     code, modifiers, ..
                 }) => {
-                    let key = convert_key_code_to_ayed(code);
-                    let modifiers = convert_key_modifiers_to_ayed(modifiers);
+                    let (key, modifiers) = convert_key_code_and_modifiers_to_ayed(code, modifiers);
                     let input = Input::new(key, modifiers);
                     self.core.input(input);
                 }
@@ -181,9 +180,14 @@ fn convert_color_to_crossterm(color: Color) -> crossterm::style::Color {
     }
 }
 
-fn convert_key_code_to_ayed(code: KeyCode) -> ayed_core::input::Key {
+fn convert_key_code_and_modifiers_to_ayed(
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> (ayed_core::input::Key, ayed_core::input::Modifiers) {
+    let ayed_modifiers = convert_key_modifiers_to_ayed(modifiers);
+
     use ayed_core::input::Key as AyedKey;
-    match code {
+    let ayed_code = match code {
         KeyCode::Backspace => AyedKey::Backspace,
         KeyCode::Delete => AyedKey::Delete,
         KeyCode::Home => AyedKey::Home,
@@ -196,7 +200,8 @@ fn convert_key_code_to_ayed(code: KeyCode) -> ayed_core::input::Key {
         KeyCode::Tab => AyedKey::Char('\t'),
         KeyCode::Char(ch) => AyedKey::Char(ch),
         k => unimplemented!("key: {:?}", k),
-    }
+    };
+    (ayed_code, ayed_modifiers)
 }
 
 fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> ayed_core::input::Modifiers {

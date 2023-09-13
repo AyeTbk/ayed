@@ -81,8 +81,10 @@ impl TextCommandMode {
 
         register_cursor_movement_inputs(&mut im).unwrap();
 
-        im.register("<;>", ShrinkSelectionToCursor).unwrap();
-        im.register("<a-;>", FlipSelection).unwrap();
+        im.register(";", ShrinkSelectionToCursor).unwrap();
+        im.register("<a-;>", DismissSecondarySelections).unwrap();
+        im.register("'", FlipSelection).unwrap();
+        im.register("<a-'>", FlipSelectionBackward).unwrap();
 
         im.register("<sa-c>", DuplicateSelectionAbove).unwrap();
         im.register("C", DuplicateSelectionBelow).unwrap();
@@ -145,15 +147,15 @@ fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
     im.register("<s-left>", [AnchorNext, MoveCursorLeft])?;
     // im.register("<c-left>", MoveCursorToLeftSymbol)?;
     // im.register("<cs-left>", [AnchorNext, MoveCursorToLeftSymbol])?;
-    im.register("<home>", MoveCursorToLineStart)?;
-    im.register("<s-home>", [AnchorNext, MoveCursorToLineStart])?;
-
     im.register("<right>", MoveCursorRight)?;
     im.register("<s-right>", [AnchorNext, MoveCursorRight])?;
     // im.register("<c-right>", MoveCursorToRightSymbol)?;
     // im.register("<cs-right>", [AnchorNext, MoveCursorToRightSymbol])?;
-    im.register("<end>", MoveCursorToLineEnd)?;
-    im.register("<s-end>", [AnchorNext, MoveCursorToLineEnd])?;
+
+    im.register("<home>", MoveCursorToLineStartSmart)?;
+    im.register("<s-home>", [AnchorNext, MoveCursorToLineStartSmart])?;
+    im.register("<end>", MoveCursorToLineEndSmart)?;
+    im.register("<s-end>", [AnchorNext, MoveCursorToLineEndSmart])?;
 
     Ok(())
 }

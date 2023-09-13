@@ -25,8 +25,11 @@ pub enum Command {
     SetSelection { cursor: Position, anchor: Position },
 
     MoveCursorToLineStart,
+    MoveCursorToLineStartSmart, // Flip flop between line start and first non white char.
     MoveCursorToLineEnd,
+    MoveCursorToLineEndSmart, // Flip flop between line end and last char of line.
 
+    DismissSecondarySelections,
     ShrinkSelectionToCursor,
     FlipSelection,
     FlipSelectionForward,

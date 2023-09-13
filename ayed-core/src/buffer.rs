@@ -222,7 +222,9 @@ impl TextBuffer {
     pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
         let cursor = self.limit_position_to_content(selection.cursor());
         let anchor = self.limit_position_to_content(selection.anchor());
-        Selection::new().with_cursor(cursor).with_anchor(anchor)
+        selection
+            .with_provisional_cursor(cursor)
+            .with_provisional_anchor(anchor)
     }
 
     pub fn limit_position_to_content(&self, position: Position) -> Position {
