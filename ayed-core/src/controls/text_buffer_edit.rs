@@ -550,19 +550,23 @@ impl TextBufferEdit {
                 }
             };
 
-            let cursor_from_relative_to_viewport = selection.cursor() - self.view_top_left_position;
-            let cursor_to_relative_to_viewport = selection.cursor() - self.view_top_left_position;
+            if self.view_top_left_position <= selection.cursor() {
+                let cursor_from_relative_to_viewport =
+                    selection.cursor() - self.view_top_left_position;
+                let cursor_to_relative_to_viewport =
+                    selection.cursor() - self.view_top_left_position;
 
-            spans.push(Span {
-                from: cursor_from_relative_to_viewport,
-                to: cursor_to_relative_to_viewport,
-                style: Style {
-                    foreground_color: cursor_color,
-                    background_color: None,
-                    invert: true,
-                },
-                importance: 255,
-            });
+                spans.push(Span {
+                    from: cursor_from_relative_to_viewport,
+                    to: cursor_to_relative_to_viewport,
+                    style: Style {
+                        foreground_color: cursor_color,
+                        background_color: None,
+                        invert: true,
+                    },
+                    importance: 255,
+                });
+            }
 
             for line_split_selection in selection_split_by_line {
                 if self.view_top_left_position.line_index > line_split_selection.start().line_index
