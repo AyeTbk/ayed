@@ -1,6 +1,6 @@
 use crate::{
+    command::Command,
     controls::LineEdit,
-    input::Input,
     line_builder::LineBuilder,
     selection::Position,
     state::State,
@@ -35,9 +35,9 @@ impl ModeLine {
         self.has_focus = has_focus;
     }
 
-    pub fn input(&mut self, input: Input, state: &mut State) -> Option<String> {
+    pub fn execute_command(&mut self, command: Command, state: &mut State) -> Option<String> {
         self.line_edit.set_rect(self.rect);
-        self.line_edit.input(input, state)
+        self.line_edit.execute_command(command, state)
     }
 
     pub fn render(&mut self, state: &State) -> UiPanel {
@@ -45,8 +45,16 @@ impl ModeLine {
 
         for info in state.mode_line_infos.iter() {
             // TODO styles for the infos
-            line_builder = line_builder.add_right_aligned(&info.text, ());
-            line_builder = line_builder.add_right_aligned("  ", ());
+            match info.align {
+                Align::Right => {
+                    line_builder = line_builder.add_right_aligned(&info.text, ());
+                    line_builder = line_builder.add_right_aligned("  ", ());
+                }
+                Align::Left => {
+                    line_builder = line_builder.add_left_aligned(&info.text, ());
+                    line_builder = line_builder.add_left_aligned("  ", ());
+                }
+            }
         }
 
         if self.has_focus() {
@@ -66,7 +74,7 @@ impl ModeLine {
                 to: Position::ZERO.with_moved_indices(0, self.rect.width as _),
                 style: Style {
                     foreground_color: Some(Color::rgb(200, 200, 0)),
-                    background_color: None,
+                    background_color: Some(Color::rgb(40, 30, 50)),
                     invert: false,
                 },
                 importance: 1,
@@ -79,6 +87,13 @@ impl ModeLine {
 pub struct ModeLineInfo {
     pub text: String,
     pub style: Style,
+    pub align: Align,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Right,
 }
 
 #[derive(Debug, Default, Clone)]

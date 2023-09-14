@@ -1,11 +1,8 @@
 use crate::{
     buffer::TextBuffer,
     command::Command,
-    input::Input,
-    input_mapper::InputMap,
     selection::Position,
     state::State,
-    text_mode::TextEditMode,
     ui_state::{Color, Span, Style, UiPanel},
     utils::Rect,
 };
@@ -16,7 +13,6 @@ pub struct LineEdit {
     editor: TextBufferEdit,
     buffer: TextBuffer,
     buffer_string: String,
-    text_edit_mode: TextEditMode,
 }
 
 impl LineEdit {
@@ -30,7 +26,6 @@ impl LineEdit {
             editor,
             buffer,
             buffer_string: Default::default(),
-            text_edit_mode: TextEditMode::new(),
         }
     }
 
@@ -46,24 +41,21 @@ impl LineEdit {
         &self.buffer_string
     }
 
-    pub fn input(&mut self, input: Input, state: &mut State) -> Option<String> {
-        let commands = self.text_edit_mode.convert_input_to_command(input, state);
-        for command in commands {
-            match command {
-                Command::Insert('\n') => {
-                    let mut line = String::new();
-                    self.buffer.copy_line(0, &mut line).ok()?;
-                    self.reset();
-                    return Some(line);
-                }
-                _ => {
-                    self.editor
-                        .execute_command(command, &mut self.buffer, state);
+    pub fn execute_command(&mut self, command: Command, state: &mut State) -> Option<String> {
+        match command {
+            Command::Insert('\n') => {
+                let mut line = String::new();
+                self.buffer.copy_line(0, &mut line).ok()?;
+                self.reset();
+                return Some(line);
+            }
+            _ => {
+                self.editor
+                    .execute_command(command, &mut self.buffer, state);
 
-                    self.buffer
-                        .copy_line(0, &mut self.buffer_string)
-                        .expect("buffer invariant 1 says there should always be at least one line");
-                }
+                self.buffer
+                    .copy_line(0, &mut self.buffer_string)
+                    .expect("buffer invariant 1 says there should always be at least one line");
             }
         }
 

@@ -2,6 +2,8 @@ use crate::selection::Position;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
+    Noop, // Does nothing
+
     // Ayed commands
     ChangeMode(&'static str),
 

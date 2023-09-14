@@ -4,7 +4,8 @@ use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
 use crate::command::Command;
 use crate::input::{Input, Key, Modifiers};
-use crate::mode_line::{ModeLine, ModeLineInfo};
+use crate::input_manager::{initialize_input_manager, InputManager};
+use crate::mode_line::{Align, ModeLine, ModeLineInfo};
 use crate::state::State;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{Color, Style, UiPanel, UiState};
@@ -13,6 +14,7 @@ use crate::warpdrive::WarpDrive;
 
 pub struct Core {
     state: State,
+    input_manager: InputManager,
     editors: Editors,
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
@@ -33,12 +35,16 @@ impl Core {
             active_buffer_handle: buffer,
             viewport_size: (80, 25),
             mode_line_infos: Default::default(),
+            //
+            active_editor_name: "text",
+            active_mode_name: "command",
         };
 
         let mode_line = ModeLine::new();
 
         Self {
             state,
+            input_manager: initialize_input_manager(),
             editors: Editors {
                 editors: editors_arena,
                 active_editor,
@@ -113,8 +119,7 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
-        // TODO convert input mapping so it is done outside of panels, more globally. and configurable!
-
+        let input = input.normalized();
         self.last_input = input;
 
         if self.mode_line.has_focus() {
@@ -177,20 +182,30 @@ impl Core {
     }
 
     fn input_mode_line(&mut self, input: Input) {
-        let maybe_line = self.mode_line.input(input, &mut self.state);
+        let commands = self.input_manager.convert_input_with_editor_mode(
+            input,
+            "control",
+            "line",
+            &self.state,
+        );
+        for command in commands {
+            let maybe_line = self.mode_line.execute_command(command, &mut self.state);
 
-        if let Some(line) = maybe_line {
-            self.mode_line.set_has_focus(false);
-            self.interpret_prompt_command(&line);
+            if let Some(line) = maybe_line {
+                self.mode_line.set_has_focus(false);
+                self.interpret_prompt_command(&line);
+            }
         }
     }
 
     fn input_editor(&mut self, input: Input) {
-        for command in self
-            .editors
-            .active_editor_mut()
-            .convert_input_to_command(input, &self.state)
-        {
+        for command in self.input_manager.convert_input(input, &self.state) {
+            match command {
+                Command::ChangeMode(mode) => {
+                    self.state.active_mode_name = mode;
+                }
+                _ => (),
+            }
             self.execute_command_in_editor(command);
         }
     }
@@ -281,6 +296,7 @@ impl Core {
         let file_info = ModeLineInfo {
             text: filepath_text,
             style: Style::default().with_foreground_color(Color::BLUE),
+            align: Align::Right,
         };
 
         let mut input_text = String::new();
@@ -288,9 +304,19 @@ impl Core {
         let input_info = ModeLineInfo {
             text: input_text,
             style: Style::default(),
+            align: Align::Right,
         };
 
-        vec![input_info, file_info]
+        let editor_mode_info = ModeLineInfo {
+            text: format!(
+                "{}/{}",
+                self.state.active_editor_name, self.state.active_mode_name,
+            ),
+            style: Style::default(),
+            align: Align::Left,
+        };
+
+        vec![editor_mode_info, input_info, file_info]
     }
 }
 

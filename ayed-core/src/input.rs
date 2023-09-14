@@ -65,29 +65,27 @@ impl Input {
         let re_mod = regex::Regex::new(r"<([^-]+)-([^>]+)>").unwrap();
         let re_key = regex::Regex::new(r"<([^>]+)>").unwrap();
 
-        if let Some(captures) = re_mod.captures(s) {
+        let input = if let Some(captures) = re_mod.captures(s) {
             // Parse stuff like <ca-k> => ctrl+alt+k
             let modifiers = mod_group_to_modifiers(&captures.get(1).ok_or(())?.as_str())?;
             let key = char_group_to_key(&captures.get(2).ok_or(())?.as_str())?;
             let input = Self { key, modifiers }.normalized();
-            Ok(input)
+            input
         } else if let Some(captures) = re_key.captures(s) {
             // Parse stuff like <space> => space duh
             let key = char_group_to_key(&captures.get(1).ok_or(())?.as_str())?;
-            let input = Self {
+            Self {
                 key,
                 modifiers: Default::default(),
             }
-            .normalized();
-            Ok(input)
         } else if s.len() == 1 {
             // Parse basic keys without explicit modifiers
             let ch = s.chars().next().ok_or(())?;
-            let input = Input::from_char(ch);
-            Ok(input)
+            Input::from_char(ch)
         } else {
-            Err(())
-        }
+            return Err(());
+        };
+        Ok(input.normalized())
     }
 
     pub fn serialize(&self, buf: &mut String) {
@@ -99,7 +97,6 @@ impl Input {
             self.modifiers.serialize(buf);
             buf.push_str("-");
         }
-
         let is_word = self.key.serialize(buf);
         if is_word || self.modifiers.any() {
             buf.insert_str(0, "<");
@@ -136,7 +133,6 @@ impl From<Key> for Input {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Key {
     Char(char),
-    Return,
     Backspace,
     Delete,
     Up,
@@ -160,7 +156,7 @@ impl Key {
         let s = match self {
             Key::Char(' ') => "space",
             Key::Char('\t') => "tab",
-            Key::Return => "ret",
+            Key::Char('\n') => "ret",
             Key::Backspace => "backspace",
             Key::Delete => "del",
             Key::Home => "home",
@@ -186,7 +182,7 @@ impl Key {
         let key = match src {
             "space" => Key::Char(' '),
             "tab" => Key::Char('\t'),
-            "ret" => Key::Return,
+            "ret" => Key::Char('\n'),
             "backspace" => Key::Backspace,
             "del" => Key::Delete,
             "home" => Key::Home,

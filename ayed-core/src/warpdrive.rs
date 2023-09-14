@@ -3,7 +3,7 @@ use std::iter::once;
 use crate::{
     command::Command,
     input::Input,
-    input_mapper::{InputMap, InputMapper},
+    input_mapper::InputMapper,
     selection::{Offset, Position, Selection},
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
@@ -40,7 +40,7 @@ impl WarpDrive {
     pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
         let mut im = InputMapper::default();
         im.register_char_insert();
-        im.convert_input_to_command(input, state)
+        im.convert_input(input, state)
     }
 
     pub fn execute_command(&mut self, command: Command, _state: &mut State) -> Option<Command> {

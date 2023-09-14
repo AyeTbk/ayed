@@ -20,8 +20,6 @@ impl<'a, Data> LineBuilder<'a, Data> {
         self
     }
 
-    // TODO remove this method if not really used, im leaving it for now because I dont want to just delete it immediatly, it might become useful later, or it might not.
-    #[allow(dead_code)]
     pub fn add_left_aligned(mut self, content: &'a str, data: Data) -> Self {
         self.left_aligned_content.push((content, data));
         self

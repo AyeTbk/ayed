@@ -10,6 +10,9 @@ pub struct State {
     pub active_buffer_handle: Handle<TextBuffer>,
     pub viewport_size: (u32, u32),
     pub mode_line_infos: ModeLineInfos,
+    //
+    pub active_editor_name: &'static str,
+    pub active_mode_name: &'static str,
 }
 
 impl State {

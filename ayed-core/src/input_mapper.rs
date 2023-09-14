@@ -13,6 +13,13 @@ pub struct InputMapper {
 }
 
 impl InputMapper {
+    pub fn new() -> Self {
+        Self {
+            do_char_insert: false,
+            mapping: Default::default(),
+        }
+    }
+
     pub fn register_char_insert(&mut self) {
         self.do_char_insert = true;
     }
@@ -26,10 +33,8 @@ impl InputMapper {
     pub fn register_input(&mut self, input: Input, command: impl Into<MappedCommand>) {
         self.mapping.insert(input.normalized(), command.into());
     }
-}
 
-impl InputMap for InputMapper {
-    fn convert_input_to_command(&self, input: Input, _state: &State) -> Vec<Command> {
+    pub fn convert_input(&self, input: Input, _state: &State) -> Vec<Command> {
         let mut commands = Vec::new();
 
         if let Some(command) = self.mapping.get(&input).cloned() {

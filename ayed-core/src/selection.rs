@@ -181,6 +181,7 @@ impl Selection {
     pub fn shrunk_to_cursor(&self) -> Self {
         let mut this = *self;
         this.anchor = this.cursor;
+        this.desired_anchor_column_index = this.desired_cursor_column_index;
         this
     }
 

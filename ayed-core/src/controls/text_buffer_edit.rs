@@ -48,6 +48,8 @@ impl TextBufferEdit {
     ) {
         use Command::*;
         match command {
+            Noop => (),
+
             AnchorNext => self.lower_anchor(true),
             AnchorDown => self.lower_anchor(false),
             AnchorUp => self.raise_anchor(),
@@ -57,7 +59,6 @@ impl TextBufferEdit {
             DeleteCursor => self.delete_cursor_for_each_selection(buffer),
             DeleteBeforeCursor => self.delete_before_cursor_for_each_selection(buffer),
 
-            // Wow
             MoveCursorUp => self.move_cursor_vertically(-1, buffer, self.anchored()),
             MoveCursorDown => self.move_cursor_vertically(1, buffer, self.anchored()),
             MoveCursorLeft => self.move_cursor_horizontally(-1, buffer, self.anchored()),
