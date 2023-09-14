@@ -1,6 +1,6 @@
 use crate::{
     buffer::TextBuffer,
-    command::Command,
+    command::EditorCommand,
     selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
@@ -42,11 +42,11 @@ impl TextBufferEdit {
 
     pub fn execute_command(
         &mut self,
-        command: Command,
+        command: EditorCommand,
         buffer: &mut TextBuffer,
         state: &mut State,
     ) {
-        use Command::*;
+        use EditorCommand::*;
         match command {
             Noop => (),
 

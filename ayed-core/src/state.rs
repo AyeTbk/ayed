@@ -11,6 +11,7 @@ pub struct State {
     pub viewport_size: (u32, u32),
     pub mode_line_infos: ModeLineInfos,
     //
+    pub active_combo_mode_name: Option<&'static str>,
     pub active_editor_name: &'static str,
     pub active_mode_name: &'static str,
 }

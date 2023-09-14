@@ -1,5 +1,5 @@
 use crate::{
-    command::Command,
+    command::EditorCommand,
     controls::LineEdit,
     line_builder::LineBuilder,
     selection::Position,
@@ -41,7 +41,7 @@ impl ModeLine {
         self.has_focus = has_focus;
     }
 
-    pub fn execute_command(&mut self, command: Command, state: &mut State) -> Option<String> {
+    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) -> Option<String> {
         self.line_edit.set_rect(self.rect);
         self.line_edit.execute_command(command, state)
     }

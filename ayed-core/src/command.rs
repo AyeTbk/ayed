@@ -1,7 +1,7 @@
 use crate::selection::Position;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Command {
+pub enum EditorCommand {
     Noop, // Does nothing
 
     // Ayed commands

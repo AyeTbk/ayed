@@ -1,6 +1,6 @@
 use crate::{
     buffer::TextBuffer,
-    command::Command,
+    command::EditorCommand,
     selection::Position,
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
@@ -41,9 +41,9 @@ impl LineEdit {
         &self.buffer_string
     }
 
-    pub fn execute_command(&mut self, command: Command, state: &mut State) -> Option<String> {
+    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) -> Option<String> {
         match command {
-            Command::Insert('\n') => {
+            EditorCommand::Insert('\n') => {
                 let mut line = String::new();
                 self.buffer.copy_line(0, &mut line).ok()?;
                 self.reset();

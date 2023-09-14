@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
-use crate::command::Command;
+use crate::command::EditorCommand;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
 use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
@@ -36,6 +36,7 @@ impl Core {
             viewport_size: (80, 25),
             mode_line_infos: Default::default(),
             //
+            active_combo_mode_name: None,
             active_editor_name: "text",
             active_mode_name: "command",
         };
@@ -121,8 +122,7 @@ impl Core {
     pub fn input(&mut self, input: Input) {
         self.clear_mode_line_error();
 
-        let input = input.normalized();
-        self.last_input = input;
+        self.last_input = input.normalized();
 
         if self.mode_line.has_focus() {
             self.input_mode_line(input);
@@ -219,7 +219,7 @@ impl Core {
     fn input_editor(&mut self, input: Input) {
         for command in self.input_manager.convert_input(input, &self.state) {
             match command {
-                Command::ChangeMode(mode) => {
+                EditorCommand::ChangeMode(mode) => {
                     self.state.active_mode_name = mode;
                 }
                 _ => (),
@@ -228,13 +228,13 @@ impl Core {
         }
     }
 
-    fn execute_command_in_editor(&mut self, command: Command) {
+    fn execute_command_in_editor(&mut self, command: EditorCommand) {
         self.editors
             .active_editor_mut()
             .execute_command(command, &mut self.state);
     }
 
-    fn input_warpdrive(&mut self, input: Input) -> Option<Command> {
+    fn input_warpdrive(&mut self, input: Input) -> Option<EditorCommand> {
         let wdp = if let Some(wdp) = &mut self.warpdrive {
             wdp
         } else {

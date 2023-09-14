@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use crate::{
-    command::Command,
+    command::EditorCommand,
     input::Input,
     input_mapper::InputMapper,
     selection::{Offset, Position, Selection},
@@ -37,13 +37,17 @@ impl WarpDrive {
         }
     }
 
-    pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command> {
+    pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<EditorCommand> {
         let mut im = InputMapper::default();
         im.register_char_insert();
         im.convert_input(input, state)
     }
 
-    pub fn execute_command(&mut self, command: Command, _state: &mut State) -> Option<Command> {
+    pub fn execute_command(
+        &mut self,
+        command: EditorCommand,
+        _state: &mut State,
+    ) -> Option<EditorCommand> {
         self.execute_command_inner(command)
     }
 
@@ -208,8 +212,8 @@ impl WarpDrive {
         fill_up_jump_points(&matches, &[], ('a'..='v').chain('x'..='z')) // skip 'w' because it's the Warpdrive keybind at the moment
     }
 
-    fn execute_command_inner(&mut self, command: Command) -> Option<Command> {
-        use Command::*;
+    fn execute_command_inner(&mut self, command: EditorCommand) -> Option<EditorCommand> {
+        use EditorCommand::*;
         match command {
             Insert('\n') => Some(FlipSelection),
             Insert(ch) => {

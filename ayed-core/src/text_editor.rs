@@ -1,5 +1,5 @@
 use crate::{
-    arena::Handle, buffer::TextBuffer, command::Command, controls::TextBufferEdit,
+    arena::Handle, buffer::TextBuffer, command::EditorCommand, controls::TextBufferEdit,
     selection::Position, state::State, ui_state::UiPanel, utils::Rect,
 };
 
@@ -34,11 +34,11 @@ impl TextEditor {
         self.inner.view_top_left_position()
     }
 
-    pub fn execute_command(&mut self, command: Command, state: &mut State) {
+    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) {
         let mut fake_state = state.dummy_clone(); // NOTE what is fake state used for?? i dont remember
         let buffer = state.buffers.get_mut(self.buffer);
         match command {
-            Command::ChangeMode(_) => {
+            EditorCommand::ChangeMode(_) => {
                 self.is_command_mode = state.active_mode_name == "command";
                 self.inner.use_alt_cursor_style = !self.is_command_mode;
             }

@@ -1,12 +1,14 @@
 //! Handles the hierarchical input to command conversion process.
-// Hierarchy: global-editor-mode-[format]
+// Hierarchy:
+// combo|global-editor-mode
 
 use std::collections::HashMap;
 
-use crate::{command::Command, input::Input, input_mapper::InputMapper, state::State};
+use crate::{command::EditorCommand, input::Input, input_mapper::InputMapper, state::State};
 
 pub struct InputManager {
     global_mapper: InputMapper,
+    combo_mappers: HashMap<&'static str, InputMapper>,
     editor_mappers: HashMap<&'static str, EditorInputMapper>,
 }
 
@@ -14,11 +16,12 @@ impl InputManager {
     pub fn new() -> Self {
         Self {
             global_mapper: InputMapper::new(),
+            combo_mappers: Default::default(),
             editor_mappers: Default::default(),
         }
     }
 
-    pub fn convert_input(&self, input: Input, state: &State) -> Vec<Command> {
+    pub fn convert_input(&self, input: Input, state: &State) -> Vec<EditorCommand> {
         self.convert_input_with_editor_mode(
             input,
             state.active_editor_name,
@@ -33,18 +36,26 @@ impl InputManager {
         editor: &str,
         mode: &str,
         state: &State,
-    ) -> Vec<Command> {
+    ) -> Vec<EditorCommand> {
+        if let Some(combo_mode) = state.active_combo_mode_name {
+            if let Some(combo_mapper) = self.combo_mappers.get(combo_mode) {
+                // Combos dont cascade down. Failure to convert shouldn't recover. The combo panel will just be dismissed.
+                return combo_mapper.convert_input(input, state);
+            }
+        }
+
         let mut commands = self.global_mapper.convert_input(input, state);
         if commands.is_empty() {
             if let Some(editor_mapper) = self.editor_mappers.get(editor) {
                 commands = editor_mapper.mapper.convert_input(input, state);
                 if commands.is_empty() {
                     if let Some(mode_mappers) = editor_mapper.mode_mappers.get(mode) {
-                        commands = mode_mappers.convert_input(input, state);
+                        return mode_mappers.convert_input(input, state);
                     }
                 }
             }
         }
+
         commands
     }
 }
@@ -55,7 +66,7 @@ struct EditorInputMapper {
 }
 
 pub fn initialize_input_manager() -> InputManager {
-    use Command::*;
+    use EditorCommand::*;
     let mut manager = InputManager::new();
 
     manager.editor_mappers.insert("text", {
@@ -171,11 +182,17 @@ pub fn initialize_input_manager() -> InputManager {
         }
     });
 
+    manager.combo_mappers.insert("file", {
+        let mut im = InputMapper::new();
+        im.register("s", Noop).unwrap();
+        im
+    });
+
     manager
 }
 
 fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
-    use Command::*;
+    use EditorCommand::*;
 
     im.register("<up>", MoveCursorUp)?;
     im.register("<s-up>", [AnchorNext, MoveCursorUp])?;

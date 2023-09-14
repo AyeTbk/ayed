@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{command::Command, input::Input, state::State};
+use crate::{command::EditorCommand, input::Input, state::State};
 
 pub trait InputMap {
-    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<Command>;
+    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<EditorCommand>;
 }
 
 #[derive(Default)]
@@ -34,14 +34,14 @@ impl InputMapper {
         self.mapping.insert(input.normalized(), command.into());
     }
 
-    pub fn convert_input(&self, input: Input, _state: &State) -> Vec<Command> {
+    pub fn convert_input(&self, input: Input, _state: &State) -> Vec<EditorCommand> {
         let mut commands = Vec::new();
 
         if let Some(command) = self.mapping.get(&input).cloned() {
             commands.extend(command.to_commands());
         } else if self.do_char_insert {
             if let Some(ch) = input.char() {
-                commands.push(Command::Insert(ch));
+                commands.push(EditorCommand::Insert(ch));
             }
         }
 
@@ -51,12 +51,12 @@ impl InputMapper {
 
 #[derive(Debug, Clone)]
 pub enum MappedCommand {
-    Single(Command),
-    Many(Vec<Command>),
+    Single(EditorCommand),
+    Many(Vec<EditorCommand>),
 }
 
 impl MappedCommand {
-    pub fn to_commands(self) -> Vec<Command> {
+    pub fn to_commands(self) -> Vec<EditorCommand> {
         match self {
             Self::Single(command) => vec![command],
             Self::Many(commands) => commands,
@@ -64,14 +64,14 @@ impl MappedCommand {
     }
 }
 
-impl From<Command> for MappedCommand {
-    fn from(command: Command) -> Self {
+impl From<EditorCommand> for MappedCommand {
+    fn from(command: EditorCommand) -> Self {
         Self::Single(command)
     }
 }
 
-impl<const N: usize> From<[Command; N]> for MappedCommand {
-    fn from(commands: [Command; N]) -> Self {
+impl<const N: usize> From<[EditorCommand; N]> for MappedCommand {
+    fn from(commands: [EditorCommand; N]) -> Self {
         Self::Many(commands.to_vec())
     }
 }
