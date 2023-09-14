@@ -5,7 +5,7 @@ use crate::buffer::TextBuffer;
 use crate::command::Command;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
-use crate::mode_line::{Align, ModeLine, ModeLineInfo};
+use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
 use crate::state::State;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{Color, Style, UiPanel, UiState};
@@ -119,6 +119,8 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
+        self.clear_mode_line_error();
+
         let input = input.normalized();
         self.last_input = input;
 
@@ -177,8 +179,24 @@ impl Core {
                 self.save_buffer(self.state.active_buffer_handle);
                 self.request_quit();
             }
-            _ => panic!("unknown command: {}", command_str),
+            _ => self.set_mode_line_error(format!("unknown command: {}", command_str)),
         }
+    }
+
+    fn set_mode_line_error(&mut self, error_message: String) {
+        self.mode_line
+            .set_content_override(Some(mode_line::ContentOverride {
+                text: format!("error: {}", error_message),
+                style: Style {
+                    foreground_color: None,
+                    background_color: Some(Color::rgb(48, 16, 16)),
+                    invert: false,
+                },
+            }));
+    }
+
+    fn clear_mode_line_error(&mut self) {
+        self.mode_line.set_content_override(None);
     }
 
     fn input_mode_line(&mut self, input: Input) {
