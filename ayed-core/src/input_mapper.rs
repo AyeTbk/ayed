@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{command::EditorCommand, input::Input, state::State};
-
-pub trait InputMap {
-    fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<EditorCommand>;
-}
+use crate::{
+    command::{Command, EditorCommand},
+    input::Input,
+    state::State,
+};
 
 #[derive(Default)]
 pub struct InputMapper {
@@ -34,14 +34,14 @@ impl InputMapper {
         self.mapping.insert(input.normalized(), command.into());
     }
 
-    pub fn convert_input(&self, input: Input, _state: &State) -> Vec<EditorCommand> {
+    pub fn convert_input(&self, input: Input, _state: &State) -> Vec<Command> {
         let mut commands = Vec::new();
 
         if let Some(command) = self.mapping.get(&input).cloned() {
             commands.extend(command.to_commands());
         } else if self.do_char_insert {
             if let Some(ch) = input.char() {
-                commands.push(EditorCommand::Insert(ch));
+                commands.push(EditorCommand::Insert(ch).into());
             }
         }
 
@@ -51,12 +51,12 @@ impl InputMapper {
 
 #[derive(Debug, Clone)]
 pub enum MappedCommand {
-    Single(EditorCommand),
-    Many(Vec<EditorCommand>),
+    Single(Command),
+    Many(Vec<Command>),
 }
 
 impl MappedCommand {
-    pub fn to_commands(self) -> Vec<EditorCommand> {
+    pub fn to_commands(self) -> Vec<Command> {
         match self {
             Self::Single(command) => vec![command],
             Self::Many(commands) => commands,
@@ -64,14 +64,14 @@ impl MappedCommand {
     }
 }
 
-impl From<EditorCommand> for MappedCommand {
-    fn from(command: EditorCommand) -> Self {
-        Self::Single(command)
+impl<T: Into<Command>> From<T> for MappedCommand {
+    fn from(command: T) -> Self {
+        Self::Single(command.into())
     }
 }
 
-impl<const N: usize> From<[EditorCommand; N]> for MappedCommand {
-    fn from(commands: [EditorCommand; N]) -> Self {
-        Self::Many(commands.to_vec())
+impl<T: Into<Command>, const N: usize> From<[T; N]> for MappedCommand {
+    fn from(commands: [T; N]) -> Self {
+        Self::Many(commands.into_iter().map(Into::into).collect())
     }
 }

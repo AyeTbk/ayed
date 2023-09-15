@@ -1,11 +1,35 @@
 use crate::selection::Position;
 
+#[derive(Debug, Clone)]
+pub enum Command {
+    Core(CoreCommand),
+    Editor(EditorCommand),
+}
+
+impl From<CoreCommand> for Command {
+    fn from(value: CoreCommand) -> Self {
+        Command::Core(value)
+    }
+}
+
+impl From<EditorCommand> for Command {
+    fn from(value: EditorCommand) -> Self {
+        Command::Editor(value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CoreCommand {
+    ShowModeLinePrompt,
+    ShowWarpdrive,
+    SetComboMode(String),
+    SetEditorMode(&'static str),
+    EditFile(String),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum EditorCommand {
-    Noop, // Does nothing
-
-    // Ayed commands
-    ChangeMode(&'static str),
+    Noop, // Does nothing.
 
     // Text edit commands
     Insert(char),

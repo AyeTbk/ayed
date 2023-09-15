@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
-use crate::command::EditorCommand;
+use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
 use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
@@ -124,21 +124,43 @@ impl Core {
 
         self.last_input = input.normalized();
 
-        if self.mode_line.has_focus() {
-            self.input_mode_line(input);
-        } else if input.key == Key::Char(':') && self.editors.active_editor().is_command_mode() {
-            self.mode_line.set_has_focus(true);
-        } else if input == Input::parse("w").unwrap()
-            && self.editors.active_editor().is_command_mode()
-        {
-            self.warpdrive = self.make_warp_drive_panel();
-            return;
-        } else if self.warpdrive.is_some() {
-            if let Some(command) = self.input_warpdrive(input) {
-                self.execute_command_in_editor(command);
-            }
+        let commands = if self.mode_line.has_focus() || self.warpdrive.is_some() {
+            self.input_manager
+                .convert_input_with_editor_mode(input, "control", "line", &self.state)
         } else {
-            self.input_editor(input);
+            self.input_manager.convert_input(input, &self.state)
+        };
+
+        for command in commands {
+            self.execute_command(command);
+        }
+    }
+
+    pub fn execute_command(&mut self, command: Command) {
+        use CoreCommand::*;
+        match command {
+            Command::Core(core_command) => match core_command {
+                ShowModeLinePrompt => self.mode_line.set_has_focus(true),
+                ShowWarpdrive => {
+                    self.warpdrive = self.make_warp_drive_panel();
+                }
+                SetEditorMode(mode) => {
+                    self.state.active_mode_name = mode;
+                    self.execute_command_in_editor(EditorCommand::Noop);
+                }
+                _ => unimplemented!(),
+            },
+            Command::Editor(editor_command) => {
+                if self.mode_line.has_focus() {
+                    self.input_mode_line(editor_command);
+                } else if self.warpdrive.is_some() {
+                    if let Some(wcmd) = self.input_warpdrive(editor_command) {
+                        self.input_editor(wcmd);
+                    }
+                } else {
+                    self.input_editor(editor_command)
+                }
+            }
         }
     }
 
@@ -199,33 +221,17 @@ impl Core {
         self.mode_line.set_content_override(None);
     }
 
-    fn input_mode_line(&mut self, input: Input) {
-        let commands = self.input_manager.convert_input_with_editor_mode(
-            input,
-            "control",
-            "line",
-            &self.state,
-        );
-        for command in commands {
-            let maybe_line = self.mode_line.execute_command(command, &mut self.state);
+    fn input_mode_line(&mut self, command: EditorCommand) {
+        let maybe_line = self.mode_line.execute_command(command, &mut self.state);
 
-            if let Some(line) = maybe_line {
-                self.mode_line.set_has_focus(false);
-                self.interpret_prompt_command(&line);
-            }
+        if let Some(line) = maybe_line {
+            self.mode_line.set_has_focus(false);
+            self.interpret_prompt_command(&line);
         }
     }
 
-    fn input_editor(&mut self, input: Input) {
-        for command in self.input_manager.convert_input(input, &self.state) {
-            match command {
-                EditorCommand::ChangeMode(mode) => {
-                    self.state.active_mode_name = mode;
-                }
-                _ => (),
-            }
-            self.execute_command_in_editor(command);
-        }
+    fn input_editor(&mut self, command: EditorCommand) {
+        self.execute_command_in_editor(command);
     }
 
     fn execute_command_in_editor(&mut self, command: EditorCommand) {
@@ -234,7 +240,7 @@ impl Core {
             .execute_command(command, &mut self.state);
     }
 
-    fn input_warpdrive(&mut self, input: Input) -> Option<EditorCommand> {
+    fn input_warpdrive(&mut self, command: EditorCommand) -> Option<EditorCommand> {
         let wdp = if let Some(wdp) = &mut self.warpdrive {
             wdp
         } else {
@@ -242,10 +248,8 @@ impl Core {
         };
 
         let mut maybe_cmd = None;
-        for command in wdp.convert_input_to_command(input, &mut self.state) {
-            if let Some(cmd) = wdp.execute_command(command, &mut self.state) {
-                maybe_cmd = Some(cmd);
-            }
+        if let Some(cmd) = wdp.execute_command(command, &mut self.state) {
+            maybe_cmd = Some(cmd);
         }
         if maybe_cmd.is_some() {
             self.warpdrive = None

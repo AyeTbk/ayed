@@ -6,7 +6,7 @@ use crate::{
 pub struct TextEditor {
     buffer: Handle<TextBuffer>,
     inner: TextBufferEdit,
-    is_command_mode: bool,
+    is_command_mode: bool, // FIXME the current mode *should* be on a per editor basis, but is currently global.
 }
 
 impl TextEditor {
@@ -26,10 +26,6 @@ impl TextEditor {
         self.buffer
     }
 
-    pub fn is_command_mode(&self) -> bool {
-        self.is_command_mode
-    }
-
     pub fn view_top_left_position(&self) -> Position {
         self.inner.view_top_left_position()
     }
@@ -37,15 +33,8 @@ impl TextEditor {
     pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) {
         let mut fake_state = state.dummy_clone(); // NOTE what is fake state used for?? i dont remember
         let buffer = state.buffers.get_mut(self.buffer);
-        match command {
-            EditorCommand::ChangeMode(_) => {
-                self.is_command_mode = state.active_mode_name == "command";
-                self.inner.use_alt_cursor_style = !self.is_command_mode;
-            }
-            _ => {
-                self.inner.execute_command(command, buffer, &mut fake_state);
-            }
-        }
+
+        self.inner.execute_command(command, buffer, &mut fake_state);
     }
 
     pub fn render(&mut self, state: &State) -> UiPanel {

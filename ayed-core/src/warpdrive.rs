@@ -2,8 +2,6 @@ use std::iter::once;
 
 use crate::{
     command::EditorCommand,
-    input::Input,
-    input_mapper::InputMapper,
     selection::{Offset, Position, Selection},
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
@@ -35,12 +33,6 @@ impl WarpDrive {
                 input: Vec::default(),
             })
         }
-    }
-
-    pub fn convert_input_to_command(&self, input: Input, state: &State) -> Vec<EditorCommand> {
-        let mut im = InputMapper::default();
-        im.register_char_insert();
-        im.convert_input(input, state)
     }
 
     pub fn execute_command(
