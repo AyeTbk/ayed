@@ -37,13 +37,13 @@ impl Core {
             mode_line_infos: Default::default(),
             //
             active_combo_mode_name: None,
-            active_editor_name: "text",
-            active_mode_name: "command",
+            active_editor_name: "text".to_string(),
+            active_mode_name: "command".to_string(),
         };
 
         let mode_line = ModeLine::new();
 
-        Self {
+        let mut this = Self {
             state,
             input_manager: initialize_input_manager(),
             editors: Editors {
@@ -57,7 +57,9 @@ impl Core {
                 key: Key::Char('\0'),
                 modifiers: Modifiers::default(),
             },
-        }
+        };
+        this.set_active_editor(active_editor);
+        this
     }
 
     pub fn is_quit(&self) -> bool {
@@ -96,6 +98,16 @@ impl Core {
         self.state.buffers.allocate(TextBuffer::new_empty())
     }
 
+    pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {
+        self.editors.active_editor = editor;
+
+        let active_buffer = self.editors.active_editor().buffer();
+        let active_editor_mode = self.editors.active_editor().mode();
+
+        self.state.active_buffer_handle = active_buffer;
+        self.state.active_mode_name = active_editor_mode.to_owned();
+    }
+
     pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
         let maybe_preexisting_editor = self.editors.editors.elements().find_map(|(hnd, ed)| {
             if ed.buffer() == buffer {
@@ -111,8 +123,7 @@ impl Core {
             self.editors.editors.allocate(TextEditor::new(buffer))
         };
 
-        self.editors.active_editor = editor;
-        self.state.active_buffer_handle = buffer;
+        self.set_active_editor(editor);
     }
 
     pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
@@ -145,7 +156,8 @@ impl Core {
                     self.warpdrive = self.make_warp_drive_panel();
                 }
                 SetEditorMode(mode) => {
-                    self.state.active_mode_name = mode;
+                    self.state.active_mode_name = mode.clone();
+                    self.editors.active_editor_mut().set_mode(mode);
                     self.execute_command_in_editor(EditorCommand::Noop);
                 }
                 _ => unimplemented!(),
@@ -344,7 +356,7 @@ impl Core {
 
 struct Editors {
     editors: Arena<TextEditor>,
-    active_editor: Handle<TextEditor>,
+    active_editor: Handle<TextEditor>, // Maybe this should be optional
 }
 
 impl Editors {

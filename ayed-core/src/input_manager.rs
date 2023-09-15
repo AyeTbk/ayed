@@ -13,8 +13,8 @@ use crate::{
 
 pub struct InputManager {
     global_mapper: InputMapper,
-    combo_mappers: HashMap<&'static str, InputMapper>,
-    editor_mappers: HashMap<&'static str, EditorInputMapper>,
+    combo_mappers: HashMap<String, InputMapper>,
+    editor_mappers: HashMap<String, EditorInputMapper>,
 }
 
 impl InputManager {
@@ -29,8 +29,8 @@ impl InputManager {
     pub fn convert_input(&self, input: Input, state: &State) -> Vec<Command> {
         self.convert_input_with_editor_mode(
             input,
-            state.active_editor_name,
-            state.active_mode_name,
+            &state.active_editor_name,
+            &state.active_mode_name,
             state,
         )
     }
@@ -42,7 +42,7 @@ impl InputManager {
         mode: &str,
         state: &State,
     ) -> Vec<Command> {
-        if let Some(combo_mode) = state.active_combo_mode_name {
+        if let Some(combo_mode) = &state.active_combo_mode_name {
             if let Some(combo_mapper) = self.combo_mappers.get(combo_mode) {
                 // Combos dont cascade down. Failure to convert shouldn't recover. The combo panel will just be dismissed.
                 return combo_mapper.convert_input(input, state);
@@ -76,6 +76,9 @@ pub fn initialize_input_manager() -> InputManager {
     use EditorCommand::*;
     let mut manager = InputManager::new();
 
+    let set_edit_mode = || SetEditorMode(String::from("edit"));
+    let set_command_mode = || SetEditorMode(String::from("command"));
+
     // Global
     manager
         .global_mapper
@@ -83,7 +86,7 @@ pub fn initialize_input_manager() -> InputManager {
         .unwrap();
 
     // Editors
-    manager.editor_mappers.insert("text", {
+    manager.editor_mappers.insert("text".into(), {
         let mut im = InputMapper::new();
         register_cursor_movement_inputs(&mut im).unwrap();
         EditorInputMapper {
@@ -92,18 +95,15 @@ pub fn initialize_input_manager() -> InputManager {
                 ("command", {
                     let mut im = InputMapper::new();
                     im.register("w", ShowWarpdrive).unwrap();
-                    im.register("<tab>", SetEditorMode("edit")).unwrap();
+                    im.register("<tab>", set_edit_mode()).unwrap();
 
-                    im.register(
-                        "i",
-                        [Editor(FlipSelectionBackward), Core(SetEditorMode("edit"))],
-                    )
-                    .unwrap();
+                    im.register("i", [Editor(FlipSelectionBackward), Core(set_edit_mode())])
+                        .unwrap();
                     im.register(
                         "<s-i>",
                         [
                             Editor(FlipSelectionBackward),
-                            Core(SetEditorMode("edit")),
+                            Core(set_edit_mode()),
                             Editor(AnchorNext),
                         ],
                     )
@@ -112,7 +112,7 @@ pub fn initialize_input_manager() -> InputManager {
                         "a",
                         [
                             Editor(FlipSelectionForward),
-                            Core(SetEditorMode("edit")),
+                            Core(set_edit_mode()),
                             Editor(AnchorNext),
                             Editor(MoveCursorRight),
                         ],
@@ -122,7 +122,7 @@ pub fn initialize_input_manager() -> InputManager {
                         "<s-a>",
                         [
                             Editor(FlipSelectionForward),
-                            Core(SetEditorMode("edit")),
+                            Core(set_edit_mode()),
                             Editor(AnchorNext),
                             Editor(MoveCursorRight),
                         ],
@@ -135,7 +135,7 @@ pub fn initialize_input_manager() -> InputManager {
                         [
                             Editor(MoveCursorToLineEnd),
                             Editor(Insert('\n')),
-                            Core(SetEditorMode("edit")),
+                            Core(set_edit_mode()),
                         ],
                     )
                     .unwrap();
@@ -146,7 +146,7 @@ pub fn initialize_input_manager() -> InputManager {
                             Editor(MoveCursorToLineStart),
                             Editor(Insert('\n')),
                             Editor(MoveCursorUp),
-                            Core(SetEditorMode("edit")),
+                            Core(set_edit_mode()),
                         ],
                     )
                     .unwrap();
@@ -179,7 +179,7 @@ pub fn initialize_input_manager() -> InputManager {
                 }),
                 ("edit", {
                     let mut im = InputMapper::new();
-                    im.register("<tab>", SetEditorMode("command")).unwrap();
+                    im.register("<tab>", set_command_mode()).unwrap();
                     im.register("<del>", DeleteCursor).unwrap();
                     im.register("<backspace>", DeleteBeforeCursor).unwrap();
                     im.register_char_insert();
@@ -191,7 +191,7 @@ pub fn initialize_input_manager() -> InputManager {
         }
     });
 
-    manager.editor_mappers.insert("control", {
+    manager.editor_mappers.insert("control".into(), {
         EditorInputMapper {
             mapper: InputMapper::new(),
             mode_mappers: vec![("line", {
@@ -209,7 +209,7 @@ pub fn initialize_input_manager() -> InputManager {
     });
 
     // Combos
-    manager.combo_mappers.insert("file", {
+    manager.combo_mappers.insert("file".into(), {
         let mut im = InputMapper::new();
         im.register("s", Noop).unwrap();
         im

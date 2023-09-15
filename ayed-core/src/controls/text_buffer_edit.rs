@@ -89,8 +89,6 @@ impl TextBufferEdit {
 
         self.anchor_check();
 
-        self.style_check(state);
-
         self.normalize_selections();
 
         self.adjust_viewport_to_primary_selection(state);
@@ -193,10 +191,6 @@ impl TextBufferEdit {
             self.anchor_next = AnchorNextState::Unset;
             self.anchor_down = false;
         }
-    }
-
-    fn style_check(&mut self, state: &State) {
-        self.use_alt_cursor_style = state.active_mode_name == "edit";
     }
 
     fn dismiss_secondary_selections(&mut self) {

@@ -23,7 +23,7 @@ pub enum CoreCommand {
     ShowModeLinePrompt,
     ShowWarpdrive,
     SetComboMode(String),
-    SetEditorMode(&'static str),
+    SetEditorMode(String),
     EditFile(String),
 }
 
