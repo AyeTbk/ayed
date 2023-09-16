@@ -26,6 +26,17 @@ impl InputManager {
         }
     }
 
+    pub fn combo_mapping(&self, combo: &str) -> Vec<(Input, String)> {
+        if let Some(combo_mapper) = self.combo_mappers.get(combo) {
+            combo_mapper
+                .iter()
+                .map(|input| (input, "description pending".into()))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     pub fn convert_input(&self, input: Input, state: &State) -> Vec<Command> {
         self.convert_input_with_editor_mode(
             input,
@@ -43,9 +54,11 @@ impl InputManager {
         state: &State,
     ) -> Vec<Command> {
         if let Some(combo_mode) = &state.active_combo_mode_name {
+            // Combos dont cascade down. Failure to convert shouldn't recover. The combo panel should just be dismissed.
             if let Some(combo_mapper) = self.combo_mappers.get(combo_mode) {
-                // Combos dont cascade down. Failure to convert shouldn't recover. The combo panel will just be dismissed.
                 return combo_mapper.convert_input(input, state);
+            } else {
+                return vec![];
             }
         }
 
@@ -76,8 +89,8 @@ pub fn initialize_input_manager() -> InputManager {
     use EditorCommand::*;
     let mut manager = InputManager::new();
 
-    let set_edit_mode = || SetEditorMode(String::from("edit"));
-    let set_command_mode = || SetEditorMode(String::from("command"));
+    let set_edit_mode = || SetEditorMode("edit".into());
+    let set_command_mode = || SetEditorMode("command".into());
 
     // Global
     manager
@@ -95,6 +108,7 @@ pub fn initialize_input_manager() -> InputManager {
                 ("command", {
                     let mut im = InputMapper::new();
                     im.register("w", ShowWarpdrive).unwrap();
+                    im.register("<space>", SetComboMode("user".into())).unwrap();
                     im.register("<tab>", set_edit_mode()).unwrap();
 
                     im.register("i", [Editor(FlipSelectionBackward), Core(set_edit_mode())])
@@ -209,6 +223,14 @@ pub fn initialize_input_manager() -> InputManager {
     });
 
     // Combos
+    manager.combo_mappers.insert("user".into(), {
+        let mut im = InputMapper::new();
+        im.register("s", EditFile("scratch".into())).unwrap();
+        im.register("f", Noop).unwrap();
+        im.register("e", Noop).unwrap();
+        im.register("<s-e>", Noop).unwrap();
+        im
+    });
     manager.combo_mappers.insert("file".into(), {
         let mut im = InputMapper::new();
         im.register("s", Noop).unwrap();

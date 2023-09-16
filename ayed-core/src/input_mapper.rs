@@ -47,6 +47,10 @@ impl InputMapper {
 
         commands
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = Input> + '_ {
+        self.mapping.iter().map(|(k, _)| *k)
+    }
 }
 
 #[derive(Debug, Clone)]

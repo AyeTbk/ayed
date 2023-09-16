@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::arena::{Arena, Handle};
 use crate::buffer::TextBuffer;
+use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
@@ -18,6 +19,7 @@ pub struct Core {
     editors: Editors,
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
+    combo_panel: Option<ComboPanel>,
     quit: bool,
     last_input: Input,
 }
@@ -52,6 +54,7 @@ impl Core {
             },
             mode_line,
             warpdrive: None,
+            combo_panel: None,
             quit: false,
             last_input: Input {
                 key: Key::Char('\0'),
@@ -142,7 +145,11 @@ impl Core {
             self.input_manager.convert_input(input, &self.state)
         };
 
+        if commands.is_empty() && self.combo_panel.is_some() {
+            self.set_combo_mode(None);
+        }
         for command in commands {
+            self.set_combo_mode(None);
             self.execute_command(command);
         }
     }
@@ -160,17 +167,23 @@ impl Core {
                     self.editors.active_editor_mut().set_mode(mode);
                     self.execute_command_in_editor(EditorCommand::Noop);
                 }
-                _ => unimplemented!(),
+                SetComboMode(mode) => {
+                    self.set_combo_mode(Some(mode));
+                }
+                EditFile(filepath) => {
+                    let buffer = self.get_buffer_from_filepath(filepath);
+                    self.edit_buffer(buffer);
+                }
             },
             Command::Editor(editor_command) => {
                 if self.mode_line.has_focus() {
                     self.input_mode_line(editor_command);
                 } else if self.warpdrive.is_some() {
                     if let Some(wcmd) = self.input_warpdrive(editor_command) {
-                        self.input_editor(wcmd);
+                        self.execute_command_in_editor(wcmd);
                     }
                 } else {
-                    self.input_editor(editor_command)
+                    self.execute_command_in_editor(editor_command)
                 }
             }
         }
@@ -233,6 +246,22 @@ impl Core {
         self.mode_line.set_content_override(None);
     }
 
+    fn set_combo_mode(&mut self, mode: Option<String>) {
+        if let Some(mode) = mode {
+            let give_this_an_actual_name = self.input_manager.combo_mapping(&mode);
+            self.combo_panel = Some(ComboPanel::new(ComboInfos {
+                infos: give_this_an_actual_name
+                    .into_iter()
+                    .map(|(input, description)| ComboInfo { input, description })
+                    .collect(),
+            }));
+            self.state.active_combo_mode_name = Some(mode);
+        } else {
+            self.combo_panel = None;
+            self.state.active_combo_mode_name = None;
+        }
+    }
+
     fn input_mode_line(&mut self, command: EditorCommand) {
         let maybe_line = self.mode_line.execute_command(command, &mut self.state);
 
@@ -240,10 +269,6 @@ impl Core {
             self.mode_line.set_has_focus(false);
             self.interpret_prompt_command(&line);
         }
-    }
-
-    fn input_editor(&mut self, command: EditorCommand) {
-        self.execute_command_in_editor(command);
     }
 
     fn execute_command_in_editor(&mut self, command: EditorCommand) {
@@ -270,18 +295,24 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
+        let mut panels = Vec::new();
+
         let editor_panel = self.render_editor();
-
-        let infos = self.mode_line_infos();
-        self.state.mode_line_infos.infos = infos;
-
-        let mode_line_panel = self.render_mode_line();
-        let mut panels = vec![editor_panel, mode_line_panel];
+        panels.push(editor_panel);
 
         if self.warpdrive.is_some() {
             let wdp_panel = self.render_warpdrive_panel();
             panels.push(wdp_panel);
         }
+
+        if let Some(combo_panel) = self.combo_panel.as_mut() {
+            panels.push(combo_panel.render(&self.state));
+        }
+
+        let infos = self.mode_line_infos();
+        self.state.mode_line_infos.infos = infos;
+        let mode_line_panel = self.render_mode_line();
+        panels.push(mode_line_panel);
 
         UiState { panels }
     }

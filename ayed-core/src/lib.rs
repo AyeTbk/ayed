@@ -12,6 +12,7 @@ pub mod state;
 pub mod ui_state;
 pub mod utils;
 
+mod combo_panel;
 mod mode_line;
 mod text_editor;
 mod warpdrive;
