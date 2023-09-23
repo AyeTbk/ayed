@@ -1,4 +1,10 @@
-use crate::{input::Input, line_builder::LineBuilder, state::State, ui_state::UiPanel};
+use crate::{
+    grid_string_builder::{Cell, GridStringBuilder},
+    input::Input,
+    selection::Position,
+    state::State,
+    ui_state::{Color, Span, Style, UiPanel},
+};
 
 pub struct ComboPanel {
     infos: ComboInfos,
@@ -10,31 +16,46 @@ impl ComboPanel {
     }
 
     pub fn render(&mut self, state: &State) -> UiPanel {
-        let mut content = Vec::new();
-        let (width, height) = state.viewport_size;
-        for _ in 0..height {
-            content.push("~".repeat(width as usize));
-        }
+        let mut grid = GridStringBuilder::new();
 
-        let mut buf = String::new();
+        grid.set_cell_span((1, 0), (2, 0));
+        grid.set_cell((1, 0), Cell::new("Combo"));
+
         for (i, info) in self.infos.infos.iter().enumerate() {
-            buf.clear();
-            info.input.serialize(&mut buf);
+            let mut serialized_input = String::new();
+            serialized_input.clear();
+            info.input.serialize(&mut serialized_input);
+            serialized_input.push_str(": ");
 
-            let builder = LineBuilder::new_with_length(width as usize);
-            let builder = builder.add_left_aligned(&buf, ());
-            let builder = builder.add_left_aligned(": ", ());
-            let builder = builder.add_right_aligned(&info.description, ());
-
-            let line = content.get_mut(i).unwrap();
-            *line = builder.build().0;
+            let y = (i + 1) as _;
+            grid.set_cell((1, y), Cell::new(serialized_input));
+            grid.set_cell((2, y), Cell::new(info.description.clone()));
         }
+
+        // left and right padding
+        grid.set_cell((0, 0), Cell::new(" "));
+        grid.set_cell((3, 0), Cell::new(" "));
+
+        let (size, content) = grid.build();
+        let column = state.viewport_size.0.saturating_sub(size.0);
+        let line = state.viewport_size.1.saturating_sub(size.1 + 1);
+        let position = (column, line);
 
         UiPanel {
-            position: (0, 0),
-            size: state.viewport_size,
+            position,
+            size,
             content,
-            spans: Default::default(),
+            // FIXME This should work but it doesnt. Also, mixing x,y points and sizes with Positions (line,column) is confusing...
+            spans: vec![Span {
+                from: Position::new(0, 0),
+                to: Position::new(1000, 1000),
+                importance: 20,
+                style: Style {
+                    background_color: Some(Color::RED),
+                    foreground_color: Some(Color::BLUE),
+                    ..Default::default()
+                },
+            }],
         }
     }
 }

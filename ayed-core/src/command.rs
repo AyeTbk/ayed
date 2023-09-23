@@ -25,6 +25,7 @@ pub enum CoreCommand {
     SetComboMode(String),
     SetEditorMode(String),
     EditFile(String),
+    WriteBuffer,
 }
 
 #[derive(Debug, Clone, Copy)]

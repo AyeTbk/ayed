@@ -6,11 +6,13 @@ pub mod core;
 pub mod input;
 mod input_manager;
 mod input_mapper;
-mod line_builder;
 mod selection;
 pub mod state;
 pub mod ui_state;
 pub mod utils;
+
+mod grid_string_builder;
+mod line_builder;
 
 mod combo_panel;
 mod mode_line;

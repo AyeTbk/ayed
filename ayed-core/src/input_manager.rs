@@ -225,7 +225,7 @@ pub fn initialize_input_manager() -> InputManager {
     // Combos
     manager.combo_mappers.insert("user".into(), {
         let mut im = InputMapper::new();
-        im.register("s", EditFile("scratch".into())).unwrap();
+        im.register("s", WriteBuffer).unwrap();
         im.register("f", Noop).unwrap();
         im.register("e", Noop).unwrap();
         im.register("<s-e>", Noop).unwrap();

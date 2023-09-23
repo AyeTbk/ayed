@@ -174,6 +174,9 @@ impl Core {
                     let buffer = self.get_buffer_from_filepath(filepath);
                     self.edit_buffer(buffer);
                 }
+                WriteBuffer => {
+                    self.save_buffer(self.state.active_buffer_handle);
+                }
             },
             Command::Editor(editor_command) => {
                 if self.mode_line.has_focus() {
