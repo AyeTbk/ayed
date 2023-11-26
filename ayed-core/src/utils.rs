@@ -38,8 +38,9 @@ impl Position {
         Self { column, row }
     }
 
-    pub fn offset(&self, offset: Offset) -> Self {
-        self.with_moved_indices(offset.row_offset, offset.column_offset)
+    pub fn offset(&self, offset: impl Into<Offset>) -> Self {
+        let offset = offset.into();
+        self.with_moved_indices(offset.row, offset.column)
     }
 
     pub fn with_moved_indices(&self, row_offset: i32, column_offset: i32) -> Self {
@@ -69,8 +70,8 @@ impl Position {
 
     pub fn to_offset(&self) -> Offset {
         Offset {
-            column_offset: self.column as i32,
-            row_offset: self.row as i32,
+            column: self.column as i32,
+            row: self.row as i32,
         }
     }
 }
@@ -110,20 +111,17 @@ impl From<(u32, u32)> for Position {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Offset {
-    pub column_offset: i32,
-    pub row_offset: i32,
+    pub column: i32,
+    pub row: i32,
 }
 
 impl Offset {
-    pub const ZERO: Self = Self {
-        column_offset: 0,
-        row_offset: 0,
-    };
+    pub const ZERO: Self = Self { column: 0, row: 0 };
 
     pub fn new(row_offset: i32, column_offset: i32) -> Self {
         Self {
-            column_offset,
-            row_offset,
+            column: column_offset,
+            row: row_offset,
         }
     }
 }
@@ -132,8 +130,8 @@ impl std::ops::Add for Offset {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         Self {
-            column_offset: self.column_offset + rhs.column_offset,
-            row_offset: self.row_offset + rhs.row_offset,
+            column: self.column + rhs.column,
+            row: self.row + rhs.row,
         }
     }
 }
@@ -146,8 +144,17 @@ impl std::ops::Sub for Offset {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            column_offset: self.column_offset - rhs.column_offset,
-            row_offset: self.row_offset - rhs.row_offset,
+            column: self.column - rhs.column,
+            row: self.row - rhs.row,
+        }
+    }
+}
+
+impl From<(i32, i32)> for Offset {
+    fn from(value: (i32, i32)) -> Self {
+        Self {
+            column: value.0,
+            row: value.1,
         }
     }
 }

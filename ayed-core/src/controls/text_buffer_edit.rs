@@ -286,9 +286,9 @@ impl TextBufferEdit {
                         {
                             let delta = pos2_new.offset_between(&pos2);
 
-                            let line_offset = delta.row_offset;
+                            let line_offset = delta.row;
                             let column_offset = if position.row == pos2.row {
-                                delta.column_offset
+                                delta.column
                             } else {
                                 0
                             };
