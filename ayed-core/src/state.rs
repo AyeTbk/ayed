@@ -2,13 +2,14 @@ use crate::{
     arena::{Arena, Handle},
     buffer::TextBuffer,
     mode_line::ModeLineInfos,
+    utils::Size,
 };
 
 #[derive(Debug)]
 pub struct State {
     pub buffers: Arena<TextBuffer>,
     pub active_buffer_handle: Handle<TextBuffer>,
-    pub viewport_size: (u32, u32),
+    pub viewport_size: Size,
     pub mode_line_infos: ModeLineInfos,
     //
     pub active_combo_mode_name: Option<String>,

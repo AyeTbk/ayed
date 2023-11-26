@@ -1,6 +1,6 @@
 use crate::{
     arena::Handle, buffer::TextBuffer, command::EditorCommand, controls::TextBufferEdit,
-    selection::Position, state::State, ui_state::UiPanel, utils::Rect,
+    state::State, ui_state::UiPanel, utils::Position, utils::Rect,
 };
 
 pub struct TextEditor {

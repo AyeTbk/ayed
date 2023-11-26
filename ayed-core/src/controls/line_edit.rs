@@ -1,10 +1,9 @@
 use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
-    selection::Position,
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
-    utils::Rect,
+    utils::{Position, Rect},
 };
 
 use super::TextBufferEdit;
@@ -69,8 +68,8 @@ impl LineEdit {
         editor_panel.size = self.rect().size();
 
         for span in &mut editor_panel.spans {
-            span.from.column_index += 1;
-            span.to.column_index += 1;
+            span.from.column += 1;
+            span.to.column += 1;
         }
 
         for line in &mut editor_panel.content {

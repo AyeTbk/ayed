@@ -2,9 +2,9 @@ use crate::{
     command::EditorCommand,
     controls::LineEdit,
     line_builder::LineBuilder,
-    selection::Position,
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
+    utils::Position,
     utils::Rect,
 };
 

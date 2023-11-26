@@ -91,6 +91,8 @@ mod tests {
     // FIXME These tests dont work. The implementation sorta seems to work but I don't like it.
     // Working on Strings is annoying, I should work on Vec<char>s instead, so I can index per character
     // and rely on 1 character == 1 in len.
+    // NOTE a Rust char is not a Unicode 'character' and relying on that (which buffer does as of this
+    // writing) will lead to incorrect behavior.
 
     #[test]
     fn build__when_empty__filled_with_spaces() {

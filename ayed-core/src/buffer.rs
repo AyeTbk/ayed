@@ -3,10 +3,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::selection::{DeletedEditInfo, EditInfo, Position, Selection};
+use crate::{
+    selection::{DeletedEditInfo, EditInfo, Selection},
+    utils::Position,
+};
 
 pub mod char_string;
 use self::char_string::CharString;
+
+// FIXME This currently assumes a Rust char is a Unicode 'character', which isn't true.
+// To have the correct behavior in the general case, you need to work on 'extended
+// grapheme clusters' which may be made up of multiple Rust chars and also you need
+// a database to know how to interpret them as far as I understand.
 
 /// Notes:
 /// The lines of text must uphold some invariants:
@@ -66,8 +74,8 @@ impl TextBuffer {
     }
 
     pub fn insert_char_at(&mut self, ch: char, position: Position) -> Result<EditInfo, ()> {
-        if let Some(mut line) = self.take_line(position.line_index) {
-            if (position.column_index as usize) > line.len() {
+        if let Some(mut line) = self.take_line(position.row) {
+            if (position.column as usize) > line.len() {
                 return Err(());
             }
 
@@ -76,12 +84,12 @@ impl TextBuffer {
             if ch == '\n' {
                 edit = EditInfo::LineSplit(position);
 
-                let new_line_content = line.drain(position.column_index as usize..).collect();
-                self.insert_line(position.line_index + 1, new_line_content);
+                let new_line_content = line.drain(position.column as usize..).collect();
+                self.insert_line(position.row + 1, new_line_content);
             }
-            line.insert(position.column_index as usize, ch);
+            line.insert(position.column as usize, ch);
 
-            self.set_line(position.line_index, line);
+            self.set_line(position.row, line);
 
             Ok(edit)
         } else {
@@ -96,8 +104,8 @@ impl TextBuffer {
             let edit = self.delete_position(selection.start())?;
 
             if let Some(pos2) = pos2.as_mut() {
-                if edit.pos1_line_index < edit.pos2.line_index {
-                    *pos2 = pos2.with_moved_indices(1, 0).with_column_index(0);
+                if edit.pos1_line_index < edit.pos2.row {
+                    *pos2 = pos2.with_moved_indices(1, 0).with_column(0);
                 } else {
                     *pos2 = pos2.with_moved_indices(0, 1);
                 }
@@ -107,8 +115,8 @@ impl TextBuffer {
         }
 
         let edit = DeletedEditInfo {
-            pos1_line_index: selection.start().line_index,
-            pos1_before_delete_start_column_index: (selection.start().column_index) as i64 - 1,
+            pos1_line_index: selection.start().row,
+            pos1_before_delete_start_column_index: (selection.start().column) as i64 - 1,
             pos2: pos2.expect(
                 "selection length shouldn't be zero which is the only way this would still be None",
             ),
@@ -117,32 +125,32 @@ impl TextBuffer {
     }
 
     fn delete_position(&mut self, position: Position) -> Result<DeletedEditInfo, ()> {
-        let mut line = self.take_line(position.line_index).ok_or(())?;
+        let mut line = self.take_line(position.row).ok_or(())?;
         let mut edit_pos2 = position.with_moved_indices(0, 1);
 
-        match line.get(position.column_index as usize) {
+        match line.get(position.column as usize) {
             Some('\n') => {
-                if let Some(next_line) = self.remove_line(position.line_index + 1) {
-                    assert_eq!(position.column_index as usize, line.len() - 1);
+                if let Some(next_line) = self.remove_line(position.row + 1) {
+                    assert_eq!(position.column as usize, line.len() - 1);
                     line.pop();
                     line.extend(next_line);
 
-                    edit_pos2 = Position::new(position.line_index + 1, 0);
+                    edit_pos2 = Position::new(position.row + 1, 0);
                 }
             }
             Some(_) => {
-                line.remove(position.column_index as usize);
+                line.remove(position.column as usize);
             }
             None => {
                 return Err(());
             }
         }
 
-        self.set_line(position.line_index, line);
+        self.set_line(position.row, line);
 
         let edit = DeletedEditInfo {
-            pos1_line_index: position.line_index,
-            pos1_before_delete_start_column_index: position.column_index as i64 - 1,
+            pos1_line_index: position.row,
+            pos1_before_delete_start_column_index: position.column as i64 - 1,
             pos2: edit_pos2,
         };
         Ok(edit)
@@ -157,17 +165,17 @@ impl TextBuffer {
             todo!("implement this for offsets greater than 1 if needed");
         }
 
-        if self.line(position.line_index).is_none() {
+        if self.line(position.row).is_none() {
             panic!("not on a line");
         }
 
         // FIXME? check that the position is valid?
 
-        let mut new_line_index = position.line_index;
-        let mut new_column_index = position.column_index;
+        let mut new_line_index = position.row;
+        let mut new_column_index = position.column;
 
-        if column_offset == -1 && position.column_index == 0 {
-            if position.line_index != 0 {
+        if column_offset == -1 && position.column == 0 {
+            if position.row != 0 {
                 new_line_index -= 1;
                 let line = self
                     .line(new_line_index)
@@ -177,10 +185,10 @@ impl TextBuffer {
                 // Cant move back, we're literally at the very beginning of the buffer
             }
         } else if column_offset == 1
-            && position.column_index >= (self.line(position.line_index).unwrap().len() - 1) as _
+            && position.column >= (self.line(position.row).unwrap().len() - 1) as _
         // FIXME this crashes
         {
-            if position.line_index < self.last_line_index() {
+            if position.row < self.last_line_index() {
                 new_line_index += 1;
                 new_column_index = 0;
             } else {
@@ -202,22 +210,22 @@ impl TextBuffer {
         //     Ok(the new position)
         //     Err(the best position nearest to what the position would have been)
 
-        let destination_line_index = (position.line_index as i64)
+        let destination_line_index = (position.row as i64)
             .saturating_add(line_offset as i64)
             .max(0) as u32;
 
         if let Some(destination_line_len) = self.line_len(destination_line_index) {
             let destination_line_len = destination_line_len as u32;
-            if position.column_index < destination_line_len {
-                Ok(Position::new(destination_line_index, position.column_index))
+            if position.column < destination_line_len {
+                Ok(Position::new(destination_line_index, position.column))
             } else {
                 Err(Position::new(destination_line_index, destination_line_len))
             }
         } else {
             let last_line_index = self.last_line_index();
             let last_line_len = self.line_len(last_line_index).expect("invariant 1") as u32;
-            if position.column_index < last_line_len {
-                Ok(Position::new(last_line_index, position.column_index))
+            if position.column < last_line_len {
+                Ok(Position::new(last_line_index, position.column))
             } else {
                 Err(Position::new(last_line_index, last_line_len))
             }
@@ -233,11 +241,11 @@ impl TextBuffer {
     }
 
     pub fn limit_position_to_content(&self, position: Position) -> Position {
-        let line_index = position.line_index.min(self.last_line_index());
+        let line_index = position.row.min(self.last_line_index());
         let line_len = self
             .line_len(line_index)
             .expect("line index should be correct because of above");
-        let column_index = position.column_index.min(line_len as u32);
+        let column_index = position.column.min(line_len as u32);
 
         Position::new(line_index, column_index)
     }
@@ -260,10 +268,10 @@ impl TextBuffer {
     pub fn selection_length(&self, selection: Selection) -> Option<u32> {
         let mut len: u32 = 0;
 
-        let start_line_index = selection.start().line_index;
-        let end_line_index = selection.end().line_index;
-        let start_column_index = selection.start().column_index as usize;
-        let end_column_index = selection.end().column_index as usize;
+        let start_line_index = selection.start().row;
+        let end_line_index = selection.end().row;
+        let start_column_index = selection.start().column as usize;
+        let end_column_index = selection.end().column as usize;
 
         for line_index in start_line_index..=end_line_index {
             let line = self.line(line_index)?;

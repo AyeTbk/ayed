@@ -10,7 +10,7 @@ use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
 use crate::state::State;
 use crate::text_editor::TextEditor;
 use crate::ui_state::{Color, Style, UiPanel, UiState};
-use crate::utils::Rect;
+use crate::utils::{Rect, Size};
 use crate::warpdrive::WarpDrive;
 
 pub struct Core {
@@ -35,7 +35,7 @@ impl Core {
         let state = State {
             buffers,
             active_buffer_handle: buffer,
-            viewport_size: (80, 25),
+            viewport_size: (80, 25).into(),
             mode_line_infos: Default::default(),
             //
             active_combo_mode_name: None,
@@ -192,11 +192,11 @@ impl Core {
         }
     }
 
-    pub fn viewport_size(&self) -> (u32, u32) {
+    pub fn viewport_size(&self) -> Size {
         self.state.viewport_size
     }
 
-    pub fn set_viewport_size(&mut self, viewport_size: (u32, u32)) {
+    pub fn set_viewport_size(&mut self, viewport_size: Size) {
         self.state.viewport_size = viewport_size;
     }
 
@@ -341,16 +341,16 @@ impl Core {
         Rect::new(
             0,
             0,
-            self.state.viewport_size.0,
-            self.state.viewport_size.1 - 1,
+            self.state.viewport_size.column,
+            self.state.viewport_size.row - 1,
         )
     }
 
     fn compute_mode_line_rect(&self) -> Rect {
         Rect::new(
             0,
-            self.state.viewport_size.1.saturating_sub(1),
-            self.state.viewport_size.0,
+            self.state.viewport_size.row.saturating_sub(1),
+            self.state.viewport_size.column,
             1,
         )
     }

@@ -1,9 +1,9 @@
 use crate::{
     grid_string_builder::{Cell, GridStringBuilder},
     input::Input,
-    selection::Position,
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
+    utils::{Position, Size},
 };
 
 pub struct ComboPanel {
@@ -37,9 +37,10 @@ impl ComboPanel {
         grid.set_cell((3, 0), Cell::new(" "));
 
         let (size, content) = grid.build();
-        let column = state.viewport_size.0.saturating_sub(size.0);
-        let line = state.viewport_size.1.saturating_sub(size.1 + 1);
-        let position = (column, line);
+        let size: Size = size.into();
+        let column = state.viewport_size.column.saturating_sub(size.column);
+        let line = state.viewport_size.row.saturating_sub(size.row + 1);
+        let position = (column, line).into();
 
         UiPanel {
             position,

@@ -1,4 +1,4 @@
-use crate::selection::Position;
+use crate::utils::Position;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -48,7 +48,7 @@ pub enum EditorCommand {
     MoveCursorLeft,
     MoveCursorRight,
 
-    MoveCursorTo(u32, u32),
+    MoveCursorTo(u32, u32), // FIXME use Position instead of two u32
     SetSelection { cursor: Position, anchor: Position },
 
     MoveCursorToLineStart,

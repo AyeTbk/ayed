@@ -1,10 +1,10 @@
 use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
-    selection::{DeletedEditInfo, EditInfo, Position, Selection, Selections},
+    selection::{DeletedEditInfo, EditInfo, Selection, Selections},
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
-    utils::Rect,
+    utils::{Position, Rect},
 };
 
 pub struct TextBufferEdit {
@@ -97,9 +97,9 @@ impl TextBufferEdit {
     pub fn render(&mut self, buffer: &TextBuffer, state: &State) -> UiPanel {
         let viewport_size = self.rect.size();
 
-        if viewport_size.0 == 0 || viewport_size.1 == 0 {
+        if viewport_size.column == 0 || viewport_size.row == 0 {
             return UiPanel {
-                position: (0, 0),
+                position: (0, 0).into(),
                 size: viewport_size,
                 content: Default::default(),
                 spans: Default::default(),
@@ -109,10 +109,10 @@ impl TextBufferEdit {
         self.adjust_viewport_to_primary_selection(state); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
-        let start_line_index = self.view_top_left_position.line_index;
-        let after_end_line_index = start_line_index + viewport_size.1;
-        let start_column_index = self.view_top_left_position.column_index;
-        let line_slice_max_len = viewport_size.0;
+        let start_line_index = self.view_top_left_position.row;
+        let after_end_line_index = start_line_index + viewport_size.row;
+        let start_column_index = self.view_top_left_position.column;
+        let line_slice_max_len = viewport_size.column;
 
         let mut panel_content = Vec::new();
         let mut panel_spans = Vec::new();
@@ -122,7 +122,7 @@ impl TextBufferEdit {
             let full_line = if buffer.copy_line(line_index, &mut line_buf).is_ok() {
                 line_buf
             } else {
-                let mut non_existant_line = " ".repeat((viewport_size.0 - 1) as _);
+                let mut non_existant_line = " ".repeat((viewport_size.column - 1) as _);
                 non_existant_line.insert(0, '~');
                 panel_content.push(non_existant_line);
                 let line_index_relative_to_viewport = line_index - start_line_index;
@@ -162,7 +162,7 @@ impl TextBufferEdit {
         self.compute_selection_spans(&mut panel_spans, buffer);
 
         UiPanel {
-            position: (0, 0),
+            position: (0, 0).into(),
             size: viewport_size,
             content: panel_content,
             spans: panel_spans,
@@ -247,7 +247,7 @@ impl TextBufferEdit {
         fn adjust_position_from_edit(position: Position, edit: EditInfo) -> Position {
             match edit {
                 EditInfo::AddedOne(edit_pos) => {
-                    if edit_pos <= position && edit_pos.line_index == position.line_index {
+                    if edit_pos <= position && edit_pos.row == position.row {
                         position.with_moved_indices(0, 1)
                     } else {
                         position
@@ -255,10 +255,9 @@ impl TextBufferEdit {
                 }
                 EditInfo::LineSplit(edit_pos) => {
                     if edit_pos <= position {
-                        if edit_pos.line_index == position.line_index {
-                            let column_distance_from_edit =
-                                position.column_index - edit_pos.column_index;
-                            Position::new(edit_pos.line_index + 1, column_distance_from_edit)
+                        if edit_pos.row == position.row {
+                            let column_distance_from_edit = position.column - edit_pos.column;
+                            Position::new(edit_pos.row + 1, column_distance_from_edit)
                         } else {
                             // then position is on a line after the edit
                             position.with_moved_indices(1, 0)
@@ -272,10 +271,9 @@ impl TextBufferEdit {
                     pos1_before_delete_start_column_index,
                     pos2,
                 }) => {
-                    if position.line_index > pos1_line_index
-                        || (position.line_index == pos1_line_index
-                            && (position.column_index as i64)
-                                >= pos1_before_delete_start_column_index)
+                    if position.row > pos1_line_index
+                        || (position.row == pos1_line_index
+                            && (position.column as i64) >= pos1_before_delete_start_column_index)
                     {
                         let column_index = pos1_before_delete_start_column_index + 1;
                         let pos2_new = Position::new(pos1_line_index, column_index as u32);
@@ -288,8 +286,8 @@ impl TextBufferEdit {
                         {
                             let delta = pos2_new.offset_between(&pos2);
 
-                            let line_offset = delta.line_offset;
-                            let column_offset = if position.line_index == pos2.line_index {
+                            let line_offset = delta.row_offset;
+                            let column_offset = if position.row == pos2.row {
                                 delta.column_offset
                             } else {
                                 0
@@ -380,7 +378,7 @@ impl TextBufferEdit {
         smart: bool,
     ) {
         for selection in self.selections.iter_mut() {
-            let line_index = selection.cursor().line_index;
+            let line_index = selection.cursor().row;
             let line = buffer
                 .line(line_index)
                 .expect("the line should exist if a selection is on it");
@@ -389,13 +387,13 @@ impl TextBufferEdit {
                 line.find(|ch| !char::is_whitespace(ch)).unwrap_or(0) as u32;
 
             let new_column_index =
-                if smart && selection.cursor().column_index != first_non_white_char_index {
+                if smart && selection.cursor().column != first_non_white_char_index {
                     first_non_white_char_index
                 } else {
                     0
                 };
 
-            let new_cursor = selection.cursor().with_column_index(new_column_index);
+            let new_cursor = selection.cursor().with_column(new_column_index);
 
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
@@ -412,20 +410,19 @@ impl TextBufferEdit {
         smart: bool,
     ) {
         for selection in self.selections.iter_mut() {
-            let line_index = selection.cursor().line_index;
+            let line_index = selection.cursor().row;
             let line_len = buffer.line_len(line_index).unwrap();
 
             // Flip flop between before EOL and at EOL
             let eol_column_index = line_len as u32;
             let last_char_column_index = (eol_column_index).saturating_sub(1);
-            let new_column_index =
-                if smart && selection.cursor().column_index != last_char_column_index {
-                    last_char_column_index
-                } else {
-                    eol_column_index
-                };
+            let new_column_index = if smart && selection.cursor().column != last_char_column_index {
+                last_char_column_index
+            } else {
+                eol_column_index
+            };
 
-            let new_cursor = selection.cursor().with_column_index(new_column_index);
+            let new_cursor = selection.cursor().with_column(new_column_index);
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
             } else {
@@ -497,12 +494,12 @@ impl TextBufferEdit {
                             (line_len as u32, 0)
                         };
 
-                    if line_index == anchor.line_index {
+                    if line_index == anchor.row {
                         line_anchor = anchor;
                     } else {
                         line_anchor = Position::new(line_index, cursor_default_column_index);
                     }
-                    if line_index == cursor.line_index {
+                    if line_index == cursor.row {
                         line_cursor = cursor;
                     } else {
                         line_cursor = Position::new(line_index, anchor_default_column_index);
@@ -568,8 +565,7 @@ impl TextBufferEdit {
             }
 
             for line_split_selection in selection_split_by_line {
-                if self.view_top_left_position.line_index > line_split_selection.start().line_index
-                {
+                if self.view_top_left_position.row > line_split_selection.start().row {
                     // If line is before the viewport, ignore it
                     continue;
                 }
@@ -577,20 +573,16 @@ impl TextBufferEdit {
                 let cursor = line_split_selection.cursor();
                 let anchor = line_split_selection.anchor();
                 let viewport_adjusted_selection = Selection::new()
-                    .with_anchor(
-                        if self.view_top_left_position.column_index > anchor.column_index {
-                            anchor.with_column_index(self.view_top_left_position.column_index)
-                        } else {
-                            anchor
-                        },
-                    )
-                    .with_cursor(
-                        if self.view_top_left_position.column_index > cursor.column_index {
-                            cursor.with_column_index(self.view_top_left_position.column_index)
-                        } else {
-                            cursor
-                        },
-                    );
+                    .with_anchor(if self.view_top_left_position.column > anchor.column {
+                        anchor.with_column(self.view_top_left_position.column)
+                    } else {
+                        anchor
+                    })
+                    .with_cursor(if self.view_top_left_position.column > cursor.column {
+                        cursor.with_column(self.view_top_left_position.column)
+                    } else {
+                        cursor
+                    });
 
                 let from_relative_to_viewport =
                     viewport_adjusted_selection.start() - self.view_top_left_position;
@@ -614,25 +606,25 @@ impl TextBufferEdit {
     fn adjust_viewport_to_primary_selection(&mut self, _state: &State) {
         let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
-        let vp_start_x = self.view_top_left_position.column_index;
+        let vp_start_x = self.view_top_left_position.column;
         let vp_after_end_x = vp_start_x + self.rect.width;
-        let selection_x = self.selections.primary().cursor().column_index;
+        let selection_x = self.selections.primary().cursor().column;
 
         if selection_x < vp_start_x {
-            new_viewport_top_left_position.column_index = selection_x;
+            new_viewport_top_left_position.column = selection_x;
         } else if selection_x >= vp_after_end_x {
-            new_viewport_top_left_position.column_index = selection_x - self.rect.width + 1;
+            new_viewport_top_left_position.column = selection_x - self.rect.width + 1;
         }
 
         // Vertical
-        let vp_start_y = self.view_top_left_position.line_index;
+        let vp_start_y = self.view_top_left_position.row;
         let vp_after_end_y = vp_start_y + self.rect.height;
-        let selection_y = self.selections.primary().cursor().line_index;
+        let selection_y = self.selections.primary().cursor().row;
 
         if selection_y < vp_start_y {
-            new_viewport_top_left_position.line_index = selection_y;
+            new_viewport_top_left_position.row = selection_y;
         } else if selection_y >= vp_after_end_y {
-            new_viewport_top_left_position.line_index = selection_y - self.rect.height + 1;
+            new_viewport_top_left_position.row = selection_y - self.rect.height + 1;
         }
 
         self.view_top_left_position = new_viewport_top_left_position;

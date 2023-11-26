@@ -2,9 +2,10 @@ use std::iter::once;
 
 use crate::{
     command::EditorCommand,
-    selection::{Offset, Position, Selection},
+    selection::Selection,
     state::State,
     ui_state::{Color, Span, Style, UiPanel},
+    utils::{Offset, Position},
 };
 
 // TODO warpdrive improvements
@@ -49,10 +50,10 @@ impl WarpDrive {
 
         // Bg - fg
         for (line_index, _) in content.iter().enumerate() {
-            let position = Position::ZERO.with_line_index(line_index as u32);
+            let position = Position::ZERO.with_row(line_index as u32);
             spans.push(Span {
                 from: position,
-                to: position.with_column_index(state.viewport_size.0 as _),
+                to: position.with_column(state.viewport_size.column as _),
                 style: Style {
                     foreground_color: Some(Color::rgb(100, 100, 100)),
                     background_color: Some(Color::rgb(25, 25, 25)),
@@ -64,11 +65,11 @@ impl WarpDrive {
 
         for (chars, &selection) in self.jump_points_iter() {
             let position = selection.start();
-            let line = content.get_mut(position.line_index as usize).unwrap();
+            let line = content.get_mut(position.row as usize).unwrap();
             let byte_idx = line
                 .char_indices()
                 .enumerate()
-                .filter(|&(char_idx, _)| char_idx == position.column_index as usize)
+                .filter(|&(char_idx, _)| char_idx == position.column as usize)
                 .map(|(_, (byte_idx, _))| byte_idx)
                 .next()
                 .unwrap();
@@ -94,7 +95,7 @@ impl WarpDrive {
         }
 
         UiPanel {
-            position: (0, 0),
+            position: (0, 0).into(),
             size: state.viewport_size,
             content,
             spans,

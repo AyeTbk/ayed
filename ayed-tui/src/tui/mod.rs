@@ -6,6 +6,7 @@ use std::{
 use ayed_core::{
     input::Input,
     ui_state::{Color, Span},
+    utils::Size,
 };
 use crossterm::{
     cursor::MoveTo,
@@ -97,10 +98,10 @@ impl Tui {
         for mut panel in ui_state.panels.into_iter() {
             panel.normalize_spans();
 
-            let start_y = panel.position.1;
-            let after_end_y = start_y + panel.size.1;
-            let start_x = panel.position.0;
-            let after_end_x = start_x + panel.size.0;
+            let start_y = panel.position.row;
+            let after_end_y = start_y + panel.size.row;
+            let start_x = panel.position.column;
+            let after_end_x = start_x + panel.size.column;
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
                 self.screen
@@ -109,12 +110,12 @@ impl Tui {
 
                 cleanup_span_style(&mut self.screen);
 
-                let panel_line_index = y - panel.position.1;
+                let panel_line_index = y - panel.position.row;
                 let mut char_str = String::new();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
                     if let Some(span) = panel
                         .spans_on_line(panel_line_index)
-                        .filter(|span| span.from.column_index == x)
+                        .filter(|span| span.from.column == x)
                         .next()
                     {
                         prepare_span_style(span, &mut self.screen);
@@ -126,7 +127,7 @@ impl Tui {
 
                     if panel
                         .spans_on_line(panel_line_index)
-                        .filter(|span| span.to.column_index == x)
+                        .filter(|span| span.to.column == x)
                         .next()
                         .is_some()
                     {
@@ -159,16 +160,16 @@ impl Tui {
     }
 
     fn update_viewport_size_if_needed(&mut self) {
-        let (width, height) = self.viewport_size();
-        let (vwidth, vheight) = self.core.viewport_size();
-        if width != vwidth || height != vheight {
-            self.core.set_viewport_size((width as _, height as _));
+        let size = self.viewport_size();
+        let vsize = self.core.viewport_size();
+        if size.column != vsize.column || size.row != vsize.row {
+            self.core.set_viewport_size(size);
         }
     }
 
-    fn viewport_size(&self) -> (u32, u32) {
+    fn viewport_size(&self) -> Size {
         let (width, height) = crossterm::terminal::size().unwrap();
-        ((width) as _, (height) as _)
+        ((width) as _, (height) as _).into()
     }
 }
 

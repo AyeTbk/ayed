@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
-use crate::selection::Position;
+use crate::utils::{Position, Size};
 
 pub struct UiState {
     pub panels: Vec<UiPanel>,
 }
 
 pub struct UiPanel {
-    pub position: (u32, u32),
-    pub size: (u32, u32),
+    pub position: Position,
+    pub size: Size,
     pub content: Vec<String>,
     pub spans: Vec<Span>,
 }
@@ -99,10 +99,9 @@ impl UiPanel {
 
     pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &Span> {
         self.spans.iter().filter(move |span| {
-            let is_before = span.from.line_index < line_index;
-            let is_after = span.to.line_index > line_index;
-            let is_same_line =
-                span.from.line_index == line_index || span.to.line_index == line_index;
+            let is_before = span.from.row < line_index;
+            let is_after = span.to.row > line_index;
+            let is_same_line = span.from.row == line_index || span.to.row == line_index;
             is_same_line || (is_before && is_after)
         })
     }
@@ -161,8 +160,8 @@ mod tests {
     #[test]
     fn normalize_spans() {
         let mut ui_panel = UiPanel {
-            position: (1, 1),
-            size: (1, 1),
+            position: (1, 1).into(),
+            size: (1, 1).into(),
             content: Vec::new(),
             spans: vec![
                 Span {

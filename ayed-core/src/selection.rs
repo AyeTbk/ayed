@@ -1,5 +1,7 @@
 use std::ops::RangeInclusive;
 
+use crate::utils::Position;
+
 #[derive(Debug, Clone)]
 pub struct Selections {
     primary_selection: Selection,
@@ -121,8 +123,8 @@ impl Selection {
         Self {
             cursor: position,
             anchor: position,
-            desired_cursor_column_index: position.column_index,
-            desired_anchor_column_index: position.column_index,
+            desired_cursor_column_index: position.column,
+            desired_anchor_column_index: position.column,
         }
     }
 
@@ -130,7 +132,7 @@ impl Selection {
         Self {
             cursor,
             anchor: self.anchor,
-            desired_cursor_column_index: cursor.column_index,
+            desired_cursor_column_index: cursor.column,
             desired_anchor_column_index: self.desired_anchor_column_index,
         }
     }
@@ -149,7 +151,7 @@ impl Selection {
             cursor: self.cursor,
             anchor,
             desired_cursor_column_index: self.desired_cursor_column_index,
-            desired_anchor_column_index: anchor.column_index,
+            desired_anchor_column_index: anchor.column,
         }
     }
 
@@ -214,8 +216,7 @@ impl Selection {
     }
 
     pub fn desired_cursor(&self) -> Position {
-        self.cursor
-            .with_column_index(self.desired_cursor_column_index)
+        self.cursor.with_column(self.desired_cursor_column_index)
     }
 
     pub fn anchor(&self) -> Position {
@@ -223,8 +224,7 @@ impl Selection {
     }
 
     pub fn desired_anchor(&self) -> Position {
-        self.anchor
-            .with_column_index(self.desired_anchor_column_index)
+        self.anchor.with_column(self.desired_anchor_column_index)
     }
 
     pub fn start(&self) -> Position {
@@ -240,7 +240,7 @@ impl Selection {
     }
 
     pub fn line_span(&self) -> RangeInclusive<u32> {
-        self.start().line_index..=self.end().line_index
+        self.start().row..=self.end().row
     }
 
     pub fn merged_with(&self, other: &Self) -> Option<Self> {
@@ -316,133 +316,6 @@ pub struct DeletedEditInfo {
     pub pos1_line_index: u32,
     pub pos1_before_delete_start_column_index: i64, // Can be -1
     pub pos2: Position,                             // Position after deleted content end
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Position {
-    pub line_index: u32,
-    pub column_index: u32,
-}
-
-impl Position {
-    pub const ZERO: Self = Self {
-        line_index: 0,
-        column_index: 0,
-    };
-
-    pub fn new(line_index: u32, column_index: u32) -> Self {
-        Self {
-            line_index,
-            column_index,
-        }
-    }
-
-    pub fn offset(&self, offset: Offset) -> Self {
-        self.with_moved_indices(offset.line_offset, offset.column_offset)
-    }
-
-    pub fn with_moved_indices(&self, line_offset: i32, column_offset: i32) -> Self {
-        // FIXME? line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
-        let line_index = self.line_index.saturating_add_signed(line_offset);
-        let column_index = self.column_index.saturating_add_signed(column_offset);
-        Self {
-            line_index,
-            column_index,
-        }
-    }
-
-    pub fn with_line_index(&self, line_index: u32) -> Self {
-        Self {
-            line_index,
-            column_index: self.column_index,
-        }
-    }
-
-    pub fn with_column_index(&self, column_index: u32) -> Self {
-        Self {
-            line_index: self.line_index,
-            column_index,
-        }
-    }
-
-    pub fn offset_between(&self, other: &Self) -> Offset {
-        self.to_offset() - other.to_offset()
-    }
-
-    pub fn to_offset(&self) -> Offset {
-        Offset {
-            line_offset: self.line_index as i32,
-            column_offset: self.column_index as i32,
-        }
-    }
-}
-
-impl std::cmp::PartialOrd for Position {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.line_index.cmp(&other.line_index) {
-            std::cmp::Ordering::Equal => Some(self.column_index.cmp(&other.column_index)),
-            o => Some(o),
-        }
-    }
-}
-impl std::cmp::Ord for Position {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl std::ops::Sub for Position {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            column_index: self.column_index.saturating_sub(rhs.column_index),
-            line_index: self.line_index.saturating_sub(rhs.line_index),
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Offset {
-    pub line_offset: i32,
-    pub column_offset: i32,
-}
-
-impl Offset {
-    pub const ZERO: Self = Self {
-        line_offset: 0,
-        column_offset: 0,
-    };
-
-    pub fn new(line_offset: i32, column_offset: i32) -> Self {
-        Self {
-            line_offset,
-            column_offset,
-        }
-    }
-}
-
-impl std::ops::Add for Offset {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            column_offset: self.column_offset + rhs.column_offset,
-            line_offset: self.line_offset + rhs.line_offset,
-        }
-    }
-}
-impl std::ops::AddAssign for Offset {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
-}
-impl std::ops::Sub for Offset {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            column_offset: self.column_offset - rhs.column_offset,
-            line_offset: self.line_offset - rhs.line_offset,
-        }
-    }
 }
 
 #[allow(non_snake_case)]
