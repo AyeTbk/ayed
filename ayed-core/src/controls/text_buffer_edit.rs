@@ -257,7 +257,7 @@ impl TextBufferEdit {
                     if edit_pos <= position {
                         if edit_pos.row == position.row {
                             let column_distance_from_edit = position.column - edit_pos.column;
-                            Position::new(edit_pos.row + 1, column_distance_from_edit)
+                            Position::new(column_distance_from_edit, edit_pos.row + 1)
                         } else {
                             // then position is on a line after the edit
                             position.with_moved_indices(1, 0)
@@ -276,7 +276,7 @@ impl TextBufferEdit {
                             && (position.column as i64) >= pos1_before_delete_start_column_index)
                     {
                         let column_index = pos1_before_delete_start_column_index + 1;
-                        let pos2_new = Position::new(pos1_line_index, column_index as u32);
+                        let pos2_new = Position::new(column_index as u32, pos1_line_index);
 
                         // If position within edit, place at edit_pos1 + 1column
                         if position <= pos2 {
@@ -497,12 +497,12 @@ impl TextBufferEdit {
                     if line_index == anchor.row {
                         line_anchor = anchor;
                     } else {
-                        line_anchor = Position::new(line_index, cursor_default_column_index);
+                        line_anchor = Position::new(cursor_default_column_index, line_index);
                     }
                     if line_index == cursor.row {
                         line_cursor = cursor;
                     } else {
-                        line_cursor = Position::new(line_index, anchor_default_column_index);
+                        line_cursor = Position::new(anchor_default_column_index, line_index);
                     }
 
                     Selection::new()

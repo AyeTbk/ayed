@@ -154,10 +154,10 @@ impl WarpDrive {
                 let mut end = None;
                 for (column_index, (byte_idx, _)) in line.char_indices().enumerate() {
                     if m.start() == byte_idx {
-                        start = Some(Position::new(line_index as _, column_index as _));
+                        start = Some(Position::new(column_index as _, line_index as _));
                     }
                     if m.end() == byte_idx {
-                        end = Some(Position::new(line_index as _, (column_index - 1) as _));
+                        end = Some(Position::new((column_index - 1) as _, line_index as _));
                     }
                 }
 

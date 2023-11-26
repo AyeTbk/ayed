@@ -296,8 +296,8 @@ impl EditInfo {
     pub fn pos(&self) -> Position {
         match self {
             &Self::Deleted(edit) => Position::new(
-                edit.pos1_line_index,
                 (edit.pos1_before_delete_start_column_index + 1) as u32,
+                edit.pos1_line_index,
             ),
             &Self::AddedOne(pos) => pos,
             &Self::LineSplit(pos) => pos,
@@ -326,9 +326,9 @@ mod tests {
     #[test]
     fn selections__overlapping_selections_merged__no_overlap() {
         let pos0 = Position::new(0, 0);
-        let pos1 = Position::new(0, 2);
-        let pos2 = Position::new(1, 0);
-        let pos3 = Position::new(3, 79);
+        let pos1 = Position::new(2, 0);
+        let pos2 = Position::new(0, 1);
+        let pos3 = Position::new(79, 3);
 
         let selections = Selections::new_with(
             Selection::new().with_anchor(pos0).with_cursor(pos1),
@@ -359,10 +359,10 @@ mod tests {
     #[test]
     fn selections__overlapping_selections_merged__multiple_merged_in_one() {
         let pos0 = Position::new(0, 0);
-        let pos1 = Position::new(0, 2);
-        let pos2 = Position::new(0, 15);
-        let pos3 = Position::new(1, 0);
-        let pos4 = Position::new(3, 79);
+        let pos1 = Position::new(2, 0);
+        let pos2 = Position::new(15, 0);
+        let pos3 = Position::new(0, 1);
+        let pos4 = Position::new(79, 3);
 
         let selections = Selections::new_with(
             Selection::new().with_anchor(pos0).with_cursor(pos2),

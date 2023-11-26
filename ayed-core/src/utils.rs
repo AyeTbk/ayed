@@ -32,9 +32,9 @@ pub struct Position {
 }
 
 impl Position {
-    pub const ZERO: Self = Self { row: 0, column: 0 };
+    pub const ZERO: Self = Self { column: 0, row: 0 };
 
-    pub fn new(row: u32, column: u32) -> Self {
+    pub fn new(column: u32, row: u32) -> Self {
         Self { column, row }
     }
 

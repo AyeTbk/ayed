@@ -51,7 +51,7 @@ impl ComboPanel {
             // FIXME This should work but it doesnt. Also, mixing x,y points and sizes with Positions (line,column) is confusing...
             spans: vec![Span {
                 from: Position::ZERO,
-                to: Position::new(size.row, size.column),
+                to: Position::new(size.column, size.row),
                 importance: 1,
                 style: Style {
                     background_color: Some(Color::RED),

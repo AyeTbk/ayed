@@ -135,7 +135,7 @@ impl TextBuffer {
                     line.pop();
                     line.extend(next_line);
 
-                    edit_pos2 = Position::new(position.row + 1, 0);
+                    edit_pos2 = Position::new(0, position.row + 1);
                 }
             }
             Some(_) => {
@@ -198,7 +198,7 @@ impl TextBuffer {
             new_column_index = (new_column_index as i64 + column_offset as i64) as u32;
         }
 
-        Some(Position::new(new_line_index, new_column_index))
+        Some(Position::new(new_column_index, new_line_index))
     }
 
     pub fn moved_position_vertically(
@@ -217,17 +217,17 @@ impl TextBuffer {
         if let Some(destination_line_len) = self.line_len(destination_line_index) {
             let destination_line_len = destination_line_len as u32;
             if position.column < destination_line_len {
-                Ok(Position::new(destination_line_index, position.column))
+                Ok(Position::new(position.column, destination_line_index))
             } else {
-                Err(Position::new(destination_line_index, destination_line_len))
+                Err(Position::new(destination_line_len, destination_line_index))
             }
         } else {
             let last_line_index = self.last_line_index();
             let last_line_len = self.line_len(last_line_index).expect("invariant 1") as u32;
             if position.column < last_line_len {
-                Ok(Position::new(last_line_index, position.column))
+                Ok(Position::new(position.column, last_line_index))
             } else {
-                Err(Position::new(last_line_index, last_line_len))
+                Err(Position::new(last_line_len, last_line_index))
             }
         }
     }
@@ -247,7 +247,7 @@ impl TextBuffer {
             .expect("line index should be correct because of above");
         let column_index = position.column.min(line_len as u32);
 
-        Position::new(line_index, column_index)
+        Position::new(column_index, line_index)
     }
 
     pub fn start_of_content_position(&self) -> Position {

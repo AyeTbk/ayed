@@ -168,13 +168,13 @@ mod tests {
             spans: vec![
                 Span {
                     from: Position::new(0, 0),
-                    to: Position::new(0, 15),
+                    to: Position::new(15, 0),
                     style: Default::default(),
                     importance: 0,
                 },
                 Span {
-                    from: Position::new(0, 4),
-                    to: Position::new(0, 10),
+                    from: Position::new(4, 0),
+                    to: Position::new(10, 0),
                     style: Default::default(),
                     importance: 2,
                 },
