@@ -117,7 +117,7 @@ pub struct Offset {
 impl Offset {
     pub const ZERO: Self = Self { column: 0, row: 0 };
 
-    pub fn new(row_offset: i32, column_offset: i32) -> Self {
+    pub fn new(column_offset: i32, row_offset: i32) -> Self {
         Self {
             column: column_offset,
             row: row_offset,
