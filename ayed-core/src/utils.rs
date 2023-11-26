@@ -40,11 +40,10 @@ impl Position {
 
     pub fn offset(&self, offset: impl Into<Offset>) -> Self {
         let offset = offset.into();
-        self.with_moved_indices(offset.row, offset.column)
+        self.with_moved_indices(offset.column, offset.row)
     }
 
-    pub fn with_moved_indices(&self, row_offset: i32, column_offset: i32) -> Self {
-        // FIXME? line_offset, column_offset  is like  y, x  instead of  x, y. It gets a bit confusing.
+    pub fn with_moved_indices(&self, column_offset: i32, row_offset: i32) -> Self {
         let column = self.column.saturating_add_signed(column_offset);
         let row = self.row.saturating_add_signed(row_offset);
         Self { column, row }

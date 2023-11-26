@@ -105,9 +105,9 @@ impl TextBuffer {
 
             if let Some(pos2) = pos2.as_mut() {
                 if edit.pos1_line_index < edit.pos2.row {
-                    *pos2 = pos2.with_moved_indices(1, 0).with_column(0);
+                    *pos2 = pos2.with_moved_indices(0, 1).with_column(0);
                 } else {
-                    *pos2 = pos2.with_moved_indices(0, 1);
+                    *pos2 = pos2.with_moved_indices(1, 0);
                 }
             } else {
                 pos2 = Some(edit.pos2);
@@ -126,7 +126,7 @@ impl TextBuffer {
 
     fn delete_position(&mut self, position: Position) -> Result<DeletedEditInfo, ()> {
         let mut line = self.take_line(position.row).ok_or(())?;
-        let mut edit_pos2 = position.with_moved_indices(0, 1);
+        let mut edit_pos2 = position.with_moved_indices(1, 0);
 
         match line.get(position.column as usize) {
             Some('\n') => {
@@ -262,7 +262,7 @@ impl TextBuffer {
             .len()
             - 1;
         Position::ZERO
-            .with_moved_indices(self.lines.len() as _, last_column_index_of_last_line as _)
+            .with_moved_indices(last_column_index_of_last_line as _, self.lines.len() as _)
     }
 
     pub fn selection_length(&self, selection: Selection) -> Option<u32> {

@@ -91,7 +91,7 @@ impl LineEdit {
         // Bg color
         editor_panel.spans.push(Span {
             from: Position::ZERO,
-            to: Position::ZERO.with_moved_indices(0, self.rect().width as _),
+            to: Position::ZERO.with_moved_indices(self.rect().width as _, 0),
             style: Style {
                 foreground_color: None,
                 background_color: Some(Color::rgb(40, 30, 50)),

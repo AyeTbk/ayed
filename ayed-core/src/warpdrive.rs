@@ -84,7 +84,7 @@ impl WarpDrive {
 
             spans.push(Span {
                 from: position,
-                to: position.with_moved_indices(0, (chars.len() - 1) as _),
+                to: position.with_moved_indices((chars.len() - 1) as _, 0),
                 style: Style {
                     foreground_color: Some(Color::rgb(200, 200, 200)),
                     background_color: Some(Color::rgb(25, 25, 25)),

@@ -87,7 +87,7 @@ impl ModeLine {
             content: vec![content],
             spans: vec![Span {
                 from: Position::ZERO,
-                to: Position::ZERO.with_moved_indices(0, self.rect.width as _),
+                to: Position::ZERO.with_moved_indices(self.rect.width as _, 0),
                 style,
                 importance: 1,
             }],

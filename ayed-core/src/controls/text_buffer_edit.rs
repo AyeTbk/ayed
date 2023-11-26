@@ -127,8 +127,8 @@ impl TextBufferEdit {
                 panel_content.push(non_existant_line);
                 let line_index_relative_to_viewport = line_index - start_line_index;
                 let from =
-                    Position::ZERO.with_moved_indices(line_index_relative_to_viewport as _, 0);
-                let to = from.with_moved_indices(0, 1);
+                    Position::ZERO.with_moved_indices(0, line_index_relative_to_viewport as _);
+                let to = from.with_moved_indices(1, 0);
                 panel_spans.push(Span {
                     from,
                     to,
@@ -248,7 +248,7 @@ impl TextBufferEdit {
             match edit {
                 EditInfo::AddedOne(edit_pos) => {
                     if edit_pos <= position && edit_pos.row == position.row {
-                        position.with_moved_indices(0, 1)
+                        position.with_moved_indices(1, 0)
                     } else {
                         position
                     }
@@ -260,7 +260,7 @@ impl TextBufferEdit {
                             Position::new(column_distance_from_edit, edit_pos.row + 1)
                         } else {
                             // then position is on a line after the edit
-                            position.with_moved_indices(1, 0)
+                            position.with_moved_indices(0, 1)
                         }
                     } else {
                         position
@@ -293,7 +293,7 @@ impl TextBufferEdit {
                                 0
                             };
 
-                            position.with_moved_indices(line_offset, column_offset)
+                            position.with_moved_indices(column_offset, line_offset)
                         }
                     } else
                     // If position before edit, do nothing
@@ -436,8 +436,8 @@ impl TextBufferEdit {
         for selection in self.selections() {
             let selection_line_count: i32 = selection.line_span().count().try_into().unwrap();
             let line_offset = if above { -1 } else { 1 } * selection_line_count;
-            let dupe_cursor = selection.cursor().with_moved_indices(line_offset, 0);
-            let dupe_anchor = selection.anchor().with_moved_indices(line_offset, 0);
+            let dupe_cursor = selection.cursor().with_moved_indices(0, line_offset);
+            let dupe_anchor = selection.anchor().with_moved_indices(0, line_offset);
             let dupe = selection
                 .with_provisional_cursor(dupe_cursor)
                 .with_provisional_anchor(dupe_anchor);
