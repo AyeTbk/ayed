@@ -10,6 +10,8 @@ pub struct UiPanel {
     pub position: Position,
     pub size: Size,
     pub content: Vec<String>,
+    // NOTE I think spans are meant to be local to the panel at the moment.
+    // Currently, that's entirely determined by ayed-tui.
     pub spans: Vec<Span>,
 }
 

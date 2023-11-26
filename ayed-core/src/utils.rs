@@ -165,6 +165,12 @@ pub struct Size {
     pub row: u32,
 }
 
+impl Size {
+    pub fn new(column: u32, row: u32) -> Self {
+        Self { column, row }
+    }
+}
+
 impl From<(u32, u32)> for Size {
     fn from(value: (u32, u32)) -> Self {
         Self {

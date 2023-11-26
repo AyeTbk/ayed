@@ -42,15 +42,17 @@ impl ComboPanel {
         let line = state.viewport_size.row.saturating_sub(size.row + 1);
         let position = (column, line).into();
 
+        // let position = Position::ZERO.offset((0, 0));
+
         UiPanel {
             position,
             size,
             content,
             // FIXME This should work but it doesnt. Also, mixing x,y points and sizes with Positions (line,column) is confusing...
             spans: vec![Span {
-                from: Position::new(0, 0),
-                to: Position::new(1000, 1000),
-                importance: 20,
+                from: Position::ZERO,
+                to: Position::new(size.row, size.column),
+                importance: 1,
                 style: Style {
                     background_color: Some(Color::RED),
                     foreground_color: Some(Color::BLUE),

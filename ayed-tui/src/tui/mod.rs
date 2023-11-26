@@ -110,12 +110,13 @@ impl Tui {
 
                 cleanup_span_style(&mut self.screen);
 
-                let panel_line_index = y - panel.position.row;
+                let panel_row = y - panel.position.row; // NOTE this line makes this shit local to panel position
                 let mut char_str = String::new();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
+                    let panel_column = x - panel.position.column; // NOTE this line makes this shit local to panel position
                     if let Some(span) = panel
-                        .spans_on_line(panel_line_index)
-                        .filter(|span| span.from.column == x)
+                        .spans_on_line(panel_row)
+                        .filter(|span| span.from.column == panel_column)
                         .next()
                     {
                         prepare_span_style(span, &mut self.screen);
@@ -126,8 +127,8 @@ impl Tui {
                     self.screen.write(char_str.as_bytes()).unwrap();
 
                     if panel
-                        .spans_on_line(panel_line_index)
-                        .filter(|span| span.to.column == x)
+                        .spans_on_line(panel_row)
+                        .filter(|span| span.to.column == panel_column)
                         .next()
                         .is_some()
                     {
