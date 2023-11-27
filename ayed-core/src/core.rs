@@ -134,7 +134,7 @@ impl Core {
     }
 
     pub fn input(&mut self, input: Input) {
-        self.clear_mode_line_error();
+        self.clear_mode_line();
 
         self.last_input = input.normalized();
 
@@ -176,6 +176,7 @@ impl Core {
                 }
                 WriteBuffer => {
                     self.save_buffer(self.state.active_buffer_handle);
+                    self.set_mode_line_message("saved!")
                 }
             },
             Command::Editor(editor_command) => {
@@ -229,23 +230,35 @@ impl Core {
                 self.save_buffer(self.state.active_buffer_handle);
                 self.request_quit();
             }
-            _ => self.set_mode_line_error(format!("unknown command: {}", command_str)),
+            _ => self.set_mode_line_error(&format!("unknown command: {}", command_str)),
         }
     }
 
-    fn set_mode_line_error(&mut self, error_message: String) {
+    fn set_mode_line_error(&mut self, error_message: impl Into<String>) {
         self.mode_line
             .set_content_override(Some(mode_line::ContentOverride {
-                text: format!("error: {}", error_message),
+                text: format!("error: {}", error_message.into()),
                 style: Style {
                     foreground_color: None,
-                    background_color: Some(Color::rgb(48, 16, 16)),
+                    background_color: Some(crate::theme::colors::ERROR_DARK),
                     invert: false,
                 },
             }));
     }
 
-    fn clear_mode_line_error(&mut self) {
+    fn set_mode_line_message(&mut self, message: impl Into<String>) {
+        self.mode_line
+            .set_content_override(Some(mode_line::ContentOverride {
+                text: message.into(),
+                style: Style {
+                    foreground_color: Some(mode_line::FG_COLOR),
+                    background_color: Some(mode_line::BG_COLOR),
+                    invert: false,
+                },
+            }));
+    }
+
+    fn clear_mode_line(&mut self) {
         self.mode_line.set_content_override(None);
     }
 

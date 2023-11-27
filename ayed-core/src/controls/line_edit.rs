@@ -2,7 +2,7 @@ use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
     state::State,
-    ui_state::{Color, Span, Style, UiPanel},
+    ui_state::{Span, Style, UiPanel},
     utils::{Position, Rect},
 };
 
@@ -82,7 +82,7 @@ impl LineEdit {
             to: Position::ZERO,
             style: Style {
                 foreground_color: None,
-                background_color: Some(Color::rgb(96, 32, 200)),
+                background_color: Some(crate::theme::colors::ACCENT),
                 invert: false,
             },
             importance: 1,
@@ -94,7 +94,7 @@ impl LineEdit {
             to: Position::ZERO.with_moved_indices(self.rect().width as _, 0),
             style: Style {
                 foreground_color: None,
-                background_color: Some(Color::rgb(40, 30, 50)),
+                background_color: Some(crate::theme::colors::ACCENT_DARK),
                 invert: false,
             },
             importance: 0,

@@ -140,7 +140,7 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn rgb(r: u8, g: u8, b: u8) -> Color {
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Color {
         Self { r, g, b }
     }
 

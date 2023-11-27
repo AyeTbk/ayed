@@ -8,6 +8,9 @@ use crate::{
     utils::Rect,
 };
 
+pub const FG_COLOR: Color = crate::theme::colors::MODELINE_TEXT;
+pub const BG_COLOR: Color = crate::theme::colors::ACCENT_DARK;
+
 pub struct ModeLine {
     has_focus: bool,
     line_edit: LineEdit,
@@ -55,8 +58,8 @@ impl ModeLine {
 
         let mut line_builder = LineBuilder::new_with_length(self.rect.width as _);
         let mut style = Style {
-            foreground_color: Some(Color::rgb(200, 200, 0)),
-            background_color: Some(Color::rgb(40, 30, 50)),
+            foreground_color: Some(FG_COLOR),
+            background_color: Some(BG_COLOR),
             invert: false,
         };
 

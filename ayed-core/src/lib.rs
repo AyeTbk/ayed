@@ -18,3 +18,5 @@ mod combo_panel;
 mod mode_line;
 mod text_editor;
 mod warpdrive;
+
+mod theme;
