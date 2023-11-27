@@ -22,6 +22,7 @@ pub struct Core {
     combo_panel: Option<ComboPanel>,
     quit: bool,
     last_input: Input,
+    deferred_commands: Vec<Command>,
 }
 
 impl Core {
@@ -60,6 +61,7 @@ impl Core {
                 key: Key::Char('\0'),
                 modifiers: Modifiers::default(),
             },
+            deferred_commands: Default::default(),
         };
         this.set_active_editor(active_editor);
         this
@@ -148,10 +150,13 @@ impl Core {
         if commands.is_empty() && self.combo_panel.is_some() {
             self.set_combo_mode(None);
         }
+
         for command in commands {
             self.set_combo_mode(None);
             self.execute_command(command);
         }
+
+        self.execute_deferred_commands();
     }
 
     pub fn execute_command(&mut self, command: Command) {
@@ -176,7 +181,21 @@ impl Core {
                 }
                 WriteBuffer => {
                     self.save_buffer(self.state.active_buffer_handle);
-                    self.set_mode_line_message("saved!")
+                    let path = self
+                        .state
+                        .buffers
+                        .get(self.state.active_buffer_handle)
+                        .filepath()
+                        .map(Path::to_string_lossy)
+                        .unwrap_or_default();
+                    self.set_mode_line_message(format!("saved as {path}"));
+                }
+                WriteBufferQuit => {
+                    self.save_buffer(self.state.active_buffer_handle);
+                    self.request_quit();
+                }
+                Quit => {
+                    self.request_quit();
                 }
             },
             Command::Editor(editor_command) => {
@@ -193,51 +212,32 @@ impl Core {
         }
     }
 
-    pub fn viewport_size(&self) -> Size {
-        self.state.viewport_size
-    }
-
-    pub fn set_viewport_size(&mut self, viewport_size: Size) {
-        self.state.viewport_size = viewport_size;
-    }
-
-    fn make_warp_drive_panel(&mut self) -> Option<WarpDrive> {
-        let ui_panel = self.render_editor();
-        let text_content = ui_panel.content;
-        let position_offset = self
-            .editors
-            .active_editor()
-            .view_top_left_position()
-            .to_offset();
-        WarpDrive::new(text_content, position_offset)
-    }
-
-    fn interpret_prompt_command(&mut self, command_str: &str) {
+    fn convert_prompt_command_to_command(
+        &self,
+        command_str: &str,
+    ) -> Option<Result<Command, String>> {
         let mut parts = command_str.split(' ');
         let command = parts.next().expect("command expected");
-        match command {
-            "" => (),
-            "q" | "quit" => self.request_quit(),
+        Some(Ok(match command {
+            "" => return None,
+            "q" | "quit" => Command::Core(CoreCommand::Quit),
             "e" | "edit" => {
-                let arg = parts.next().expect("name expected");
-                let buffer = self.get_buffer_from_filepath(arg);
-                self.edit_buffer(buffer);
+                let filename = match parts.next() {
+                    None | Some("") => return Some(Err(format!("filename expected"))),
+                    Some(s) => s.to_string(),
+                };
+                Command::Core(CoreCommand::EditFile(filename))
             }
-            "w" | "write" => {
-                self.save_buffer(self.state.active_buffer_handle);
-            }
-            "wq" | "write-quit" => {
-                self.save_buffer(self.state.active_buffer_handle);
-                self.request_quit();
-            }
-            _ => self.set_mode_line_error(&format!("unknown command: {}", command_str)),
-        }
+            "w" | "write" => Command::Core(CoreCommand::WriteBuffer),
+            "wq" | "write-quit" => Command::Core(CoreCommand::WriteBufferQuit),
+            _ => return Some(Err(format!("unknown command: {}", command_str))),
+        }))
     }
 
     fn set_mode_line_error(&mut self, error_message: impl Into<String>) {
         self.mode_line
             .set_content_override(Some(mode_line::ContentOverride {
-                text: format!("error: {}", error_message.into()),
+                text: error_message.into(),
                 style: Style {
                     foreground_color: None,
                     background_color: Some(crate::theme::colors::ERROR_DARK),
@@ -283,7 +283,12 @@ impl Core {
 
         if let Some(line) = maybe_line {
             self.mode_line.set_has_focus(false);
-            self.interpret_prompt_command(&line);
+            if let Some(convert_result) = self.convert_prompt_command_to_command(&line) {
+                match convert_result {
+                    Ok(command) => self.defer_command(command),
+                    Err(err_msg) => self.set_mode_line_error(err_msg),
+                }
+            }
         }
     }
 
@@ -291,6 +296,25 @@ impl Core {
         self.editors
             .active_editor_mut()
             .execute_command(command, &mut self.state);
+    }
+
+    pub fn viewport_size(&self) -> Size {
+        self.state.viewport_size
+    }
+
+    pub fn set_viewport_size(&mut self, viewport_size: Size) {
+        self.state.viewport_size = viewport_size;
+    }
+
+    fn make_warp_drive_panel(&mut self) -> Option<WarpDrive> {
+        let ui_panel = self.render_editor();
+        let text_content = ui_panel.content;
+        let position_offset = self
+            .editors
+            .active_editor()
+            .view_top_left_position()
+            .to_offset();
+        WarpDrive::new(text_content, position_offset)
     }
 
     fn input_warpdrive(&mut self, command: EditorCommand) -> Option<EditorCommand> {
@@ -398,6 +422,16 @@ impl Core {
         };
 
         vec![editor_mode_info, input_info, file_info]
+    }
+
+    fn defer_command(&mut self, command: Command) {
+        self.deferred_commands.push(command);
+    }
+
+    fn execute_deferred_commands(&mut self) {
+        for command in std::mem::take(&mut self.deferred_commands) {
+            self.execute_command(command);
+        }
     }
 }
 
