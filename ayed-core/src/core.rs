@@ -5,6 +5,7 @@ use crate::arena::Arena;
 use crate::buffer::TextBuffer;
 use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
+use crate::highlight::make_some_kind_of_highlights;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
 use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
@@ -38,6 +39,7 @@ impl Core {
             buffers: Buffers {
                 buffers_arena,
                 active_buffer_handle,
+                highlights: Default::default(),
             },
             editors: Editors {
                 editors_arena,
@@ -70,16 +72,14 @@ impl Core {
         };
 
         this.scripted_commands.insert(
-            "test".into(),
-            ScriptedCommand::new(|state, args| {
-                if args == "err" {
-                    Err("this is a test error".into())
-                } else {
-                    // act like the 'edit' prompt command
-                    let b = state.get_buffer_from_filepath(args);
-                    state.edit_buffer(b);
-                    Ok(())
-                }
+            "color".into(),
+            ScriptedCommand::new(|state, _args| {
+                let spans = make_some_kind_of_highlights(state.buffers.active_buffer());
+                state
+                    .buffers
+                    .highlights
+                    .insert(state.buffers.active_buffer_handle, spans);
+                Ok(())
             }),
         );
 
@@ -350,9 +350,16 @@ impl Core {
     fn render_editor(&mut self) -> UiPanel {
         let rect = self.compute_editor_rect();
         let active_editor = self.state.editors.active_editor_mut();
+        let highlights = self
+            .state
+            .buffers
+            .highlights
+            .get(&active_editor.buffer_handle())
+            .map(|v| &v[..])
+            .unwrap_or(&[]);
         let buffer = active_editor.get_buffer(&self.state.buffers.buffers_arena);
         active_editor.set_rect(rect);
-        active_editor.render(buffer)
+        active_editor.render(buffer, highlights)
     }
 
     fn render_warpdrive_panel(&mut self) -> UiPanel {
@@ -369,16 +376,16 @@ impl Core {
         Rect::new(
             0,
             0,
-            self.state.viewport_size.column,
-            self.state.viewport_size.row - 1,
+            self.viewport_size().column,
+            self.viewport_size().row.saturating_sub(1),
         )
     }
 
     fn compute_mode_line_rect(&self) -> Rect {
         Rect::new(
             0,
-            self.state.viewport_size.row.saturating_sub(1),
-            self.state.viewport_size.column,
+            self.viewport_size().row.saturating_sub(1),
+            self.viewport_size().column,
             1,
         )
     }

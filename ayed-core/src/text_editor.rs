@@ -3,7 +3,8 @@ use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
     controls::TextBufferEdit,
-    ui_state::UiPanel,
+    highlight::{Highlight, HighlightPosition},
+    ui_state::{Span, UiPanel},
     utils::Position,
     utils::Rect,
 };
@@ -59,8 +60,15 @@ impl TextEditor {
         self.inner.execute_command(command, buffer);
     }
 
-    pub fn render(&mut self, buffer: &TextBuffer) -> UiPanel {
-        self.inner.render(buffer)
+    pub fn render(&mut self, buffer: &TextBuffer, highlights: &[Highlight]) -> UiPanel {
+        let mut panel = self.inner.render(buffer);
+        panel.spans.extend(
+            highlights
+                .iter()
+                .cloned()
+                .flat_map(|h| self.convert_highlight_to_span(h)),
+        );
+        panel
     }
 
     fn check_current_mode(&mut self) {
@@ -71,5 +79,38 @@ impl TextEditor {
         }
 
         self.inner.use_alt_cursor_style = self.current_mode == "edit";
+    }
+
+    fn convert_highlight_to_span(&self, highlight: Highlight) -> Option<Span> {
+        let maybe_from_to = match highlight.position {
+            HighlightPosition::Panel { from, to } => Some((from, to)),
+            HighlightPosition::Content { from, to } => {
+                let top_left = self.view_top_left_position();
+
+                let maybe_from = if from < top_left {
+                    None
+                } else {
+                    Some(from - top_left)
+                };
+                let maybe_to = if to < top_left {
+                    None
+                } else {
+                    Some(to - top_left)
+                };
+
+                match (maybe_from, maybe_to) {
+                    (Some(from), Some(to)) => Some((from, to)),
+                    (None, Some(to)) => Some((Position::ZERO, to)),
+                    _ => None,
+                }
+            }
+        };
+
+        maybe_from_to.map(|(from, to)| Span {
+            from,
+            to,
+            style: highlight.style,
+            importance: highlight.importance,
+        })
     }
 }

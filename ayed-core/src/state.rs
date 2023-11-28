@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use crate::{
     arena::{Arena, Handle},
     buffer::TextBuffer,
+    highlight::Highlight,
     mode_line::ModeLineInfos,
     text_editor::TextEditor,
     utils::Size,
@@ -106,6 +107,7 @@ impl State {
 pub struct Buffers {
     pub buffers_arena: Arena<TextBuffer>,
     pub active_buffer_handle: Handle<TextBuffer>,
+    pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
 }
 
 impl Buffers {

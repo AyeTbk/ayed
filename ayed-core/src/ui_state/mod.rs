@@ -10,12 +10,11 @@ pub struct UiPanel {
     pub position: Position,
     pub size: Size,
     pub content: Vec<String>,
-    // NOTE I think spans are meant to be local to the panel at the moment.
-    // Currently, that's entirely determined by ayed-tui.
     pub spans: Vec<Span>,
 }
 
 impl UiPanel {
+    // TODO Also split up spans across lines correctly
     /// Modify span list so that none are overlapping.
     pub fn normalize_spans(&mut self) {
         type SpanIndex = usize;
@@ -111,6 +110,7 @@ impl UiPanel {
 
 #[derive(Debug, Default, Clone)]
 pub struct Span {
+    // Spans position are relative to the panel's top-left.
     pub from: Position,
     pub to: Position,
     pub style: Style,
