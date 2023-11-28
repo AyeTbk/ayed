@@ -81,7 +81,7 @@ impl LineEdit {
             style: Style {
                 foreground_color: None,
                 background_color: Some(crate::theme::colors::ACCENT),
-                invert: false,
+                ..Default::default()
             },
             importance: 1,
         });
@@ -93,7 +93,7 @@ impl LineEdit {
             style: Style {
                 foreground_color: None,
                 background_color: Some(crate::theme::colors::ACCENT_DARK),
-                invert: false,
+                ..Default::default()
             },
             importance: 0,
         });

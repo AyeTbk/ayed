@@ -50,7 +50,11 @@ impl TextBuffer {
             }
         } else {
             let mut this = Self::new_empty();
-            this.filepath = Some(filepath.to_owned());
+            this.filepath = if filepath.as_os_str().is_empty() {
+                None
+            } else {
+                Some(filepath.to_owned())
+            };
             this
         }
     }

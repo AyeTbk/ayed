@@ -60,7 +60,7 @@ impl ModeLine {
         let mut style = Style {
             foreground_color: Some(FG_COLOR),
             background_color: Some(BG_COLOR),
-            invert: false,
+            ..Default::default()
         };
 
         if let Some(content_override) = &self.content_override {

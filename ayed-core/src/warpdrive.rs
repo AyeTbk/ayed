@@ -53,7 +53,7 @@ impl WarpDrive {
                 style: Style {
                     foreground_color: Some(Color::rgb(100, 100, 100)),
                     background_color: Some(Color::rgb(25, 25, 25)),
-                    invert: false,
+                    ..Default::default()
                 },
                 importance: 10,
             });
@@ -84,7 +84,7 @@ impl WarpDrive {
                 style: Style {
                     foreground_color: Some(Color::rgb(200, 200, 200)),
                     background_color: Some(Color::rgb(25, 25, 25)),
-                    invert: false,
+                    ..Default::default()
                 },
                 importance: 20,
             });

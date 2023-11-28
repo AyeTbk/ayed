@@ -87,6 +87,9 @@ impl Tui {
             if span.style.invert {
                 write!(screen, "{}", crossterm::style::Attribute::Reverse).unwrap();
             }
+            if span.style.underlined {
+                write!(screen, "{}", crossterm::style::Attribute::Underlined).unwrap();
+            }
         }
 
         self.update_viewport_size_if_needed();

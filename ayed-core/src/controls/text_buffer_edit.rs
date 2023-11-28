@@ -128,7 +128,7 @@ impl TextBufferEdit {
                     style: Style {
                         foreground_color: Some(Color::rgb(155, 100, 200)),
                         background_color: None,
-                        invert: false,
+                        ..Default::default()
                     },
                     importance: !0,
                 });
@@ -552,6 +552,7 @@ impl TextBufferEdit {
                         foreground_color: cursor_color,
                         background_color: None,
                         invert: true,
+                        ..Default::default()
                     },
                     importance: 255,
                 });
@@ -588,7 +589,7 @@ impl TextBufferEdit {
                     style: Style {
                         foreground_color: Some(Color::rgb(200, 200, 200)),
                         background_color: selection_color,
-                        invert: false,
+                        ..Default::default()
                     },
                     importance: 254,
                 });

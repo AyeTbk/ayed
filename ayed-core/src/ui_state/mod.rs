@@ -122,6 +122,7 @@ pub struct Style {
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,
     pub invert: bool,
+    pub underlined: bool,
 }
 
 impl Style {

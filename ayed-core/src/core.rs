@@ -234,7 +234,7 @@ impl Core {
                 style: Style {
                     foreground_color: None,
                     background_color: Some(crate::theme::colors::ERROR_DARK),
-                    invert: false,
+                    ..Default::default()
                 },
             }));
     }
@@ -246,7 +246,7 @@ impl Core {
                 style: Style {
                     foreground_color: Some(mode_line::FG_COLOR),
                     background_color: Some(mode_line::BG_COLOR),
-                    invert: false,
+                    ..Default::default()
                 },
             }));
     }
