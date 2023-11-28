@@ -21,7 +21,6 @@ pub struct Core {
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
     combo_panel: Option<ComboPanel>,
-    quit: bool,
     last_input: Input,
     deferred_commands: Vec<Command>,
     scripted_commands: HashMap<String, ScriptedCommand>,
@@ -50,6 +49,8 @@ impl Core {
             active_combo_mode_name: None,
             active_editor_name: "text".to_string(),
             active_mode_name: "command".to_string(),
+            //
+            quit: false,
         };
 
         let mode_line = ModeLine::new();
@@ -60,7 +61,6 @@ impl Core {
             mode_line,
             warpdrive: None,
             combo_panel: None,
-            quit: false,
             last_input: Input {
                 key: Key::Char('\0'),
                 modifiers: Modifiers::default(),
@@ -88,11 +88,7 @@ impl Core {
     }
 
     pub fn is_quit(&self) -> bool {
-        self.quit
-    }
-
-    pub fn request_quit(&mut self) {
-        self.quit = true;
+        self.state.quit
     }
 
     pub fn state_mut(&mut self) -> &mut State {
@@ -159,10 +155,10 @@ impl Core {
                 }
                 WriteBufferQuit => {
                     self.state.save_buffer(self.state.active_buffer_handle());
-                    self.request_quit();
+                    self.state.request_quit();
                 }
                 Quit => {
-                    self.request_quit();
+                    self.state.request_quit();
                 }
             },
             Command::Editor(editor_command) => {

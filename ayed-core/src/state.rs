@@ -17,6 +17,8 @@ pub struct State {
     pub active_combo_mode_name: Option<String>,
     pub active_editor_name: String,
     pub active_mode_name: String,
+    //
+    pub quit: bool,
 }
 
 impl State {
@@ -94,6 +96,10 @@ impl State {
     pub fn set_active_editor_mode(&mut self, mode: String) {
         self.active_mode_name = mode.clone();
         self.editors.active_editor_mut().set_mode(mode);
+    }
+
+    pub fn request_quit(&mut self) {
+        self.quit = true;
     }
 }
 
