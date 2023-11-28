@@ -36,11 +36,7 @@ impl WarpDrive {
         }
     }
 
-    pub fn execute_command(
-        &mut self,
-        command: EditorCommand,
-        _state: &mut State,
-    ) -> Option<EditorCommand> {
+    pub fn execute_command(&mut self, command: EditorCommand) -> Option<EditorCommand> {
         self.execute_command_inner(command)
     }
 

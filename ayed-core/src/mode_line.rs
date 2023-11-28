@@ -44,16 +44,16 @@ impl ModeLine {
         self.has_focus = has_focus;
     }
 
-    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) -> Option<String> {
+    pub fn execute_command(&mut self, command: EditorCommand) -> Option<String> {
         self.line_edit.set_rect(self.rect);
-        self.line_edit.execute_command(command, state)
+        self.line_edit.execute_command(command)
     }
 
     pub fn render(&mut self, state: &State) -> UiPanel {
         if self.has_focus() {
             // TODO unify this with the rest maybe idk figure it out
             self.line_edit.set_rect(self.rect);
-            return self.line_edit.render(state);
+            return self.line_edit.render();
         }
 
         let mut line_builder = LineBuilder::new_with_length(self.rect.width as _);

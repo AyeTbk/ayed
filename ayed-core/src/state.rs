@@ -1,14 +1,16 @@
+use std::path::Path;
+
 use crate::{
     arena::{Arena, Handle},
     buffer::TextBuffer,
     mode_line::ModeLineInfos,
+    text_editor::TextEditor,
     utils::Size,
 };
 
-#[derive(Debug)]
 pub struct State {
-    pub buffers: Arena<TextBuffer>,
-    pub active_buffer_handle: Handle<TextBuffer>,
+    pub buffers: Buffers,
+    pub editors: Editors,
     pub viewport_size: Size,
     pub mode_line_infos: ModeLineInfos,
     //
@@ -18,22 +20,109 @@ pub struct State {
 }
 
 impl State {
+    // FIXME The active buffer should be determined by the active editor. The
+    // active_buffer_handle field should be removed.
+    pub fn active_buffer_handle(&self) -> Handle<TextBuffer> {
+        self.buffers.active_buffer_handle
+    }
+
+    pub fn create_scratch_buffer(&mut self) -> Handle<TextBuffer> {
+        self.buffers.buffers_arena.allocate(TextBuffer::new_empty())
+    }
+
+    pub fn get_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
+        let path = path.as_ref();
+
+        let alreay_opened_buffer = self
+            .buffers
+            .buffers_arena
+            .elements()
+            .find_map(|(hnd, buf)| {
+                if let Some(f) = buf.filepath() {
+                    if f == path {
+                        Some(hnd)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            });
+
+        if let Some(buffer) = alreay_opened_buffer {
+            buffer
+        } else {
+            self.buffers
+                .buffers_arena
+                .allocate(TextBuffer::from_filepath(path.as_ref()))
+        }
+    }
+
+    pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
+        let maybe_preexisting_editor =
+            self.editors.editors_arena.elements().find_map(|(hnd, ed)| {
+                if ed.buffer_handle() == buffer {
+                    Some(hnd)
+                } else {
+                    None
+                }
+            });
+
+        let editor = if let Some(preexisting_editor) = maybe_preexisting_editor {
+            preexisting_editor
+        } else {
+            self.editors.editors_arena.allocate(TextEditor::new(buffer))
+        };
+
+        self.set_active_editor(editor);
+    }
+
+    pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
+        self.buffers.buffers_arena.get(buffer).save().unwrap();
+    }
+
+    pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {
+        self.editors.active_editor_handle = editor;
+
+        let active_buffer = self.editors.active_editor().buffer_handle();
+        let active_editor_mode = self.editors.active_editor().mode();
+
+        self.buffers.active_buffer_handle = active_buffer;
+        self.active_mode_name = active_editor_mode.to_owned();
+    }
+
+    pub fn set_active_editor_mode(&mut self, mode: String) {
+        self.active_mode_name = mode.clone();
+        self.editors.active_editor_mut().set_mode(mode);
+    }
+}
+
+pub struct Buffers {
+    pub buffers_arena: Arena<TextBuffer>,
+    pub active_buffer_handle: Handle<TextBuffer>,
+}
+
+impl Buffers {
     pub fn active_buffer(&self) -> &TextBuffer {
-        self.buffers.get(self.active_buffer_handle)
+        self.buffers_arena.get(self.active_buffer_handle)
     }
 
     pub fn active_buffer_mut(&mut self) -> &mut TextBuffer {
-        self.buffers.get_mut(self.active_buffer_handle)
+        self.buffers_arena.get_mut(self.active_buffer_handle)
+    }
+}
+
+pub struct Editors {
+    pub editors_arena: Arena<TextEditor>,
+    pub active_editor_handle: Handle<TextEditor>,
+}
+
+impl Editors {
+    pub fn active_editor(&self) -> &TextEditor {
+        self.editors_arena.get(self.active_editor_handle)
     }
 
-    pub fn dummy_clone(&self) -> Self {
-        Self {
-            buffers: Default::default(),
-            mode_line_infos: Default::default(),
-            active_combo_mode_name: Default::default(),
-            active_editor_name: Default::default(),
-            active_mode_name: Default::default(),
-            ..*self // FIXME this is really bad, the buffer_handle is copied but the new State doesnt have any buffer
-        }
+    pub fn active_editor_mut(&mut self) -> &mut TextEditor {
+        self.editors_arena.get_mut(self.active_editor_handle)
     }
 }

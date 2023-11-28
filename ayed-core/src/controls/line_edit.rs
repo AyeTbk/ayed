@@ -1,7 +1,6 @@
 use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
-    state::State,
     ui_state::{Span, Style, UiPanel},
     utils::{Position, Rect},
 };
@@ -40,7 +39,7 @@ impl LineEdit {
         &self.buffer_string
     }
 
-    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) -> Option<String> {
+    pub fn execute_command(&mut self, command: EditorCommand) -> Option<String> {
         match command {
             EditorCommand::Insert('\n') => {
                 let mut line = String::new();
@@ -49,8 +48,7 @@ impl LineEdit {
                 return Some(line);
             }
             _ => {
-                self.editor
-                    .execute_command(command, &mut self.buffer, state);
+                self.editor.execute_command(command, &mut self.buffer);
 
                 self.buffer
                     .copy_line(0, &mut self.buffer_string)
@@ -61,8 +59,8 @@ impl LineEdit {
         None
     }
 
-    pub fn render(&mut self, state: &State) -> UiPanel {
-        let mut editor_panel = self.editor.render(&self.buffer, state);
+    pub fn render(&mut self) -> UiPanel {
+        let mut editor_panel = self.editor.render(&self.buffer);
 
         editor_panel.position = self.rect().top_left();
         editor_panel.size = self.rect().size();

@@ -1,6 +1,11 @@
 use crate::{
-    arena::Handle, buffer::TextBuffer, command::EditorCommand, controls::TextBufferEdit,
-    state::State, ui_state::UiPanel, utils::Position, utils::Rect,
+    arena::{Arena, Handle},
+    buffer::TextBuffer,
+    command::EditorCommand,
+    controls::TextBufferEdit,
+    ui_state::UiPanel,
+    utils::Position,
+    utils::Rect,
 };
 
 pub struct TextEditor {
@@ -24,8 +29,16 @@ impl TextEditor {
         self.inner.set_rect(rect);
     }
 
-    pub fn buffer(&self) -> Handle<TextBuffer> {
+    pub fn buffer_handle(&self) -> Handle<TextBuffer> {
         self.buffer
+    }
+
+    pub fn get_buffer<'a>(&self, buffers: &'a Arena<TextBuffer>) -> &'a TextBuffer {
+        buffers.get(self.buffer)
+    }
+
+    pub fn get_buffer_mut<'a>(&self, buffers: &'a mut Arena<TextBuffer>) -> &'a mut TextBuffer {
+        buffers.get_mut(self.buffer)
     }
 
     pub fn mode(&self) -> &str {
@@ -40,23 +53,14 @@ impl TextEditor {
         self.inner.view_top_left_position()
     }
 
-    pub fn execute_command(&mut self, command: EditorCommand, state: &mut State) {
-        let mut fake_state = state.dummy_clone();
-        // NOTE the fake_state only exists because I want to pass both the active buffer and
-        // the whole state separately, which runs afoul of the borrow checker. The reason I
-        // pass the buffer separately is purely for the LineEdit control, which reuses
-        // TextEditor internally.
-        // TODO Refactor all of this in a satisfactory manner.
-        let buffer = state.buffers.get_mut(self.buffer);
-
+    pub fn execute_command(&mut self, command: EditorCommand, buffer: &mut TextBuffer) {
         self.check_current_mode();
 
-        self.inner.execute_command(command, buffer, &mut fake_state);
+        self.inner.execute_command(command, buffer);
     }
 
-    pub fn render(&mut self, state: &State) -> UiPanel {
-        let buffer = state.buffers.get(self.buffer);
-        self.inner.render(buffer, state)
+    pub fn render(&mut self, buffer: &TextBuffer) -> UiPanel {
+        self.inner.render(buffer)
     }
 
     fn check_current_mode(&mut self) {

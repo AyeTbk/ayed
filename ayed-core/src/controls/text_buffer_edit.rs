@@ -2,7 +2,6 @@ use crate::{
     buffer::TextBuffer,
     command::EditorCommand,
     selection::{DeletedEditInfo, EditInfo, Selection, Selections},
-    state::State,
     ui_state::{Color, Span, Style, UiPanel},
     utils::{Position, Rect},
 };
@@ -40,12 +39,7 @@ impl TextBufferEdit {
         self.view_top_left_position
     }
 
-    pub fn execute_command(
-        &mut self,
-        command: EditorCommand,
-        buffer: &mut TextBuffer,
-        state: &mut State,
-    ) {
+    pub fn execute_command(&mut self, command: EditorCommand, buffer: &mut TextBuffer) {
         use EditorCommand::*;
         match command {
             Noop => (),
@@ -90,10 +84,10 @@ impl TextBufferEdit {
 
         self.normalize_selections();
 
-        self.adjust_viewport_to_primary_selection(state);
+        self.adjust_viewport_to_primary_selection();
     }
 
-    pub fn render(&mut self, buffer: &TextBuffer, state: &State) -> UiPanel {
+    pub fn render(&mut self, buffer: &TextBuffer) -> UiPanel {
         let viewport_size = self.rect.size();
 
         if viewport_size.column == 0 || viewport_size.row == 0 {
@@ -105,7 +99,7 @@ impl TextBufferEdit {
             };
         }
 
-        self.adjust_viewport_to_primary_selection(state); // this is here to keep the cursor in view when resizing the window
+        self.adjust_viewport_to_primary_selection(); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
         let start_line_index = self.view_top_left_position.row;
@@ -602,7 +596,7 @@ impl TextBufferEdit {
         }
     }
 
-    fn adjust_viewport_to_primary_selection(&mut self, _state: &State) {
+    fn adjust_viewport_to_primary_selection(&mut self) {
         let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
         let vp_start_x = self.view_top_left_position.column;

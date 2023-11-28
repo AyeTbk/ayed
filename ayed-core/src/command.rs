@@ -4,6 +4,7 @@ use crate::utils::Position;
 pub enum Command {
     Core(CoreCommand),
     Editor(EditorCommand),
+    ScriptedCommand(String),
 }
 
 impl From<CoreCommand> for Command {

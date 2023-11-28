@@ -1,13 +1,15 @@
+use std::collections::HashMap;
 use std::path::Path;
 
-use crate::arena::{Arena, Handle};
+use crate::arena::Arena;
 use crate::buffer::TextBuffer;
 use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
 use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
-use crate::state::State;
+use crate::scripted_command::ScriptedCommand;
+use crate::state::{Buffers, Editors, State};
 use crate::text_editor::TextEditor;
 use crate::ui_state::{Color, Style, UiPanel, UiState};
 use crate::utils::{Rect, Size};
@@ -16,26 +18,32 @@ use crate::warpdrive::WarpDrive;
 pub struct Core {
     state: State,
     input_manager: InputManager,
-    editors: Editors,
     mode_line: ModeLine,
     warpdrive: Option<WarpDrive>,
     combo_panel: Option<ComboPanel>,
     quit: bool,
     last_input: Input,
     deferred_commands: Vec<Command>,
+    scripted_commands: HashMap<String, ScriptedCommand>,
 }
 
 impl Core {
     pub fn new() -> Self {
-        let mut buffers = Arena::new();
-        let buffer = buffers.allocate(TextBuffer::new_empty());
+        let mut buffers_arena = Arena::new();
+        let active_buffer_handle = buffers_arena.allocate(TextBuffer::new_empty());
 
         let mut editors_arena = Arena::new();
-        let active_editor = editors_arena.allocate(TextEditor::new(buffer));
+        let active_editor_handle = editors_arena.allocate(TextEditor::new(active_buffer_handle));
 
         let state = State {
-            buffers,
-            active_buffer_handle: buffer,
+            buffers: Buffers {
+                buffers_arena,
+                active_buffer_handle,
+            },
+            editors: Editors {
+                editors_arena,
+                active_editor_handle,
+            },
             viewport_size: (80, 25).into(),
             mode_line_infos: Default::default(),
             //
@@ -49,10 +57,6 @@ impl Core {
         let mut this = Self {
             state,
             input_manager: initialize_input_manager(),
-            editors: Editors {
-                editors: editors_arena,
-                active_editor,
-            },
             mode_line,
             warpdrive: None,
             combo_panel: None,
@@ -62,8 +66,24 @@ impl Core {
                 modifiers: Modifiers::default(),
             },
             deferred_commands: Default::default(),
+            scripted_commands: Default::default(),
         };
-        this.set_active_editor(active_editor);
+
+        this.scripted_commands.insert(
+            "test".into(),
+            ScriptedCommand::new(|state, args| {
+                if args == "err" {
+                    Err("this is a test error".into())
+                } else {
+                    // act like the 'edit' prompt command
+                    let b = state.get_buffer_from_filepath(args);
+                    state.edit_buffer(b);
+                    Ok(())
+                }
+            }),
+        );
+
+        this.state.set_active_editor(active_editor_handle);
         this
     }
 
@@ -75,64 +95,8 @@ impl Core {
         self.quit = true;
     }
 
-    pub fn get_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
-        let path = path.as_ref();
-
-        let alreay_opened_buffer = self.state.buffers.elements().find_map(|(hnd, buf)| {
-            if let Some(f) = buf.filepath() {
-                if f == path {
-                    Some(hnd)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-
-        if let Some(buffer) = alreay_opened_buffer {
-            buffer
-        } else {
-            self.state
-                .buffers
-                .allocate(TextBuffer::from_filepath(path.as_ref()))
-        }
-    }
-
-    pub fn create_scratch_buffer(&mut self) -> Handle<TextBuffer> {
-        self.state.buffers.allocate(TextBuffer::new_empty())
-    }
-
-    pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {
-        self.editors.active_editor = editor;
-
-        let active_buffer = self.editors.active_editor().buffer();
-        let active_editor_mode = self.editors.active_editor().mode();
-
-        self.state.active_buffer_handle = active_buffer;
-        self.state.active_mode_name = active_editor_mode.to_owned();
-    }
-
-    pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        let maybe_preexisting_editor = self.editors.editors.elements().find_map(|(hnd, ed)| {
-            if ed.buffer() == buffer {
-                Some(hnd)
-            } else {
-                None
-            }
-        });
-
-        let editor = if let Some(preexisting_editor) = maybe_preexisting_editor {
-            preexisting_editor
-        } else {
-            self.editors.editors.allocate(TextEditor::new(buffer))
-        };
-
-        self.set_active_editor(editor);
-    }
-
-    pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        self.state.buffers.get(buffer).save().unwrap();
+    pub fn state_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 
     pub fn input(&mut self, input: Input) {
@@ -168,9 +132,8 @@ impl Core {
                     self.warpdrive = self.make_warp_drive_panel();
                 }
                 SetEditorMode(mode) => {
-                    self.state.active_mode_name = mode.clone();
-                    self.editors.active_editor_mut().set_mode(mode);
-                    self.execute_command_in_editor(EditorCommand::Noop);
+                    self.state.set_active_editor_mode(mode);
+                    self.execute_command_in_editor(EditorCommand::Noop); // NOTE I think this is to force an immediate update?
                 }
                 SetComboMode(mode) => {
                     if !self.input_manager.combo_mapping(&mode).is_empty() {
@@ -180,22 +143,22 @@ impl Core {
                     }
                 }
                 EditFile(filepath) => {
-                    let buffer = self.get_buffer_from_filepath(filepath);
-                    self.edit_buffer(buffer);
+                    let buffer = self.state.get_buffer_from_filepath(filepath);
+                    self.state.edit_buffer(buffer);
                 }
                 WriteBuffer => {
-                    self.save_buffer(self.state.active_buffer_handle);
+                    self.state.save_buffer(self.state.active_buffer_handle());
                     let path = self
                         .state
                         .buffers
-                        .get(self.state.active_buffer_handle)
+                        .active_buffer()
                         .filepath()
                         .map(Path::to_string_lossy)
                         .unwrap_or_default();
                     self.set_mode_line_message(format!("saved as {path}"));
                 }
                 WriteBufferQuit => {
-                    self.save_buffer(self.state.active_buffer_handle);
+                    self.state.save_buffer(self.state.active_buffer_handle());
                     self.request_quit();
                 }
                 Quit => {
@@ -211,6 +174,19 @@ impl Core {
                     }
                 } else {
                     self.execute_command_in_editor(editor_command)
+                }
+            }
+            Command::ScriptedCommand(scripted_command) => {
+                let (name, args) = scripted_command
+                    .split_once(' ')
+                    .unwrap_or((scripted_command.as_str(), ""));
+                if let Some(sc) = self.scripted_commands.get_mut(name) {
+                    match sc.call(&mut self.state, args) {
+                        Ok(()) => (),
+                        Err(err_msg) => self.set_mode_line_error(format!("{name}: {err_msg}")),
+                    }
+                } else {
+                    self.set_mode_line_error(format!("unknown scripted command: {name}"));
                 }
             }
         }
@@ -234,6 +210,19 @@ impl Core {
             }
             "w" | "write" => Command::Core(CoreCommand::WriteBuffer),
             "wq" | "write-quit" => Command::Core(CoreCommand::WriteBufferQuit),
+            "rsc" => {
+                // DEBUG Run Scripted Command
+                // this is temporary. If you see this and it looks useless, delete it
+                // Could all prompt commands just be scripted commands?
+                let mut cmd_string = String::new();
+                for (i, part) in parts.enumerate() {
+                    if i != 0 {
+                        cmd_string.push(' ');
+                    }
+                    cmd_string.push_str(part);
+                }
+                Command::ScriptedCommand(cmd_string)
+            }
             _ => return Some(Err(format!("unknown command: {}", command_str))),
         }))
     }
@@ -283,7 +272,7 @@ impl Core {
     }
 
     fn input_mode_line(&mut self, command: EditorCommand) {
-        let maybe_line = self.mode_line.execute_command(command, &mut self.state);
+        let maybe_line = self.mode_line.execute_command(command);
 
         if let Some(line) = maybe_line {
             self.mode_line.set_has_focus(false);
@@ -297,9 +286,9 @@ impl Core {
     }
 
     fn execute_command_in_editor(&mut self, command: EditorCommand) {
-        self.editors
-            .active_editor_mut()
-            .execute_command(command, &mut self.state);
+        let editor = self.state.editors.active_editor_mut();
+        let buffer = editor.get_buffer_mut(&mut self.state.buffers.buffers_arena);
+        editor.execute_command(command, buffer);
     }
 
     pub fn viewport_size(&self) -> Size {
@@ -314,6 +303,7 @@ impl Core {
         let ui_panel = self.render_editor();
         let text_content = ui_panel.content;
         let position_offset = self
+            .state
             .editors
             .active_editor()
             .view_top_left_position()
@@ -329,7 +319,7 @@ impl Core {
         };
 
         let mut maybe_cmd = None;
-        if let Some(cmd) = wdp.execute_command(command, &mut self.state) {
+        if let Some(cmd) = wdp.execute_command(command) {
             maybe_cmd = Some(cmd);
         }
         if maybe_cmd.is_some() {
@@ -363,9 +353,10 @@ impl Core {
 
     fn render_editor(&mut self) -> UiPanel {
         let rect = self.compute_editor_rect();
-        self.editors.active_editor_mut().set_rect(rect);
-
-        self.editors.active_editor_mut().render(&self.state)
+        let active_editor = self.state.editors.active_editor_mut();
+        let buffer = active_editor.get_buffer(&self.state.buffers.buffers_arena);
+        active_editor.set_rect(rect);
+        active_editor.render(buffer)
     }
 
     fn render_warpdrive_panel(&mut self) -> UiPanel {
@@ -397,7 +388,7 @@ impl Core {
     }
 
     fn mode_line_infos(&mut self) -> Vec<ModeLineInfo> {
-        let filepath_text = if let Some(path) = self.state.active_buffer().filepath() {
+        let filepath_text = if let Some(path) = self.state.buffers.active_buffer().filepath() {
             path.to_string_lossy().into_owned()
         } else {
             "*scratch*".to_string()
@@ -436,20 +427,5 @@ impl Core {
         for command in std::mem::take(&mut self.deferred_commands) {
             self.execute_command(command);
         }
-    }
-}
-
-struct Editors {
-    editors: Arena<TextEditor>,
-    active_editor: Handle<TextEditor>, // Maybe this should be optional
-}
-
-impl Editors {
-    pub fn active_editor(&self) -> &TextEditor {
-        self.editors.get(self.active_editor)
-    }
-
-    pub fn active_editor_mut(&mut self) -> &mut TextEditor {
-        self.editors.get_mut(self.active_editor)
     }
 }

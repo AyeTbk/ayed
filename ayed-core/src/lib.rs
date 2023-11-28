@@ -3,9 +3,12 @@ pub mod buffer;
 pub mod command;
 pub mod controls;
 pub mod core;
+pub mod scripted_command;
+
 pub mod input;
 mod input_manager;
 mod input_mapper;
+
 mod selection;
 pub mod state;
 pub mod ui_state;
