@@ -173,7 +173,11 @@ impl Core {
                     self.execute_command_in_editor(EditorCommand::Noop);
                 }
                 SetComboMode(mode) => {
-                    self.set_combo_mode(Some(mode));
+                    if !self.input_manager.combo_mapping(&mode).is_empty() {
+                        self.set_combo_mode(Some(mode));
+                    } else {
+                        self.set_mode_line_error(format!("combo mode '{mode}' is empty"));
+                    }
                 }
                 EditFile(filepath) => {
                     let buffer = self.get_buffer_from_filepath(filepath);

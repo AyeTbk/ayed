@@ -31,7 +31,7 @@ impl InputManager {
             combo_mapper
                 .ordered_inputs()
                 .into_iter()
-                .map(|input| (input, "description pending".into()))
+                .map(|(input, desc)| (input, desc.unwrap_or_default()))
                 .collect()
         } else {
             Vec::new()
@@ -226,11 +226,14 @@ pub fn initialize_input_manager() -> InputManager {
     // Combos
     manager.combo_mappers.insert("user".into(), {
         let mut im = InputMapper::new();
-        im.register("s", WriteBuffer).unwrap();
-        im.register("f", SetComboMode("file".into())).unwrap();
-        im.register("e", Noop).unwrap();
-        im.register("<s-e>", Noop).unwrap();
-        im.register(
+        im.register_with_description("s", WriteBuffer, "save buffer")
+            .unwrap();
+        im.register_with_description("f", SetComboMode("file".into()), "file commands")
+            .unwrap();
+        im.register_with_description("e", Noop, "nothing").unwrap();
+        im.register_with_description("<s-e>", Noop, "also nothing")
+            .unwrap();
+        im.register_with_description(
             "c",
             [
                 MoveCursorToLineStartSmart,
@@ -238,13 +241,15 @@ pub fn initialize_input_manager() -> InputManager {
                 Insert('/'),
                 Insert(' '),
             ],
+            "janky comment line",
         )
         .unwrap();
         im
     });
     manager.combo_mappers.insert("file".into(), {
         let mut im = InputMapper::new();
-        im.register("s", Noop).unwrap();
+        im.register_with_description("s", Noop, "does nothing")
+            .unwrap();
         im
     });
 

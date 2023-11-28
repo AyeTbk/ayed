@@ -54,30 +54,44 @@ impl GridStringBuilder {
             .columns()
             .map(|column| {
                 column
-                    .map(|(_, cell)| cell.content.chars().count())
+                    .map(|(id, cell)| {
+                        if self.is_cell_end_of_its_span(id) {
+                            cell.content.chars().count()
+                        } else {
+                            0
+                        }
+                    })
                     .max()
                     .unwrap_or(0)
             })
             .collect();
         let grid_char_width: usize = column_char_widths.iter().sum();
 
+        let column_data = column_char_widths
+            .iter()
+            .enumerate()
+            .map(|(x, column_width)| {
+                let start_column: usize = column_char_widths
+                    .iter()
+                    .enumerate()
+                    .take_while(|(i, _)| *i < x)
+                    .map(|(_, width)| width)
+                    .sum();
+                (x, start_column, *column_width)
+            });
+
         let mut grid = vec![String::new(); grid_char_height];
         for (y, buf) in grid.iter_mut().enumerate() {
-            for (x, &column_char_width) in column_char_widths.iter().enumerate() {
+            for (x, column_start, column_width) in column_data.clone() {
                 let id: CellId = (x as _, y as _).into();
-                let padding_len = if let Some((actual_id, cell)) = self.cell_and_id(id) {
+                if let Some((actual_id, cell)) = self.cell_and_id(id) {
                     if id == actual_id {
                         buf.push_str(&cell.content);
-                        let padding_len =
-                            column_char_width.saturating_sub(cell.content.chars().count());
-                        padding_len
-                    } else {
-                        column_char_width
                     }
-                } else {
-                    column_char_width
-                };
+                }
 
+                let column_end = column_start + column_width;
+                let padding_len = column_end.saturating_sub(buf.chars().count());
                 for _ in 0..padding_len {
                     buf.push(' ');
                 }
@@ -87,12 +101,20 @@ impl GridStringBuilder {
     }
 
     fn get_span_aware_cell_id(&self, id: CellId) -> CellId {
+        self.get_cell_span(id).0
+    }
+
+    fn get_cell_span(&self, id: CellId) -> (CellId, CellId) {
         for (from, to) in &self.spans {
             if (from.x <= id.x && id.x <= to.x) && (from.y <= id.y && id.y <= to.y) {
-                return *from;
+                return (*from, *to);
             }
         }
-        id
+        (id, id)
+    }
+
+    fn is_cell_end_of_its_span(&self, id: CellId) -> bool {
+        self.get_cell_span(id).1 == id
     }
 }
 
