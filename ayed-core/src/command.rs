@@ -53,10 +53,10 @@ pub enum EditorCommand {
     MoveCursorTo(u32, u32), // FIXME use Position instead of two u32
     SetSelection { cursor: Position, anchor: Position },
 
-    MoveCursorToLineStart,
+    MoveCursorToLineStart,      // Go to column 0 of current line.
     MoveCursorToLineStartSmart, // Flip flop between line start and first non white char.
-    MoveCursorToLineEnd,
-    MoveCursorToLineEndSmart, // Flip flop between line end and last char of line.
+    MoveCursorToLineEnd,        // Go to last column of current line.
+    MoveCursorToLineEndSmart,   // Flip flop between line end and last char of line.
 
     DismissSecondarySelections,
     ShrinkSelectionToCursor,

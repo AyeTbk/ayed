@@ -226,9 +226,19 @@ pub fn initialize_input_manager() -> InputManager {
     manager.combo_mappers.insert("user".into(), {
         let mut im = InputMapper::new();
         im.register("s", WriteBuffer).unwrap();
-        im.register("f", Noop).unwrap();
+        im.register("f", SetComboMode("file".into())).unwrap();
         im.register("e", Noop).unwrap();
         im.register("<s-e>", Noop).unwrap();
+        im.register(
+            "c",
+            [
+                MoveCursorToLineStartSmart,
+                Insert('/'),
+                Insert('/'),
+                Insert(' '),
+            ],
+        )
+        .unwrap();
         im
     });
     manager.combo_mappers.insert("file".into(), {
