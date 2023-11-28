@@ -10,6 +10,8 @@ use crate::{
 pub struct InputMapper {
     do_char_insert: bool,
     mapping: HashMap<Input, MappedCommand>,
+    insert_order: HashMap<Input, u32>,
+    insert_count: u32,
 }
 
 impl InputMapper {
@@ -17,6 +19,8 @@ impl InputMapper {
         Self {
             do_char_insert: false,
             mapping: Default::default(),
+            insert_order: Default::default(),
+            insert_count: 0,
         }
     }
 
@@ -31,7 +35,11 @@ impl InputMapper {
     }
 
     pub fn register_input(&mut self, input: Input, command: impl Into<MappedCommand>) {
-        self.mapping.insert(input.normalized(), command.into());
+        let normalized_input = input.normalized();
+        self.mapping.insert(normalized_input, command.into());
+        self.insert_order
+            .insert(normalized_input, self.insert_count);
+        self.insert_count += 1;
     }
 
     pub fn convert_input(&self, input: Input, _state: &State) -> Vec<Command> {
@@ -48,8 +56,10 @@ impl InputMapper {
         commands
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Input> + '_ {
-        self.mapping.iter().map(|(k, _)| *k)
+    pub fn ordered_inputs(&self) -> Vec<Input> {
+        let mut inputs = self.mapping.keys().copied().collect::<Vec<_>>();
+        inputs.sort_by_key(|input| self.insert_order.get(input).copied().unwrap_or(u32::MAX));
+        inputs
     }
 }
 

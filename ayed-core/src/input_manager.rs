@@ -29,7 +29,8 @@ impl InputManager {
     pub fn combo_mapping(&self, combo: &str) -> Vec<(Input, String)> {
         if let Some(combo_mapper) = self.combo_mappers.get(combo) {
             combo_mapper
-                .iter()
+                .ordered_inputs()
+                .into_iter()
                 .map(|input| (input, "description pending".into()))
                 .collect()
         } else {
