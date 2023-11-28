@@ -64,7 +64,6 @@ impl TextBufferEdit {
             MoveCursorLeft => self.move_cursor_horizontally(-1, buffer, self.anchored()),
             MoveCursorRight => self.move_cursor_horizontally(1, buffer, self.anchored()),
             //
-            MoveCursorTo(_, _) => todo!(),
             SetSelection { cursor, anchor } => {
                 let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
                 self.selections = Selections::new_with(selection, &[]);

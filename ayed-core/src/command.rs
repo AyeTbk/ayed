@@ -50,7 +50,6 @@ pub enum EditorCommand {
     MoveCursorLeft,
     MoveCursorRight,
 
-    MoveCursorTo(u32, u32), // FIXME use Position instead of two u32
     SetSelection { cursor: Position, anchor: Position },
 
     MoveCursorToLineStart,      // Go to column 0 of current line.
