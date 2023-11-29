@@ -25,8 +25,8 @@ impl Default for HighlightPosition {
 pub fn make_some_kind_of_highlights(_buffer: &TextBuffer) -> Vec<Highlight> {
     vec![Highlight {
         position: HighlightPosition::Content {
-            from: Position::ZERO.offset((0, 5)),
-            to: Position::ZERO.offset((5, 6)),
+            from: Position::ZERO.offset((3, 5)),
+            to: Position::ZERO.offset((5, 5)),
         },
         style: Style {
             underlined: true,

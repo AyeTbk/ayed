@@ -464,6 +464,8 @@ impl TextBufferEdit {
         self.selections.iter().copied()
     }
 
+    // TODO make this about highlights??? to allow rendering highlights across lines
+    // without highlighting past the end of lines.
     fn selections_split_by_lines<'a>(
         &'a self,
         buffer: &'a TextBuffer,

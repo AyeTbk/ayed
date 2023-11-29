@@ -17,6 +17,46 @@ impl UiPanel {
     // TODO Also split up spans across lines correctly
     /// Modify span list so that none are overlapping.
     pub fn normalize_spans(&mut self) {
+        self.split_spans_over_lines();
+        self.split_overlapping_spans();
+        // self.merge_contiguous_compatible_spans(); potential TODO?
+        self.make_spans_nonoverlapping();
+    }
+
+    fn split_spans_over_lines(&mut self) {
+        // NOTE also look at TextBufferEdit::selections_split_by_lines
+        let spans = std::mem::take(&mut self.spans);
+        self.spans = spans
+            .into_iter()
+            .flat_map(|span| {
+                (span.from.row..=span.to.row).map(move |row| {
+                    let from_column = if row == span.from.row {
+                        span.from.column
+                    } else {
+                        0
+                    };
+                    let to_column = if row == span.to.row {
+                        span.to.column
+                    } else {
+                        u32::MAX
+                    };
+
+                    Span {
+                        from: (from_column, row).into(),
+                        to: (to_column, row).into(),
+                        ..span
+                    }
+                })
+            })
+            .collect();
+    }
+
+    fn split_overlapping_spans(&mut self) {
+        // TODO this to replace Self::make_spans_nonoverlapping?
+        // Self::make_spans_nonoverlapping doesnt work right right now.
+    }
+
+    fn make_spans_nonoverlapping(&mut self) {
         type SpanIndex = usize;
 
         let spans = std::mem::take(&mut self.spans);
@@ -71,8 +111,8 @@ impl UiPanel {
             non_overlapping_merged_subspans_by_position
         };
 
-        // Extract normalized spans
-        let mut normalized_spans = Vec::new();
+        // Extract nonoverlapping spans
+        let mut nonoverlapping_spans = Vec::new();
         let subspan_start = non_overlapping_subspans_by_position.iter();
         let subspan_end = non_overlapping_subspans_by_position
             .iter()
@@ -87,7 +127,7 @@ impl UiPanel {
                 continue;
             };
             let span = &spans[span_idx];
-            normalized_spans.push(Span {
+            nonoverlapping_spans.push(Span {
                 from: start,
                 to: end,
                 style: span.style,
@@ -95,7 +135,7 @@ impl UiPanel {
             });
         }
 
-        self.spans = normalized_spans;
+        self.spans = nonoverlapping_spans;
     }
 
     pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &Span> {

@@ -113,10 +113,10 @@ impl Tui {
 
                 cleanup_span_style(&mut self.screen);
 
-                let panel_row = y - panel.position.row; // NOTE this line makes this shit local to panel position
+                let panel_row = y - panel.position.row; // NOTE this line makes the row local to panel position
                 let mut char_str = String::new();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
-                    let panel_column = x - panel.position.column; // NOTE this line makes this shit local to panel position
+                    let panel_column = x - panel.position.column; // NOTE this line makes the column local to panel position
                     if let Some(span) = panel
                         .spans_on_line(panel_row)
                         .filter(|span| span.from.column == panel_column)
