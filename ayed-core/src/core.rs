@@ -73,8 +73,8 @@ impl Core {
 
         this.scripted_commands.insert(
             "color".into(),
-            ScriptedCommand::new(|state, _args| {
-                let spans = make_some_kind_of_highlights(state.buffers.active_buffer());
+            ScriptedCommand::new(|state, args| {
+                let spans = make_some_kind_of_highlights(state.buffers.active_buffer(), args);
                 state
                     .buffers
                     .highlights
