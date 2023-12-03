@@ -1,6 +1,7 @@
 pub mod arena;
 pub mod buffer;
 pub mod command;
+pub mod config;
 pub mod controls;
 pub mod core;
 pub mod scripted_command;

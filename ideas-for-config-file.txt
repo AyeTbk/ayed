@@ -1,0 +1,25 @@
+# this is a comment
+
+hooks {
+    modify-buffer builtin-syntax-highlight
+}
+
+file .*\.rs {
+    syntax {
+        \b(let|pub|fn)\b #0000ff
+        =|\+|\-|\* #ff0000
+    }
+
+    mode text/command {
+        keybinds {
+            f set-combo-mode files
+            q "prompt, insert hi" # wtf is this shit
+        }
+    }
+}
+
+combo files {
+    keybinds {
+        s write-buffer
+    }
+}

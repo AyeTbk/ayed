@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::Path};
 use crate::{
     arena::{Arena, Handle},
     buffer::TextBuffer,
+    config::{Config, ConfigState},
     highlight::Highlight,
     mode_line::ModeLineInfos,
     text_editor::TextEditor,
@@ -18,6 +19,8 @@ pub struct State {
     pub active_combo_mode_name: Option<String>,
     pub active_editor_name: String,
     pub active_mode_name: String,
+    //
+    pub config: Config,
     //
     pub quit: bool,
 }
@@ -97,6 +100,18 @@ impl State {
     pub fn set_active_editor_mode(&mut self, mode: String) {
         self.active_mode_name = mode.clone();
         self.editors.active_editor_mut().set_mode(mode);
+    }
+
+    pub fn extract_config_state(&self) -> ConfigState {
+        let mut cs = ConfigState::new();
+        let file = self
+            .buffers
+            .active_buffer()
+            .filepath()
+            .and_then(|p| p.to_str().map(str::to_string))
+            .unwrap_or_default();
+        cs.set("file", file);
+        cs
     }
 
     pub fn request_quit(&mut self) {

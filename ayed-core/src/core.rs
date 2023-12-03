@@ -5,6 +5,7 @@ use crate::arena::Arena;
 use crate::buffer::TextBuffer;
 use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
+use crate::config::make_config;
 use crate::highlight::make_some_kind_of_highlights;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
@@ -52,6 +53,8 @@ impl Core {
             active_editor_name: "text".to_string(),
             active_mode_name: "command".to_string(),
             //
+            config: make_config(),
+            //
             quit: false,
         };
 
@@ -82,8 +85,17 @@ impl Core {
                 Ok(())
             }),
         );
+        this.scripted_commands.insert(
+            "conf".into(),
+            ScriptedCommand::new(|state, _args| {
+                let cs = dbg!(state.extract_config_state());
+                dbg!(state.config.applied_to(&cs));
+                Ok(())
+            }),
+        );
 
         this.state.set_active_editor(active_editor_handle);
+
         this
     }
 
