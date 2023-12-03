@@ -24,6 +24,7 @@ use self::char_string::CharString;
 pub struct TextBuffer {
     lines: Vec<CharString>,
     filepath: Option<PathBuf>,
+    pub(crate) modified: bool,
 }
 
 impl TextBuffer {
@@ -31,6 +32,7 @@ impl TextBuffer {
         Self {
             lines: vec![CharString::from("\n")],
             filepath: None,
+            modified: true,
         }
     }
 
@@ -40,6 +42,9 @@ impl TextBuffer {
                 .lines()
                 .map(|res| res.expect("TODO error handling").into())
                 .collect();
+            if lines.is_empty() {
+                lines.push(CharString::new());
+            }
             for line in lines.iter_mut() {
                 line.push('\n');
             }
@@ -47,6 +52,7 @@ impl TextBuffer {
             Self {
                 lines,
                 filepath: Some(filepath.to_owned()),
+                modified: true,
             }
         } else {
             let mut this = Self::new_empty();
@@ -95,6 +101,7 @@ impl TextBuffer {
 
             self.set_line(position.row, line);
 
+            self.modified = true;
             Ok(edit)
         } else {
             Err(())
@@ -125,6 +132,8 @@ impl TextBuffer {
                 "selection length shouldn't be zero which is the only way this would still be None",
             ),
         };
+
+        self.modified = true;
         Ok(edit)
     }
 
@@ -157,6 +166,8 @@ impl TextBuffer {
             pos1_before_delete_start_column_index: position.column as i64 - 1,
             pos2: edit_pos2,
         };
+
+        self.modified = true;
         Ok(edit)
     }
 
@@ -323,10 +334,12 @@ impl TextBuffer {
     }
 
     fn set_line(&mut self, line_index: u32, line: CharString) {
+        self.modified = true;
         self.lines[line_index as usize] = line;
     }
 
     fn insert_line(&mut self, line_index: u32, line: CharString) {
+        self.modified = true;
         self.lines.insert(line_index as usize, line);
     }
 
@@ -334,12 +347,15 @@ impl TextBuffer {
     fn take_line(&mut self, line_index: u32) -> Option<CharString> {
         let idx = line_index as usize;
         let line = self.lines.get_mut(idx)?;
+
+        self.modified = true;
         Some(std::mem::take(line))
     }
 
     fn remove_line(&mut self, line_index: u32) -> Option<CharString> {
         let idx = line_index as usize;
         if idx < self.lines.len() {
+            self.modified = true;
             Some(self.lines.remove(idx))
         } else {
             None

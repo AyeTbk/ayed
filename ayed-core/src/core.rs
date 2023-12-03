@@ -93,6 +93,17 @@ impl Core {
                 Ok(())
             }),
         );
+        this.scripted_commands.insert(
+            "builtin-syntax-highlight".into(),
+            ScriptedCommand::new(|state, _args| {
+                let spans = make_some_kind_of_highlights(state.buffers.active_buffer(), "let");
+                state
+                    .buffers
+                    .highlights
+                    .insert(state.buffers.active_buffer_handle, spans);
+                Ok(())
+            }),
+        );
 
         this.state.set_active_editor(active_editor_handle);
 
@@ -129,6 +140,8 @@ impl Core {
         }
 
         self.execute_deferred_commands();
+
+        self.run_hooks_modify_buffer();
     }
 
     pub fn execute_command(&mut self, command: Command) {
@@ -441,6 +454,27 @@ impl Core {
     fn execute_deferred_commands(&mut self) {
         for command in std::mem::take(&mut self.deferred_commands) {
             self.execute_command(command);
+        }
+    }
+
+    fn run_hooks_modify_buffer(&mut self) {
+        let active_buffer = self.state.buffers.active_buffer_mut();
+        if !active_buffer.modified {
+            return;
+        }
+        active_buffer.modified = false;
+
+        let config_state = self.state.extract_config_state();
+        let applied_config = self.state.config.applied_to(&config_state);
+        let Some(cmds) = applied_config
+            .get("hooks")
+            .and_then(|hooks| hooks.get("modify-buffer"))
+        else {
+            return;
+        };
+
+        for command in cmds.iter().cloned() {
+            self.execute_command(Command::ScriptedCommand(command));
         }
     }
 }

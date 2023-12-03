@@ -67,37 +67,32 @@ impl<T> Arena<T> {
     }
 
     pub fn elements(&self) -> impl Iterator<Item = (Handle<T>, &T)> {
-        ElementsIter {
-            index: 0,
-            elements: &self.elements,
-        }
+        self.elements.iter().enumerate().map(|(index, t)| {
+            (
+                Handle {
+                    index,
+                    _ghost: PhantomData,
+                },
+                t,
+            )
+        })
+    }
+
+    pub fn elements_mut(&mut self) -> impl Iterator<Item = (Handle<T>, &mut T)> {
+        self.elements.iter_mut().enumerate().map(|(index, t)| {
+            (
+                Handle {
+                    index,
+                    _ghost: PhantomData,
+                },
+                t,
+            )
+        })
     }
 }
 
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub struct ElementsIter<'a, T> {
-    index: usize,
-    elements: &'a Vec<T>,
-}
-
-impl<'a, T> Iterator for ElementsIter<'a, T> {
-    type Item = (Handle<T>, &'a T);
-    fn next(&mut self) -> Option<Self::Item> {
-        let index = self.index;
-        self.index += 1;
-        self.elements.get(index).map(|value| {
-            (
-                Handle {
-                    index,
-                    _ghost: PhantomData,
-                },
-                value,
-            )
-        })
     }
 }
