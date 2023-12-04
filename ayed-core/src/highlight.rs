@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use regex::Regex;
 
 use crate::{
@@ -28,40 +30,53 @@ impl Default for HighlightPosition {
     }
 }
 
-pub fn make_some_kind_of_highlights(buffer: &TextBuffer, word: &str) -> Vec<Highlight> {
+pub fn regex_syntax_highlight(
+    buffer: &TextBuffer,
+    syntax: &HashMap<String, Vec<String>>,
+) -> Vec<Highlight> {
     let mut highlights = Vec::new();
 
-    let re_name = Regex::new(&format!(r"\b{word}\b")).unwrap();
+    let mut rules = Vec::new();
+    for (pattern, values) in syntax {
+        let regex = Regex::new(pattern).unwrap();
+        let Some(color) = values.first().and_then(|s| Color::from_hex(s).ok()) else {
+            continue;
+        };
+        rules.push((regex, color));
+    }
+
     let mut line = String::new();
     for line_index in 0..buffer.line_count() {
         let Ok(()) = buffer.copy_line(line_index, &mut line) else {
             break;
         };
+        for (regex, color) in &rules {
+            for matchh in regex.find_iter(&line) {
+                let match_chars_start = line
+                    .char_indices()
+                    .take_while(|(idx, _)| *idx != matchh.start())
+                    .count() as u32;
+                let match_chars_count = line
+                    .char_indices()
+                    .skip_while(|(idx, _)| *idx != matchh.start())
+                    .take_while(|(idx, _)| *idx != matchh.end())
+                    .count() as u32;
+                let match_chars_end = (match_chars_start + match_chars_count).saturating_sub(1);
 
-        for matchh in re_name.find_iter(&line) {
-            let match_chars_start = line
-                .char_indices()
-                .take_while(|(idx, _)| *idx != matchh.start())
-                .count() as u32;
-            let match_chars_count = line
-                .char_indices()
-                .skip_while(|(idx, _)| *idx != matchh.start())
-                .take_while(|(idx, _)| *idx != matchh.end())
-                .count() as u32;
-            let match_chars_end = (match_chars_start + match_chars_count).saturating_sub(1);
-
-            highlights.push(Highlight {
-                position: HighlightPosition::Content {
-                    from: Position::new(match_chars_start, line_index),
-                    to: Position::new(match_chars_end, line_index),
-                },
-                style: Style {
-                    foreground_color: Some(Color::RED),
-                    ..Default::default()
-                },
-                importance: 10,
-            });
+                highlights.push(Highlight {
+                    position: HighlightPosition::Content {
+                        from: Position::new(match_chars_start, line_index),
+                        to: Position::new(match_chars_end, line_index),
+                    },
+                    style: Style {
+                        foreground_color: Some(*color),
+                        ..Default::default()
+                    },
+                    importance: 10,
+                });
+            }
         }
     }
+
     highlights
 }

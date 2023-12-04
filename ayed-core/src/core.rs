@@ -6,7 +6,7 @@ use crate::buffer::TextBuffer;
 use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::config::make_config;
-use crate::highlight::make_some_kind_of_highlights;
+use crate::highlight::regex_syntax_highlight;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
 use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
@@ -75,28 +75,20 @@ impl Core {
         };
 
         this.scripted_commands.insert(
-            "color".into(),
-            ScriptedCommand::new(|state, args| {
-                let spans = make_some_kind_of_highlights(state.buffers.active_buffer(), args);
-                state
-                    .buffers
-                    .highlights
-                    .insert(state.buffers.active_buffer_handle, spans);
-                Ok(())
-            }),
-        );
-        this.scripted_commands.insert(
             "conf".into(),
             ScriptedCommand::new(|state, _args| {
-                let cs = dbg!(state.extract_config_state());
-                dbg!(state.config.applied_to(&cs));
+                dbg!(state.extract_applied_config());
                 Ok(())
             }),
         );
         this.scripted_commands.insert(
             "builtin-syntax-highlight".into(),
             ScriptedCommand::new(|state, _args| {
-                let spans = make_some_kind_of_highlights(state.buffers.active_buffer(), "let");
+                let config = state.extract_applied_config();
+                let Some(syntax) = config.get("syntax") else {
+                    return Ok(());
+                };
+                let spans = regex_syntax_highlight(state.buffers.active_buffer(), &syntax);
                 state
                     .buffers
                     .highlights
@@ -166,6 +158,7 @@ impl Core {
                 EditFile(filepath) => {
                     let buffer = self.state.get_buffer_from_filepath(filepath);
                     self.state.edit_buffer(buffer);
+                    self.run_hooks_modify_buffer(); // TODO maybe change this to an open-buffer hook?
                 }
                 WriteBuffer => {
                     self.state.save_buffer(self.state.active_buffer_handle());

@@ -156,8 +156,20 @@ pub fn make_config() -> Config {
                     name: "syntax".into(),
                     selectors: vec![Selector::new("file", r".*\.rs").unwrap()],
                     mapping: map! {
-                        r"\b(let|pub|fn)\b".to_string() => vec!["#ff0000".to_string()],
-                        r"(=|\+|\-|\*)".to_string() => vec!["#0000ff".to_string()],
+                        // All keywords
+                        r"\b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move)\b".to_string() => vec!["#3377cc".to_string()],
+                        r"\b(struct|enum|type)\b".to_string() => vec!["#3377cc".to_string()],
+                        r"\b(if|else|while|for|in|loop|continue|break|match)\b".to_string() => vec!["#6644dd".to_string()],
+                        // Important builtins
+                        r"\b(Some|None|Ok|Err)\b".to_string() => vec!["#44aaff".to_string()],
+                        r"\b(Some|None|Ok|Err)\b".to_string() => vec!["#44aaff".to_string()],
+                        // Operators and delimiters
+                        r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string() => vec!["#ccaa11".to_string()],
+                        r"(==|=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string() => vec!["#ddccdd".to_string()],
+                        // Macros
+                        r"\b([a-zA-Z0-9_]+\!)".to_string() => vec!["#3377cc".to_string()],
+                        // Types
+                        r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string() => vec!["#33cc99".to_string()],
                     },
                 },
                 ConditionalMapping {

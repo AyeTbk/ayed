@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::Path};
 use crate::{
     arena::{Arena, Handle},
     buffer::TextBuffer,
-    config::{Config, ConfigState},
+    config::{AppliedConfig, Config, ConfigState},
     highlight::Highlight,
     mode_line::ModeLineInfos,
     text_editor::TextEditor,
@@ -100,6 +100,11 @@ impl State {
     pub fn set_active_editor_mode(&mut self, mode: String) {
         self.active_mode_name = mode.clone();
         self.editors.active_editor_mut().set_mode(mode);
+    }
+
+    pub fn extract_applied_config(&self) -> AppliedConfig {
+        let cs = self.extract_config_state();
+        self.config.applied_to(&cs)
     }
 
     pub fn extract_config_state(&self) -> ConfigState {

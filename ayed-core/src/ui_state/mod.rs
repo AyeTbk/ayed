@@ -193,6 +193,34 @@ impl Color {
     };
     pub const BLUE: Self = Self { r: 0, g: 0, b: 255 };
     pub const RED: Self = Self { r: 255, g: 0, b: 0 };
+
+    pub fn from_hex(hex: &str) -> Result<Color, ()> {
+        // Valid hexcodes are made exclusively of ascii characters, so working on bytes is ok.
+        let hex = hex.as_bytes();
+        if hex.len() != 7 {
+            return Err(());
+        }
+        if hex[0] != b'#' {
+            return Err(());
+        }
+        fn hex_digit_value(digit: u8) -> Option<u8> {
+            match digit {
+                b'a'..=b'f' => Some(digit - b'a' + 10),
+                b'A'..=b'F' => Some(digit - b'A' + 10),
+                b'0'..=b'9' => Some(digit - b'0'),
+                _ => None,
+            }
+        }
+        fn hex_value(first_char: u8, second_char: u8) -> Option<u8> {
+            Some((hex_digit_value(first_char)? << 4) | hex_digit_value(second_char)?)
+        }
+
+        let r = hex_value(hex[1], hex[2]).ok_or(())?;
+        let g = hex_value(hex[3], hex[4]).ok_or(())?;
+        let b = hex_value(hex[5], hex[6]).ok_or(())?;
+
+        Ok(Color::rgb(r, g, b))
+    }
 }
 
 #[allow(non_snake_case)]
