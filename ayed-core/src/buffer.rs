@@ -333,6 +333,13 @@ impl TextBuffer {
             .map(|chrstr| chrstr.len() - 1) // Minus one, because of invariant 2.
     }
 
+    pub fn is_empty(&self) -> bool {
+        // Invariant 1 and 2
+        self.lines.len() == 1
+            && self.lines.first().unwrap().len() == 1
+            && self.lines.first().unwrap()[0] == '\n'
+    }
+
     fn set_line(&mut self, line_index: u32, line: CharString) {
         self.modified = true;
         self.lines[line_index as usize] = line;

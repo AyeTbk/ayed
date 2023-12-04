@@ -115,10 +115,11 @@ impl Tui {
 
                 let panel_row = y - panel.position.row; // NOTE this line makes the row local to panel position
                 let mut char_str = String::new();
+                let spans_on_line = panel.spans_on_line(panel_row).collect::<Vec<_>>();
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
                     let panel_column = x - panel.position.column; // NOTE this line makes the column local to panel position
-                    if let Some(span) = panel
-                        .spans_on_line(panel_row)
+                    if let Some(span) = spans_on_line
+                        .iter()
                         .filter(|span| span.from.column == panel_column)
                         .next()
                     {
@@ -129,8 +130,8 @@ impl Tui {
                     char_str.push(ch);
                     self.screen.write(char_str.as_bytes()).unwrap();
 
-                    if panel
-                        .spans_on_line(panel_row)
+                    if spans_on_line
+                        .iter()
                         .filter(|span| span.to.column == panel_column)
                         .next()
                         .is_some()

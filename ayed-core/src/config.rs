@@ -154,6 +154,13 @@ pub fn make_config() -> Config {
             mappings: vec![
                 ConditionalMapping {
                     name: "syntax".into(),
+                    selectors: vec![],
+                    mapping: map! {
+                        r"\b(raie)\b".to_string() => vec!["#ff00ff".to_string()],
+                    },
+                },
+                ConditionalMapping {
+                    name: "syntax".into(),
                     selectors: vec![Selector::new("file", r".*\.rs").unwrap()],
                     mapping: map! {
                         // All keywords
@@ -165,7 +172,7 @@ pub fn make_config() -> Config {
                         r"\b(Some|None|Ok|Err)\b".to_string() => vec!["#44aaff".to_string()],
                         // Operators and delimiters
                         r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string() => vec!["#ccaa11".to_string()],
-                        r"(==|=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string() => vec!["#ddccdd".to_string()],
+                        r"(==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string() => vec!["#ddccdd".to_string()],
                         // Macros
                         r"\b([a-zA-Z0-9_]+\!)".to_string() => vec!["#3377cc".to_string()],
                         // Types

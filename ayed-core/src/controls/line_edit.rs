@@ -47,6 +47,10 @@ impl LineEdit {
                 self.reset();
                 return Some(line);
             }
+            EditorCommand::DeleteBeforeCursor if self.buffer.is_empty() => {
+                // NOTE This is mostly just for the modeline prompt UX.
+                return Some("".into());
+            }
             _ => {
                 self.editor.execute_command(command, &mut self.buffer);
 
