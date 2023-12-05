@@ -4,10 +4,17 @@ hooks {
     modify-buffer builtin-syntax-highlight
 }
 
+theme other-editor {
+    syntax-style {
+        keyword #0000ff bold priority:101
+        operator #ff0000 underline
+    }
+}
+
 file .*\.rs {
     syntax {
-        \b(let|pub|fn)\b #0000ff
-        =|\+|\-|\* #ff0000
+        keyword \b(let|pub|fn)\b
+        operator =|\+|\-|\*
     }
 
     mode text/command {

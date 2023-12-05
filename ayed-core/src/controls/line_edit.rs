@@ -84,7 +84,7 @@ impl LineEdit {
             to: Position::ZERO,
             style: Style {
                 foreground_color: None,
-                background_color: Some(crate::theme::colors::ACCENT),
+                background_color: Some(crate::theme::colors::ACCENT_BRIGHT),
                 ..Default::default()
             },
             importance: 1,
@@ -96,7 +96,7 @@ impl LineEdit {
             to: Position::ZERO.with_moved_indices(self.rect().width as _, 0),
             style: Style {
                 foreground_color: None,
-                background_color: Some(crate::theme::colors::ACCENT_DARK),
+                background_color: Some(crate::theme::colors::ACCENT),
                 ..Default::default()
             },
             importance: 0,

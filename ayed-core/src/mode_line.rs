@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub const FG_COLOR: Color = crate::theme::colors::MODELINE_TEXT;
-pub const BG_COLOR: Color = crate::theme::colors::ACCENT_DARK;
+pub const BG_COLOR: Color = crate::theme::colors::ACCENT;
 
 pub struct ModeLine {
     has_focus: bool,

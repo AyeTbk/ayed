@@ -50,7 +50,7 @@ impl ComboPanel {
 
         let border_style = Style {
             foreground_color: Some(crate::theme::colors::MODELINE_TEXT),
-            background_color: Some(crate::theme::colors::ACCENT_DARK),
+            background_color: Some(crate::theme::colors::ACCENT),
             ..Default::default()
         };
 

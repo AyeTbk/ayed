@@ -198,14 +198,13 @@ impl WarpDrive {
             }
         }
 
-        fill_up_jump_points(&matches, &[], ('a'..='v').chain('x'..='z')) // skip 'w' because it's the Warpdrive keybind at the moment
+        fill_up_jump_points(&matches, &[], alphabet())
     }
 
     fn execute_command_inner(&mut self, command: EditorCommand) -> Option<EditorCommand> {
         use EditorCommand::*;
         match command {
-            Insert('\n') => Some(FlipSelection),
-            Insert(ch) => {
+            Insert(ch) if alphabet().find(|c| *c == ch).is_some() => {
                 if let Some(selection) = self.add_input(ch) {
                     let offset_selection = selection
                         .with_cursor(selection.cursor().offset(self.position_offset))
@@ -218,7 +217,12 @@ impl WarpDrive {
                     None
                 }
             }
-            _ => None,
+            _ => Some(Noop),
         }
     }
+}
+
+fn alphabet() -> impl Iterator<Item = char> + Clone {
+    // skip 'w' because it's the Warpdrive keybind at the moment
+    ('a'..='v').chain('x'..='z')
 }
