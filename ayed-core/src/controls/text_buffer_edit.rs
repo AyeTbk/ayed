@@ -1,5 +1,5 @@
 use crate::{
-    buffer::TextBuffer,
+    buffer::{char_string::CharString, TextBuffer},
     command::EditorCommand,
     selection::{DeletedEditInfo, EditInfo, Selection, Selections},
     ui_state::{Color, Span, Style, UiPanel},
@@ -61,6 +61,13 @@ impl TextBufferEdit {
             SetSelection { cursor, anchor } => {
                 let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
                 self.selections = Selections::new_with(selection, &[]);
+            }
+            //
+            MoveCursorToLeftSymbol => {
+                self.move_cursor_to_near_symbol(buffer, self.anchored(), false)
+            }
+            MoveCursorToRightSymbol => {
+                self.move_cursor_to_near_symbol(buffer, self.anchored(), true)
             }
             //
             MoveCursorToLineStart => self.move_cursor_to_line_start(buffer, self.anchored(), false),
@@ -361,6 +368,86 @@ impl TextBufferEdit {
                     };
                 }
             }
+        }
+    }
+
+    fn move_cursor_to_near_symbol(
+        &mut self,
+        buffer: &TextBuffer,
+        selection_anchored: bool,
+        go_next: bool,
+    ) {
+        let re_symbol = regex::Regex::new(r"\w+|[^\w\s]+").unwrap();
+
+        for selection in self.selections.iter_mut() {
+            let cursor = selection.cursor();
+            let mut maybe_symbol_selection = None;
+            let mut column_index = cursor.column;
+
+            let line_indices: Vec<u32> = if go_next {
+                (cursor.row..buffer.line_count()).collect()
+            } else {
+                (0..=cursor.row).rev().collect()
+            };
+            'line: for line_index in line_indices {
+                let Some(line) = buffer.line(line_index).map(CharString::to_string) else {
+                    break;
+                };
+
+                let matchhes: Vec<_> = if go_next {
+                    re_symbol.find_iter(&line).collect()
+                } else {
+                    let mut v = re_symbol.find_iter(&line).collect::<Vec<_>>();
+                    v.reverse();
+                    v
+                };
+                'mat: for matchh in matchhes {
+                    if go_next {
+                        if column_index >= matchh.start() as u32 {
+                            if column_index != 0 {
+                                continue 'mat;
+                            }
+                            if column_index == 0 && cursor.column == 0 && matchh.len() == 1 {
+                                continue 'mat;
+                            }
+                        }
+                    } else {
+                        if column_index < matchh.end() as u32 {
+                            continue 'mat;
+                        }
+                    }
+
+                    // FIXME column is in chars but find_at works with bytes
+                    maybe_symbol_selection = Some(if go_next {
+                        Selection::new()
+                            .with_anchor(Position::new(matchh.start() as u32, line_index))
+                            .with_cursor(Position::new(
+                                matchh.end().saturating_sub(1) as u32,
+                                line_index,
+                            ))
+                    } else {
+                        Selection::new()
+                            .with_anchor(Position::new(
+                                matchh.end().saturating_sub(1) as u32,
+                                line_index,
+                            ))
+                            .with_cursor(Position::new(matchh.start() as u32, line_index))
+                    });
+                    break 'line;
+                }
+
+                column_index = if go_next { 0 } else { u32::MAX };
+            }
+
+            let Some(symbol_selection) = maybe_symbol_selection else {
+                continue;
+            };
+
+            *selection = if selection_anchored {
+                selection.with_cursor(symbol_selection.cursor())
+            } else {
+                symbol_selection
+            };
         }
     }
 

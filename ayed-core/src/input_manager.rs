@@ -266,12 +266,12 @@ fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
 
     im.register("<left>", MoveCursorLeft)?;
     im.register("<s-left>", [AnchorNext, MoveCursorLeft])?;
-    // im.register("<c-left>", MoveCursorToLeftSymbol)?;
-    // im.register("<cs-left>", [AnchorNext, MoveCursorToLeftSymbol])?;
+    im.register("<c-left>", MoveCursorToLeftSymbol)?;
+    im.register("<cs-left>", [AnchorNext, MoveCursorToLeftSymbol])?;
     im.register("<right>", MoveCursorRight)?;
     im.register("<s-right>", [AnchorNext, MoveCursorRight])?;
-    // im.register("<c-right>", MoveCursorToRightSymbol)?;
-    // im.register("<cs-right>", [AnchorNext, MoveCursorToRightSymbol])?;
+    im.register("<c-right>", MoveCursorToRightSymbol)?;
+    im.register("<cs-right>", [AnchorNext, MoveCursorToRightSymbol])?;
 
     im.register("<home>", MoveCursorToLineStartSmart)?;
     im.register("<s-home>", [AnchorNext, MoveCursorToLineStartSmart])?;
