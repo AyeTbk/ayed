@@ -88,7 +88,11 @@ impl Core {
                 let Some(syntax) = config.get("syntax") else {
                     return Ok(());
                 };
-                let spans = regex_syntax_highlight(state.buffers.active_buffer(), &syntax);
+                let Some(syntax_style) = config.get("syntax-style") else {
+                    return Ok(());
+                };
+                let spans =
+                    regex_syntax_highlight(state.buffers.active_buffer(), &syntax, &syntax_style);
                 state
                     .buffers
                     .highlights

@@ -153,30 +153,43 @@ pub fn make_config() -> Config {
         modules: vec![ConfigModule {
             mappings: vec![
                 ConditionalMapping {
-                    name: "syntax".into(),
+                    name: "syntax-style".into(),
                     selectors: vec![],
                     mapping: map! {
-                        r"\b(raie)\b".to_string() => vec!["#ff00ff".to_string()],
+                        "keyword".to_string() => vec!["#3377cc".to_string()],
+                        "keyword-statement".to_string() => vec!["#6644dd".to_string()],
+                        "builtin".to_string() => vec!["#44aaff".to_string()],
+                        "operator".to_string() => vec!["#ddccdd".to_string()],
+                        "delimiter".to_string() => vec!["#ccaa11".to_string()],
+                        "macro".to_string() => vec!["#3377cc".to_string()],
+                        "type".to_string() => vec!["#44ccaa".to_string()],
+                        "literal".to_string() => vec!["#aaddcc".to_string()],
+                        "string".to_string() => vec!["#bb8866".to_string()],
+                        "function".to_string() => vec!["#ccbbee".to_string()],
+                        "namespace".to_string() => vec!["#44ccaa".to_string()],
+                        "comment".to_string() => vec!["#116633".to_string()],
                     },
                 },
                 ConditionalMapping {
-                    name: "syntax".into(),
+                    name: "syntax".to_string(),
                     selectors: vec![Selector::new("file", r".*\.rs").unwrap()],
                     mapping: map! {
                         // All keywords
-                        r"\b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move)\b".to_string() => vec!["#3377cc".to_string()],
-                        r"\b(struct|enum|type)\b".to_string() => vec!["#3377cc".to_string()],
-                        r"\b(if|else|while|for|in|loop|continue|break|match)\b".to_string() => vec!["#6644dd".to_string()],
-                        // Important builtins
-                        r"\b(Some|None|Ok|Err)\b".to_string() => vec!["#44aaff".to_string()],
-                        r"\b(Some|None|Ok|Err)\b".to_string() => vec!["#44aaff".to_string()],
-                        // Operators and delimiters
-                        r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string() => vec!["#ccaa11".to_string()],
-                        r"(==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string() => vec!["#ddccdd".to_string()],
-                        // Macros
-                        r"\b([a-zA-Z0-9_]+\!)".to_string() => vec!["#3377cc".to_string()],
-                        // Types
-                        r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string() => vec!["#33cc99".to_string()],
+                        "keyword".to_string() => vec![r"\b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move)\b".to_string() ,r"\b(struct|enum|type)\b".to_string()],
+                        "keyword-statement".to_string() => vec![r"\b(if|else|while|for|in|loop|continue|break|match)\b".to_string()],
+                        "builtin".to_string() => vec![r"\b(Some|None|Ok|Err)\b".to_string()],
+                        "operator".to_string() => vec![r"(==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string()],
+                        "delimiter".to_string() => vec![r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string()],
+                        "macro".to_string() => vec![r"\b([a-zA-Z0-9_]+\!)".to_string()],
+                        "type".to_string() => vec![r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string()],
+                        "literal".to_string() => vec![
+                            r"(([0-9]*\.[0-9]+|[0-9]+)((u|i|f)(8|16|32|64|128))?)".to_string(),
+                            r"\b(true|false)\b".to_string(),
+                        ],
+                        "string".to_string() => vec!["(r?\\\"[^\\\"]*\\\")".to_string()],
+                        "function".to_string() => vec![r"\b([a-z0-9_][a-zA-Z0-9_]*)\(".to_string()],
+                        "namespace".to_string() => vec![r"\b([a-zA-Z0-9_]+)::".to_string()],
+                        "comment".to_string() => vec![r"(//.*)$".to_string()],
                     },
                 },
                 ConditionalMapping {
