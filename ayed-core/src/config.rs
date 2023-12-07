@@ -165,7 +165,7 @@ pub fn make_config() -> Config {
                         "type".to_string() => vec!["#44ccaa".to_string()],
                         "literal".to_string() => vec!["#aaddcc".to_string()],
                         "string".to_string() => vec!["#bb8866".to_string()],
-                        "function".to_string() => vec!["#ccbbee".to_string()],
+                        "function".to_string() => vec!["#ccbbff".to_string()],
                         "namespace".to_string() => vec!["#44ccaa".to_string()],
                         "comment".to_string() => vec!["#116633".to_string()],
                     },
