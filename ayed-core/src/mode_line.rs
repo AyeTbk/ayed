@@ -92,7 +92,7 @@ impl ModeLine {
                 from: Position::ZERO,
                 to: Position::ZERO.with_moved_indices(self.rect.width as _, 0),
                 style,
-                importance: 1,
+                priority: 1,
             }],
         }
     }

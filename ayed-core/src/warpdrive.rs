@@ -55,7 +55,7 @@ impl WarpDrive {
                     background_color: Some(Color::rgb(25, 25, 25)),
                     ..Default::default()
                 },
-                importance: 10,
+                priority: 10,
             });
         }
 
@@ -86,7 +86,7 @@ impl WarpDrive {
                     background_color: Some(Color::rgb(25, 25, 25)),
                     ..Default::default()
                 },
-                importance: 20,
+                priority: 20,
             });
         }
 

@@ -130,7 +130,7 @@ impl TextBufferEdit {
                         background_color: None,
                         ..Default::default()
                     },
-                    importance: !0,
+                    priority: !0,
                 });
                 continue;
             };
@@ -556,7 +556,7 @@ impl TextBufferEdit {
                         invert: true,
                         ..Default::default()
                     },
-                    importance: 255,
+                    priority: 255,
                 });
             }
 
@@ -593,7 +593,7 @@ impl TextBufferEdit {
                         background_color: selection_color,
                         ..Default::default()
                     },
-                    importance: 254,
+                    priority: 254,
                 });
             }
         }

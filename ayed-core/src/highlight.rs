@@ -4,15 +4,17 @@ use regex::Regex;
 
 use crate::{
     buffer::TextBuffer,
-    ui_state::{Color, Style},
+    ui_state::{priority_from_str, Color, Style},
     utils::Position,
 };
+
+const DEFAULT_PRIORITY: u8 = 10;
 
 #[derive(Debug, Default, Clone)]
 pub struct Highlight {
     pub position: HighlightPosition,
     pub style: Style,
-    pub importance: u8,
+    pub priority: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -37,17 +39,27 @@ pub fn regex_syntax_highlight(
 ) -> Vec<Highlight> {
     let mut highlights = Vec::new();
 
-    let mut rules: Vec<(Vec<Regex>, Color)> = Vec::new();
+    let mut rules: Vec<(Vec<Regex>, Color, Option<u8>)> = Vec::new();
     for (rule_name, patterns) in syntax {
         let regexes = patterns
             .iter()
             .map(|pattern| Regex::new(pattern).unwrap())
             .collect::<Vec<_>>();
-        let style_str = syntax_style.get(rule_name).and_then(|v| v.first());
-        let Some(color) = style_str.and_then(|s| Color::from_hex(s).ok()) else {
+        let Some(values) = syntax_style.get(rule_name) else {
             continue;
         };
-        rules.push((regexes, color));
+        let mut color = None;
+        let mut priority = None;
+        for value in values {
+            if let Some(parsed_color) = Color::from_hex(value).ok() {
+                color = Some(parsed_color);
+            } else if let Ok(parsed_priority) = priority_from_str(value) {
+                priority = Some(parsed_priority);
+            }
+        }
+        let Some(color) = color else { continue };
+
+        rules.push((regexes, color, priority));
     }
 
     let mut line = String::new();
@@ -55,7 +67,7 @@ pub fn regex_syntax_highlight(
         let Ok(()) = buffer.copy_line(line_index, &mut line) else {
             break;
         };
-        for (regexes, color) in &rules {
+        for (regexes, color, priority) in &rules {
             for regex in regexes {
                 for capture in regex.captures_iter(&line) {
                     let matchh = capture.get(1).unwrap_or(capture.get(0).unwrap());
@@ -79,7 +91,7 @@ pub fn regex_syntax_highlight(
                             foreground_color: Some(*color),
                             ..Default::default()
                         },
-                        importance: 10,
+                        priority: priority.unwrap_or(DEFAULT_PRIORITY),
                     });
                 }
             }

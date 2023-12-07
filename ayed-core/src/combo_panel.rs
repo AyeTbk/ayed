@@ -57,7 +57,7 @@ impl ComboPanel {
         let mut spans = vec![Span {
             from: Position::ZERO,
             to: Position::new(size.column, 0),
-            importance: 1,
+            priority: 1,
             style: border_style,
         }];
 
@@ -67,13 +67,13 @@ impl ComboPanel {
                 Span {
                     from: Position::new(0, row),
                     to: Position::new(0, row),
-                    importance: 1,
+                    priority: 1,
                     style: border_style,
                 },
                 Span {
                     from: Position::new(right_column, row),
                     to: Position::new(right_column, row),
-                    importance: 1,
+                    priority: 1,
                     style: border_style,
                 },
             ]);

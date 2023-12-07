@@ -81,8 +81,8 @@ impl UiPanel {
                 non_overlapping_subspans_by_position.range_mut(range)
             {
                 if let Some(idx) = most_important_span_idx {
-                    let other_span_importance = spans[*idx].importance;
-                    if span.importance > other_span_importance {
+                    let other_span_priority = spans[*idx].priority;
+                    if span.priority > other_span_priority {
                         *idx = span_idx;
                     }
                 } else {
@@ -131,7 +131,7 @@ impl UiPanel {
                 from: start,
                 to: end,
                 style: span.style,
-                importance: span.importance,
+                priority: span.priority,
             });
         }
 
@@ -154,7 +154,7 @@ pub struct Span {
     pub from: Position,
     pub to: Position,
     pub style: Style,
-    pub importance: u8,
+    pub priority: u8,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -223,6 +223,14 @@ impl Color {
     }
 }
 
+pub fn priority_from_str(src: &str) -> Result<u8, ()> {
+    if !src.starts_with("priority:") {
+        return Err(());
+    }
+    let num_str = src.trim_start_matches("priority:");
+    num_str.parse::<u8>().map_err(|_| ())
+}
+
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
@@ -239,13 +247,13 @@ mod tests {
                     from: Position::new(0, 0),
                     to: Position::new(15, 0),
                     style: Default::default(),
-                    importance: 0,
+                    priority: 0,
                 },
                 Span {
                     from: Position::new(4, 0),
                     to: Position::new(10, 0),
                     style: Default::default(),
-                    importance: 2,
+                    priority: 2,
                 },
             ],
         };

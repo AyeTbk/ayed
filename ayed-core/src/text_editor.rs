@@ -110,7 +110,7 @@ impl TextEditor {
             from,
             to,
             style: highlight.style,
-            importance: highlight.importance,
+            priority: highlight.priority,
         })
     }
 }

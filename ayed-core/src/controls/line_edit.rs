@@ -87,7 +87,7 @@ impl LineEdit {
                 background_color: Some(crate::theme::colors::ACCENT_BRIGHT),
                 ..Default::default()
             },
-            importance: 1,
+            priority: 1,
         });
 
         // Bg color
@@ -99,7 +99,7 @@ impl LineEdit {
                 background_color: Some(crate::theme::colors::ACCENT),
                 ..Default::default()
             },
-            importance: 0,
+            priority: 0,
         });
 
         editor_panel
