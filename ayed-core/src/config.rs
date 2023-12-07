@@ -186,7 +186,10 @@ pub fn make_config() -> Config {
                             r"(([0-9]*\.[0-9]+|[0-9]+)((u|i|f)(8|16|32|64|128))?)".to_string(),
                             r"\b(true|false)\b".to_string(),
                         ],
-                        "string".to_string() => vec!["(r?\\\"[^\\\"]*\\\")".to_string()],
+                        "string".to_string() => vec![
+                            "(r?\\\"[^\\\"]*\\\")".to_string(),
+                            "(r?'[^']*')".to_string(),
+                        ],
                         "function".to_string() => vec![r"\b([a-z0-9_][a-zA-Z0-9_]*)\(".to_string()],
                         "namespace".to_string() => vec![r"\b([a-zA-Z0-9_]+)::".to_string()],
                         "comment".to_string() => vec![r"(//.*)$".to_string()],
