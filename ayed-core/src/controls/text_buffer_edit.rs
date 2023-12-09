@@ -401,8 +401,6 @@ impl TextBufferEdit {
                     break;
                 };
 
-                dbg!(re_symbol.find_iter(&line).collect::<Vec<_>>());
-
                 let mut symbols_edges: Vec<(u32, u32)> = re_symbol
                     .find_iter(&line)
                     .map(|m| {
