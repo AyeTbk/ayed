@@ -63,16 +63,17 @@ impl InputManager {
             }
         }
 
-        let mut commands = self.global_mapper.convert_input(input, state);
-        if commands.is_empty() {
-            if let Some(editor_mapper) = self.editor_mappers.get(editor) {
-                commands = editor_mapper.mapper.convert_input(input, state);
-                if commands.is_empty() {
-                    if let Some(mode_mappers) = editor_mapper.mode_mappers.get(mode) {
-                        return mode_mappers.convert_input(input, state);
-                    }
-                }
+        let mut commands = vec![];
+        if let Some(editor_mapper) = self.editor_mappers.get(editor) {
+            if let Some(mode_mappers) = editor_mapper.mode_mappers.get(mode) {
+                commands = mode_mappers.convert_input(input, state);
             }
+            if commands.is_empty() {
+                commands = editor_mapper.mapper.convert_input(input, state);
+            }
+        }
+        if commands.is_empty() {
+            commands = self.global_mapper.convert_input(input, state);
         }
 
         commands
