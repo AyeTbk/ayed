@@ -388,74 +388,56 @@ impl TextBufferEdit {
 
         for selection in self.selections.iter_mut() {
             let cursor = selection.cursor();
-            let mut maybe_symbol_selection = None;
-            let mut column_index = cursor.column;
-
+            let mut cursor_column = cursor.column as i64;
             let line_indices: Vec<u32> = if go_next {
                 (cursor.row..buffer.line_count()).collect()
             } else {
                 (0..=cursor.row).rev().collect()
             };
+
             'line: for line_index in line_indices {
                 let Some(line) = buffer.line(line_index).map(CharString::to_string) else {
                     break;
                 };
 
-                let matchhes: Vec<_> = if go_next {
-                    re_symbol.find_iter(&line).collect()
-                } else {
-                    let mut v = re_symbol.find_iter(&line).collect::<Vec<_>>();
-                    v.reverse();
-                    v
-                };
-                'mat: for matchh in matchhes {
-                    if go_next {
-                        if column_index >= matchh.start() as u32 {
-                            if column_index != 0 {
-                                continue 'mat;
-                            }
-                            if column_index == 0 && cursor.column == 0 && matchh.len() == 1 {
-                                continue 'mat;
-                            }
-                        }
-                    } else {
-                        if column_index < matchh.end() as u32 {
-                            continue 'mat;
-                        }
-                    }
+                let mut symbols_edges: Vec<(u32, u32)> = re_symbol
+                    .find_iter(&line)
+                    .map(|m| {
+                        (
+                            m.start().try_into().unwrap(),
+                            m.end().saturating_sub(1).try_into().unwrap(),
+                        )
+                    })
+                    .collect();
+                if !go_next {
+                    symbols_edges.reverse();
+                }
 
-                    // FIXME column is in chars but Regex works with bytes
-                    let (anchor, cursor) = if go_next {
-                        (
-                            Position::new(matchh.start() as u32, line_index),
-                            Position::new(matchh.end().saturating_sub(1) as u32, line_index),
-                        )
+                let candidate_cursor_and_anchor_columns = symbols_edges
+                    .into_iter()
+                    .skip_while(|&(start, end)| {
+                        (go_next && cursor_column >= end as i64)
+                            || (!go_next && cursor_column <= start as i64)
+                    })
+                    .map(|(start, end)| if go_next { (end, start) } else { (start, end) })
+                    .next();
+
+                if let Some((curosr_column, anchor_column)) = candidate_cursor_and_anchor_columns {
+                    let new_cursor = Position::new(curosr_column, line_index);
+                    let new_anchor = if selection_anchored {
+                        selection.anchor()
+                    } else if select_symbol {
+                        Position::new(anchor_column, line_index)
                     } else {
-                        (
-                            Position::new(matchh.end().saturating_sub(1) as u32, line_index),
-                            Position::new(matchh.start() as u32, line_index),
-                        )
+                        new_cursor
                     };
-                    let mut symbol_selection = Selection::new().with_position(cursor);
-                    if select_symbol {
-                        symbol_selection = symbol_selection.with_anchor(anchor);
-                    }
-                    maybe_symbol_selection = Some(symbol_selection);
+                    *selection = selection.with_cursor(new_cursor).with_anchor(new_anchor);
+
                     break 'line;
                 }
 
-                column_index = if go_next { 0 } else { u32::MAX };
+                cursor_column = if go_next { -1 } else { u32::MAX as _ };
             }
-
-            let Some(symbol_selection) = maybe_symbol_selection else {
-                continue;
-            };
-
-            *selection = if selection_anchored {
-                selection.with_cursor(symbol_selection.cursor())
-            } else {
-                symbol_selection
-            };
         }
     }
 
