@@ -64,10 +64,16 @@ impl TextBufferEdit {
             }
             //
             MoveCursorToLeftSymbol => {
-                self.move_cursor_to_near_symbol(buffer, self.anchored(), false)
+                self.move_cursor_to_near_symbol(buffer, false, self.anchored(), false)
             }
             MoveCursorToRightSymbol => {
-                self.move_cursor_to_near_symbol(buffer, self.anchored(), true)
+                self.move_cursor_to_near_symbol(buffer, false, self.anchored(), true)
+            }
+            SelectLeftSymbol => {
+                self.move_cursor_to_near_symbol(buffer, true, self.anchored(), false)
+            }
+            SelectRightSymbol => {
+                self.move_cursor_to_near_symbol(buffer, true, self.anchored(), true)
             }
             //
             MoveCursorToLineStart => self.move_cursor_to_line_start(buffer, self.anchored(), false),
@@ -374,6 +380,7 @@ impl TextBufferEdit {
     fn move_cursor_to_near_symbol(
         &mut self,
         buffer: &TextBuffer,
+        select_symbol: bool,
         selection_anchored: bool,
         go_next: bool,
     ) {
@@ -417,22 +424,23 @@ impl TextBufferEdit {
                         }
                     }
 
-                    // FIXME column is in chars but find_at works with bytes
-                    maybe_symbol_selection = Some(if go_next {
-                        Selection::new()
-                            .with_anchor(Position::new(matchh.start() as u32, line_index))
-                            .with_cursor(Position::new(
-                                matchh.end().saturating_sub(1) as u32,
-                                line_index,
-                            ))
+                    // FIXME column is in chars but Regex works with bytes
+                    let (anchor, cursor) = if go_next {
+                        (
+                            Position::new(matchh.start() as u32, line_index),
+                            Position::new(matchh.end().saturating_sub(1) as u32, line_index),
+                        )
                     } else {
-                        Selection::new()
-                            .with_anchor(Position::new(
-                                matchh.end().saturating_sub(1) as u32,
-                                line_index,
-                            ))
-                            .with_cursor(Position::new(matchh.start() as u32, line_index))
-                    });
+                        (
+                            Position::new(matchh.end().saturating_sub(1) as u32, line_index),
+                            Position::new(matchh.start() as u32, line_index),
+                        )
+                    };
+                    let mut symbol_selection = Selection::new().with_position(cursor);
+                    if select_symbol {
+                        symbol_selection = symbol_selection.with_anchor(anchor);
+                    }
+                    maybe_symbol_selection = Some(symbol_selection);
                     break 'line;
                 }
 

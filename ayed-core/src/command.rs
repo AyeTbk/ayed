@@ -55,6 +55,8 @@ pub enum EditorCommand {
 
     MoveCursorToLeftSymbol,
     MoveCursorToRightSymbol,
+    SelectLeftSymbol,
+    SelectRightSymbol,
 
     MoveCursorToLineStart,      // Go to column 0 of current line.
     MoveCursorToLineStartSmart, // Flip flop between line start and first non white char.

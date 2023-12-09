@@ -113,6 +113,13 @@ pub fn initialize_input_manager() -> InputManager {
                     im.register("<space>", SetComboMode("user".into())).unwrap();
                     im.register("<tab>", set_edit_mode()).unwrap();
 
+                    im.register("e", SelectRightSymbol).unwrap();
+                    im.register("<s-e>", [AnchorNext, SelectRightSymbol])
+                        .unwrap();
+                    im.register("b", SelectLeftSymbol).unwrap();
+                    im.register("<s-b>", [AnchorNext, SelectLeftSymbol])
+                        .unwrap();
+
                     im.register("i", [Editor(FlipSelectionBackward), Core(set_edit_mode())])
                         .unwrap();
                     im.register(
