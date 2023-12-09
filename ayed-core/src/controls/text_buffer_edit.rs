@@ -384,7 +384,8 @@ impl TextBufferEdit {
         selection_anchored: bool,
         go_next: bool,
     ) {
-        let re_symbol = regex::Regex::new(r"\w+|[^\w\s]+").unwrap();
+        let re_symbol =
+            regex::Regex::new(r"\w+|[\{\}\[\]\(\)<>]|[^\w\s[\{\}\[\]\(\)<>]]+").unwrap();
 
         for selection in self.selections.iter_mut() {
             let cursor = selection.cursor();
@@ -399,6 +400,8 @@ impl TextBufferEdit {
                 let Some(line) = buffer.line(line_index).map(CharString::to_string) else {
                     break;
                 };
+
+                dbg!(re_symbol.find_iter(&line).collect::<Vec<_>>());
 
                 let mut symbols_edges: Vec<(u32, u32)> = re_symbol
                     .find_iter(&line)
