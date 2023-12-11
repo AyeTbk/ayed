@@ -22,7 +22,11 @@ pub struct WarpDrive {
 
 impl WarpDrive {
     pub fn new(text_content: Vec<String>, position_offset: Offset) -> Option<Self> {
-        let jump_points = Self::gather_jump_points(&text_content);
+        let jump_points = if false {
+            Self::gather_jump_points_prefix(&text_content)
+        } else {
+            Self::gather_jump_points_alphabet(&text_content)
+        };
 
         if jump_points.is_empty() {
             None
@@ -140,30 +144,19 @@ impl WarpDrive {
         self.jump_points.iter().map(|(v, p)| (&v[..], p))
     }
 
-    fn gather_jump_points(text_content: &[String]) -> Vec<(Vec<char>, Selection)> {
-        // Get matches
-        let re_word_start = regex::Regex::new(r"\b\w+\b").unwrap();
-        let mut matches: Vec<Selection> = Vec::new();
-        for (line_index, line) in text_content.iter().enumerate() {
-            for m in re_word_start.find_iter(line) {
-                let mut start = None;
-                let mut end = None;
-                for (column_index, (byte_idx, _)) in line.char_indices().enumerate() {
-                    if m.start() == byte_idx {
-                        start = Some(Position::new(column_index as _, line_index as _));
-                    }
-                    if m.end() == byte_idx {
-                        end = Some(Position::new((column_index - 1) as _, line_index as _));
-                    }
-                }
+    fn gather_jump_points_prefix(text_content: &[String]) -> Vec<(Vec<char>, Selection)> {
+        let words = Self::gather_words(text_content);
 
-                let Some(start) = start else { continue };
-                let Some(end) = end else { continue };
-                matches.push(Selection::new().with_cursor(start).with_anchor(end));
-            }
+        let mut pt = PrefixTree::new();
+        for (word, selection) in words {
+            pt.add_word(word, selection);
         }
+        pt.crunch();
 
-        // Do thing
+        pt.get_jump_points()
+    }
+
+    fn gather_jump_points_alphabet(text_content: &[String]) -> Vec<(Vec<char>, Selection)> {
         fn fill_up_jump_points(
             matches: &[Selection],
             input: &[char],
@@ -198,13 +191,43 @@ impl WarpDrive {
             }
         }
 
-        fill_up_jump_points(&matches, &[], alphabet())
+        let matches = Self::gather_words(text_content)
+            .into_iter()
+            .map(|(_, sel)| sel)
+            .collect::<Vec<_>>();
+
+        fill_up_jump_points(&matches, &[], 'a'..='z')
+    }
+
+    fn gather_words(text_content: &[String]) -> Vec<(&str, Selection)> {
+        let re_word = regex::Regex::new(r"\b\w+\b").unwrap();
+        let mut words: Vec<(&str, Selection)> = Vec::new();
+        for (line_index, line) in text_content.iter().enumerate() {
+            for matchh in re_word.find_iter(line) {
+                let mut start = None;
+                let mut end = None;
+                for (column, (byte_idx, _)) in line.char_indices().enumerate() {
+                    if matchh.start() == byte_idx {
+                        start = Some(Position::new(column as _, line_index as _));
+                    }
+                    if matchh.end() == byte_idx {
+                        end = Some(Position::new((column - 1) as _, line_index as _));
+                    }
+                }
+
+                let Some(start) = start else { continue };
+                let Some(end) = end else { continue };
+                let selection = Selection::new().with_anchor(end).with_cursor(start);
+                words.push((matchh.as_str(), selection));
+            }
+        }
+        words
     }
 
     fn execute_command_inner(&mut self, command: EditorCommand) -> Option<EditorCommand> {
         use EditorCommand::*;
         match command {
-            Insert(ch) if alphabet().find(|c| *c == ch).is_some() => {
+            Insert(ch) if self.is_jump_point_input(ch) => {
                 if let Some(selection) = self.add_input(ch) {
                     let offset_selection = selection
                         .with_cursor(selection.cursor().offset(self.position_offset))
@@ -220,9 +243,181 @@ impl WarpDrive {
             _ => Some(Noop),
         }
     }
+
+    fn is_jump_point_input(&self, input: char) -> bool {
+        for (chars, _) in &self.jump_points {
+            if let Some(ch) = chars.get(self.input.len()) {
+                if *ch == input {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
-fn alphabet() -> impl Iterator<Item = char> + Clone {
-    // skip 'w' because it's the Warpdrive keybind at the moment
-    ('a'..='v').chain('x'..='z')
+struct PrefixTree {
+    nodes: Vec<PrefixTreeNode>,
+    root: usize,
+}
+
+impl PrefixTree {
+    pub fn new() -> Self {
+        let nodes = vec![PrefixTreeNode::default()];
+        Self { nodes, root: 0 }
+    }
+
+    pub fn add_word(&mut self, word: &str, selection: Selection) {
+        let mut current_node_idx = self.root;
+        'word_char: for ch in word.chars() {
+            // let ch = ch.to_ascii_lowercase();
+
+            // This is up here because of the borrow checker.
+            let new_node_idx = self.nodes.len();
+
+            let current_node = self.nodes.get_mut(current_node_idx).unwrap();
+
+            // Search existing children for the next node.
+            for &(child_ch, child_idx) in &current_node.children {
+                if child_ch == ch {
+                    current_node_idx = child_idx;
+                    continue 'word_char;
+                }
+            }
+
+            // Else add a child node for this current letter of the word.
+            current_node.children.push((ch, new_node_idx));
+            current_node_idx = new_node_idx;
+            self.nodes.push(PrefixTreeNode::default());
+        }
+
+        // Current node represents the word. Add selection.
+        let current_node = self.nodes.get_mut(current_node_idx).unwrap();
+        current_node.selections.push(selection);
+    }
+
+    fn crunch(&mut self) {
+        // Go as deep as possible then walk back up the tree deleting parents
+        // while they have no selection and no siblings and bubble up its
+        // selections.
+        fn crunch_aux(
+            this: &mut PrefixTree,
+            current_node_idx: usize,
+            parent_idx: usize,
+            sibling_count: usize,
+            parent_selection_count: usize,
+        ) -> Vec<Selection> {
+            let current_node = this.nodes.get(current_node_idx).unwrap();
+            let children = current_node.children.clone();
+            let mut children_count = children.len();
+            let selection_count = current_node.selections.len();
+
+            let mut children_to_remove = Vec::new();
+
+            if children_count > 0 {
+                for (i, (_, child_idx)) in children.into_iter().enumerate() {
+                    let bubbled_up_selections = crunch_aux(
+                        this,
+                        child_idx,
+                        current_node_idx,
+                        children_count - 1,
+                        selection_count,
+                    );
+
+                    if !bubbled_up_selections.is_empty() {
+                        // Not strictly necessary, but cleaning up makes self.debug_print() output cleaner.
+                        children_to_remove.push(i);
+                    }
+
+                    let current_node = this.nodes.get_mut(current_node_idx).unwrap();
+                    current_node.selections.extend(bubbled_up_selections);
+                }
+
+                children_to_remove.reverse();
+                children_count -= children_to_remove.len();
+                let current_node = this.nodes.get_mut(current_node_idx).unwrap();
+                for child in children_to_remove {
+                    current_node.children.remove(child);
+                }
+            }
+
+            if children_count == 0
+                && sibling_count == 0
+                && parent_selection_count == 0
+                && parent_idx != 0
+            {
+                let current_node = this.nodes.get_mut(current_node_idx).unwrap();
+                return std::mem::take(&mut current_node.selections);
+            }
+
+            Vec::new()
+        }
+
+        crunch_aux(self, 0, 0, usize::MAX, usize::MAX);
+    }
+
+    fn get_jump_points(&self) -> Vec<(Vec<char>, Selection)> {
+        fn get_jump_points_aux(
+            this: &PrefixTree,
+            node_idx: usize,
+            chars: Vec<char>,
+        ) -> Vec<(Vec<char>, Selection)> {
+            let current_node = this.nodes.get(node_idx).unwrap();
+            let children_count = current_node.children.len();
+            let selection_count = current_node.selections.len();
+
+            let mut jump_points = current_node
+                .selections
+                .iter()
+                .enumerate()
+                .map(|(i, &sel)| {
+                    let mut sel_chars = chars.clone();
+                    if children_count > 0 || selection_count > 1 {
+                        sel_chars.push('.');
+                        if selection_count > 1 {
+                            let i_str = (i + 1).to_string();
+                            for i_chr in i_str.chars() {
+                                sel_chars.push(i_chr);
+                            }
+                        }
+                    }
+                    (sel_chars, sel)
+                })
+                .collect::<Vec<_>>();
+
+            for &(ch, child_idx) in &current_node.children {
+                let mut child_chars = chars.clone();
+                child_chars.push(ch);
+
+                jump_points.extend(get_jump_points_aux(this, child_idx, child_chars));
+            }
+
+            jump_points
+        }
+        get_jump_points_aux(self, 0, vec![])
+    }
+
+    #[allow(unused)]
+    fn debug_print(&self) {
+        fn debug_print_aux(this: &PrefixTree, node_idx: usize, indent_level: usize) {
+            let current_node = this.nodes.get(node_idx).unwrap();
+            let indent = " ".repeat(indent_level);
+            if !current_node.selections.is_empty() {
+                let sel_count = current_node.selections.len();
+                eprintln!("{indent}{sel_count} selections");
+            }
+            for &(ch, child_idx) in &current_node.children {
+                eprintln!("{indent}{ch}");
+                debug_print_aux(this, child_idx, indent_level + 1);
+            }
+        }
+        eprintln!("== PrefixTree debug print ==");
+        debug_print_aux(self, 0, 0);
+    }
+}
+
+#[derive(Default)]
+struct PrefixTreeNode {
+    selections: Vec<Selection>,
+    children: Vec<(char, usize)>,
 }
