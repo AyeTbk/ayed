@@ -3,9 +3,8 @@ use std::iter::once;
 use crate::{
     command::EditorCommand,
     selection::Selection,
-    state::State,
     ui_state::{Color, Span, Style, UiPanel},
-    utils::{Offset, Position},
+    utils::{Offset, Position, Rect},
 };
 
 // TODO warpdrive improvements
@@ -44,7 +43,7 @@ impl WarpDrive {
         self.execute_command_inner(command)
     }
 
-    pub fn render(&mut self, state: &State) -> UiPanel {
+    pub fn render(&self, editor_rect: Rect) -> UiPanel {
         let mut content = self.text_content.clone();
         let mut spans = Vec::new();
 
@@ -53,7 +52,7 @@ impl WarpDrive {
             let position = Position::ZERO.with_row(line_index as u32);
             spans.push(Span {
                 from: position,
-                to: position.with_column(state.viewport_size.column as _),
+                to: position.with_column(editor_rect.size().column as _),
                 style: Style {
                     foreground_color: Some(Color::rgb(100, 100, 100)),
                     background_color: Some(Color::rgb(25, 25, 25)),
@@ -95,8 +94,8 @@ impl WarpDrive {
         }
 
         UiPanel {
-            position: (0, 0).into(),
-            size: state.viewport_size,
+            position: editor_rect.top_left(),
+            size: editor_rect.size(),
             content,
             spans,
         }

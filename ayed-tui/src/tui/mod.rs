@@ -16,9 +16,6 @@ use crossterm::{
     ExecutableCommand,
 };
 
-pub mod panel;
-pub mod renderer;
-
 pub struct Tui {
     core: ayed_core::core::Core,
     screen: Stdout,

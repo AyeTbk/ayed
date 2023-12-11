@@ -4,6 +4,7 @@ use crate::{
     command::EditorCommand,
     controls::TextBufferEdit,
     highlight::{Highlight, HighlightPosition},
+    panels::line_numbers::LineNumbers,
     ui_state::{Span, UiPanel},
     utils::Position,
     utils::Rect,
@@ -11,7 +12,9 @@ use crate::{
 
 pub struct TextEditor {
     buffer: Handle<TextBuffer>,
+    rect: Rect,
     inner: TextBufferEdit,
+    line_numbers: LineNumbers,
     current_mode: String,
 }
 
@@ -19,7 +22,9 @@ impl TextEditor {
     pub fn new(buffer: Handle<TextBuffer>) -> Self {
         let mut this = Self {
             buffer,
+            rect: Rect::new(0, 0, 1, 1),
             inner: TextBufferEdit::new(),
+            line_numbers: LineNumbers::new(),
             current_mode: String::new(),
         };
         this.check_current_mode();
@@ -27,7 +32,11 @@ impl TextEditor {
     }
 
     pub fn set_rect(&mut self, rect: Rect) {
-        self.inner.set_rect(rect);
+        self.rect = rect;
+    }
+
+    pub fn inner_rect(&mut self) -> Rect {
+        self.inner.rect()
     }
 
     pub fn buffer_handle(&self) -> Handle<TextBuffer> {
@@ -60,7 +69,27 @@ impl TextEditor {
         self.inner.execute_command(command, buffer);
     }
 
-    pub fn render(&mut self, buffer: &TextBuffer, highlights: &[Highlight]) -> UiPanel {
+    pub fn render(&mut self, buffer: &TextBuffer, highlights: &[Highlight]) -> Vec<UiPanel> {
+        // Update inner rects (this is here because access to the buffer is needed)
+        self.line_numbers
+            .set_line_data(buffer.line_count(), self.view_top_left_position().row);
+        let lines_w = self.line_numbers.needed_width();
+        let lines_rect = Rect {
+            x: self.rect.x,
+            y: self.rect.y,
+            width: lines_w,
+            height: self.rect.height,
+        };
+        self.line_numbers.set_rect(lines_rect);
+        let inner_rect = Rect {
+            x: self.rect.x + lines_w,
+            y: self.rect.y,
+            width: self.rect.width.saturating_sub(lines_w),
+            height: self.rect.height,
+        };
+        self.inner.set_rect(inner_rect);
+
+        // Render stuff
         let mut panel = self.inner.render(buffer);
         panel.spans.extend(
             highlights
@@ -68,7 +97,8 @@ impl TextEditor {
                 .cloned()
                 .flat_map(|h| self.convert_highlight_to_span(h)),
         );
-        panel
+        let line_numbers = self.line_numbers.render();
+        vec![panel, line_numbers]
     }
 
     fn check_current_mode(&mut self) {

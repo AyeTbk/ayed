@@ -3,19 +3,21 @@ use std::path::Path;
 
 use crate::arena::Arena;
 use crate::buffer::TextBuffer;
-use crate::combo_panel::{ComboInfo, ComboInfos, ComboPanel};
 use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::config::make_config;
 use crate::highlight::regex_syntax_highlight;
 use crate::input::{Input, Key, Modifiers};
 use crate::input_manager::{initialize_input_manager, InputManager};
-use crate::mode_line::{self, Align, ModeLine, ModeLineInfo};
+use crate::panels::{
+    combo_panel::{ComboInfo, ComboInfos, ComboPanel},
+    mode_line::{self, Align, ModeLine, ModeLineInfo},
+    text_editor::TextEditor,
+    warpdrive::WarpDrive,
+};
 use crate::scripted_command::ScriptedCommand;
 use crate::state::{Buffers, Editors, State};
-use crate::text_editor::TextEditor;
 use crate::ui_state::{Color, Style, UiPanel, UiState};
 use crate::utils::{Rect, Size};
-use crate::warpdrive::WarpDrive;
 
 pub struct Core {
     state: State,
@@ -318,7 +320,11 @@ impl Core {
     }
 
     fn make_warp_drive_panel(&mut self) -> Option<WarpDrive> {
-        let ui_panel = self.render_editor();
+        let ui_panel = self
+            .render_editor()
+            .into_iter()
+            .next()
+            .expect("the editor panel should be there, first in the list");
         let text_content = ui_panel.content;
         let position_offset = self
             .state
@@ -350,7 +356,7 @@ impl Core {
         let mut panels = Vec::new();
 
         let editor_panel = self.render_editor();
-        panels.push(editor_panel);
+        panels.extend(editor_panel);
 
         if self.warpdrive.is_some() {
             let wdp_panel = self.render_warpdrive_panel();
@@ -369,7 +375,7 @@ impl Core {
         UiState { panels }
     }
 
-    fn render_editor(&mut self) -> UiPanel {
+    fn render_editor(&mut self) -> Vec<UiPanel> {
         let rect = self.compute_editor_rect();
         let active_editor = self.state.editors.active_editor_mut();
         let highlights = self
@@ -385,7 +391,9 @@ impl Core {
     }
 
     fn render_warpdrive_panel(&mut self) -> UiPanel {
-        self.warpdrive.as_mut().unwrap().render(&self.state)
+        let active_editor = self.state.editors.active_editor_mut();
+        let editor_rect = active_editor.inner_rect();
+        self.warpdrive.as_mut().unwrap().render(editor_rect)
     }
 
     fn render_mode_line(&mut self) -> UiPanel {

@@ -15,7 +15,7 @@ impl ComboPanel {
         ComboPanel { infos }
     }
 
-    pub fn render(&mut self, state: &State) -> UiPanel {
+    pub fn render(&self, state: &State) -> UiPanel {
         let mut grid = GridStringBuilder::new();
 
         let header_title = state

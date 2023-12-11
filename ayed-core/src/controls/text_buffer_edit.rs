@@ -105,7 +105,7 @@ impl TextBufferEdit {
 
         if viewport_size.column == 0 || viewport_size.row == 0 {
             return UiPanel {
-                position: (0, 0).into(),
+                position: self.rect.top_left(),
                 size: viewport_size,
                 content: Default::default(),
                 spans: Default::default(),
@@ -168,7 +168,7 @@ impl TextBufferEdit {
         self.compute_selection_spans(&mut panel_spans, buffer);
 
         UiPanel {
-            position: (0, 0).into(),
+            position: self.rect.top_left(),
             size: viewport_size,
             content: panel_content,
             spans: panel_spans,

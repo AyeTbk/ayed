@@ -27,7 +27,7 @@ impl LineEdit {
         }
     }
 
-    pub fn rect(&mut self) -> Rect {
+    pub fn rect(&self) -> Rect {
         self.editor.rect()
     }
 

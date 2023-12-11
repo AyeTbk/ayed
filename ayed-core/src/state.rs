@@ -5,8 +5,7 @@ use crate::{
     buffer::TextBuffer,
     config::{AppliedConfig, Config, ConfigState},
     highlight::Highlight,
-    mode_line::ModeLineInfos,
-    text_editor::TextEditor,
+    panels::{mode_line::ModeLineInfos, text_editor::TextEditor},
     utils::Size,
 };
 
