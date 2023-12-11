@@ -167,7 +167,7 @@ pub fn make_config() -> Config {
                         "string".to_string() => vec!["#bb8866".to_string(), "priority:14".to_string()],
                         "function".to_string() => vec!["#b8a4fc".to_string()],
                         "namespace".to_string() => vec!["#55b89b".to_string()],
-                        "comment".to_string() => vec!["#0a5522".to_string(), "priority:15".to_string()],
+                        "comment".to_string() => vec!["#55887a".to_string(), "priority:15".to_string()],
                     },
                 },
                 ConditionalMapping {
