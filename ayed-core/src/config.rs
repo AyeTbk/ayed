@@ -156,8 +156,8 @@ pub fn make_config() -> Config {
                     name: "syntax-style".into(),
                     selectors: vec![],
                     mapping: map! {
-                        "keyword".to_string() => vec!["#3377cc".to_string()],
-                        "keyword-statement".to_string() => vec!["#7755cc".to_string()],
+                        "keyword".to_string() => vec!["#4488cf".to_string()],
+                        "keyword-statement".to_string() => vec!["#aa77cc".to_string()],
                         "builtin".to_string() => vec!["#62b0fb".to_string(), "priority:11".to_string()],
                         "operator".to_string() => vec!["#ddccdd".to_string()],
                         "delimiter".to_string() => vec!["#ccaa11".to_string(), "priority:11".to_string()],
