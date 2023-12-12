@@ -1,4 +1,4 @@
-use crate::utils::Position;
+use crate::selection::Selection;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -51,7 +51,7 @@ pub enum EditorCommand {
     MoveCursorLeft,
     MoveCursorRight,
 
-    SetSelection { cursor: Position, anchor: Position },
+    SetSelection(Selection),
 
     MoveCursorToLeftSymbol,
     MoveCursorToRightSymbol,

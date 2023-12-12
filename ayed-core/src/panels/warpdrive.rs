@@ -231,10 +231,7 @@ impl WarpDrive {
                     let offset_selection = selection
                         .with_cursor(selection.cursor().offset(self.position_offset))
                         .with_anchor(selection.anchor().offset(self.position_offset));
-                    Some(SetSelection {
-                        cursor: offset_selection.cursor(),
-                        anchor: offset_selection.anchor(),
-                    })
+                    Some(SetSelection(offset_selection))
                 } else {
                     None
                 }

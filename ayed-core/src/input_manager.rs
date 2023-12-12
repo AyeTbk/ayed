@@ -8,7 +8,9 @@ use crate::{
     command::{Command, CoreCommand, EditorCommand},
     input::Input,
     input_mapper::InputMapper,
+    selection::Selection,
     state::State,
+    utils::Position,
 };
 
 pub struct InputManager {
@@ -109,6 +111,8 @@ pub fn initialize_input_manager() -> InputManager {
             mode_mappers: vec![
                 ("command", {
                     let mut im = InputMapper::new();
+                    im.register("g", SetComboMode("goto".into())).unwrap();
+
                     im.register("w", ShowWarpdrive).unwrap();
                     im.register("<space>", SetComboMode("user".into())).unwrap();
                     im.register("<tab>", set_edit_mode()).unwrap();
@@ -232,6 +236,18 @@ pub fn initialize_input_manager() -> InputManager {
     });
 
     // Combos
+    manager.combo_mappers.insert("goto".into(), {
+        let mut im = InputMapper::new();
+        im.register_with_description("g", SetSelection(Selection::new()), "buffer start")
+            .unwrap();
+        im.register_with_description(
+            "e",
+            SetSelection(Selection::with_position(Position::new(u32::MAX, u32::MAX))),
+            "buffer end",
+        )
+        .unwrap();
+        im
+    });
     manager.combo_mappers.insert("user".into(), {
         let mut im = InputMapper::new();
         im.register_with_description("s", WriteBuffer, "save buffer")

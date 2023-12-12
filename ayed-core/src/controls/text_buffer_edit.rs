@@ -58,9 +58,10 @@ impl TextBufferEdit {
             MoveCursorLeft => self.move_cursor_horizontally(-1, buffer, self.anchored()),
             MoveCursorRight => self.move_cursor_horizontally(1, buffer, self.anchored()),
             //
-            SetSelection { cursor, anchor } => {
-                let selection = Selection::new().with_cursor(cursor).with_anchor(anchor);
+            SetSelection(selection) => {
+                let selection = buffer.limit_selection_to_content(&selection);
                 self.selections = Selections::new_with(selection, &[]);
+                self.normalize_selections();
             }
             //
             MoveCursorToLeftSymbol => {
@@ -115,8 +116,8 @@ impl TextBufferEdit {
         self.adjust_viewport_to_primary_selection(); // this is here to keep the cursor in view when resizing the window
 
         // Compute content
-        let start_line_index = self.view_top_left_position.row;
-        let after_end_line_index = start_line_index + viewport_size.row;
+        let start_line_index = self.view_top_left_position.row as u64;
+        let after_end_line_index = start_line_index as u64 + viewport_size.row as u64;
         let start_column_index = self.view_top_left_position.column;
         let line_slice_max_len = viewport_size.column;
 
@@ -125,7 +126,7 @@ impl TextBufferEdit {
 
         for line_index in start_line_index..after_end_line_index {
             let mut line_buf = String::new();
-            let full_line = if buffer.copy_line(line_index, &mut line_buf).is_ok() {
+            let full_line = if buffer.copy_line(line_index as u32, &mut line_buf).is_ok() {
                 line_buf
             } else {
                 let mut non_existant_line = " ".repeat((viewport_size.column - 1) as _);
@@ -244,7 +245,7 @@ impl TextBufferEdit {
                 return;
             }
             if let Some(before) = buffer.moved_position_horizontally(selection.cursor(), -1) {
-                this.delete_cursor(Selection::new().with_position(before), buffer);
+                this.delete_cursor(Selection::with_position(before), buffer);
             }
         });
     }
@@ -342,7 +343,7 @@ impl TextBufferEdit {
             *selection = if selection_anchored {
                 selection.with_cursor(new_position)
             } else {
-                selection.with_position(new_position)
+                Selection::with_position(new_position)
             }
         }
     }
@@ -361,7 +362,7 @@ impl TextBufferEdit {
                     *selection = if selection_anchored {
                         selection.with_cursor(position)
                     } else {
-                        selection.with_position(position)
+                        Selection::with_position(position)
                     };
                 }
                 Err(provisional_position) => {
@@ -469,7 +470,7 @@ impl TextBufferEdit {
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
             } else {
-                selection.with_position(new_cursor)
+                Selection::with_position(new_cursor)
             };
         }
     }
@@ -497,7 +498,7 @@ impl TextBufferEdit {
             *selection = if selection_anchored {
                 selection.with_cursor(new_cursor)
             } else {
-                selection.with_position(new_cursor)
+                Selection::with_position(new_cursor)
             };
         }
     }
@@ -681,23 +682,23 @@ impl TextBufferEdit {
         let mut new_viewport_top_left_position = self.view_top_left_position;
         // Horizontal
         let vp_start_x = self.view_top_left_position.column;
-        let vp_after_end_x = vp_start_x + self.rect.width;
+        let vp_after_end_x = vp_start_x as u64 + self.rect.width as u64;
         let selection_x = self.selections.primary().cursor().column;
 
         if selection_x < vp_start_x {
             new_viewport_top_left_position.column = selection_x;
-        } else if selection_x >= vp_after_end_x {
+        } else if selection_x as u64 >= vp_after_end_x {
             new_viewport_top_left_position.column = selection_x - self.rect.width + 1;
         }
 
         // Vertical
         let vp_start_y = self.view_top_left_position.row;
-        let vp_after_end_y = vp_start_y + self.rect.height;
+        let vp_after_end_y = vp_start_y as u64 + self.rect.height as u64;
         let selection_y = self.selections.primary().cursor().row;
 
         if selection_y < vp_start_y {
             new_viewport_top_left_position.row = selection_y;
-        } else if selection_y >= vp_after_end_y {
+        } else if selection_y as u64 >= vp_after_end_y {
             new_viewport_top_left_position.row = selection_y - self.rect.height + 1;
         }
 

@@ -119,7 +119,7 @@ impl Selection {
         }
     }
 
-    pub fn with_position(&self, position: Position) -> Self {
+    pub fn with_position(position: Position) -> Self {
         Self {
             cursor: position,
             anchor: position,
