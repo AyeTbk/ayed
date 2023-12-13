@@ -162,8 +162,8 @@ pub fn make_config() -> Config {
                         "operator".to_string() => vec!["#ddccdd".to_string()],
                         "delimiter".to_string() => vec!["#ccaa11".to_string(), "priority:11".to_string()],
                         "macro".to_string() => vec!["#3377cc".to_string(), "priority:11".to_string()],
-                        "type".to_string() => vec!["#55b89b".to_string()],
-                        "literal".to_string() => vec!["#aaddcc".to_string()],
+                        "type".to_string() => vec!["#55b89b".to_string(), "priority:12".to_string()],
+                        "literal".to_string() => vec!["#aaddcc".to_string(), "priority:11".to_string()],
                         "string".to_string() => vec!["#bb8866".to_string(), "priority:14".to_string()],
                         "function".to_string() => vec!["#b8a4fc".to_string()],
                         "namespace".to_string() => vec!["#55b89b".to_string()],
@@ -181,9 +181,12 @@ pub fn make_config() -> Config {
                         "operator".to_string() => vec![r"(==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string()],
                         "delimiter".to_string() => vec![r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string()],
                         "macro".to_string() => vec![r"\b([a-zA-Z0-9_]+\!)".to_string()],
-                        "type".to_string() => vec![r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string()],
+                        "type".to_string() => vec![
+                            r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string(),
+                            r"\b((u|i)(8|16|32|64|128)|f32|f64)\b".to_string(),
+                        ],
                         "literal".to_string() => vec![
-                            r"(([0-9]*\.[0-9]+|[0-9]+)((u|i|f)(8|16|32|64|128))?)".to_string(),
+                            r"(([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?)".to_string(),
                             r"\b(true|false)\b".to_string(),
                         ],
                         "string".to_string() => vec![
