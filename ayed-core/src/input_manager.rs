@@ -136,6 +136,12 @@ pub fn initialize_input_manager() -> InputManager {
                     )
                     .unwrap();
                     im.register(
+                        "<a-i>",
+                        [Editor(MoveCursorToLineStartSmart), Core(set_edit_mode())],
+                    )
+                    .unwrap();
+
+                    im.register(
                         "a",
                         [
                             Editor(FlipSelectionForward),
@@ -153,6 +159,11 @@ pub fn initialize_input_manager() -> InputManager {
                             Editor(AnchorNext),
                             Editor(MoveCursorRight),
                         ],
+                    )
+                    .unwrap();
+                    im.register(
+                        "<a-a>",
+                        [Editor(MoveCursorToLineEnd), Core(set_edit_mode())],
                     )
                     .unwrap();
 

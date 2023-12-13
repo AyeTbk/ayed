@@ -203,6 +203,7 @@ pub fn make_config() -> Config {
                     selectors: vec![],
                     mapping: map! {
                         r"modify-buffer".to_string() => vec!["builtin-syntax-highlight".to_string()],
+                        r"after-insert".to_string() => vec!["builtin-auto-indent".to_string()],
                     },
                 },
             ],

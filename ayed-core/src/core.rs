@@ -102,6 +102,21 @@ impl Core {
                 Ok(())
             }),
         );
+        this.scripted_commands.insert(
+            "builtin-auto-indent".into(),
+            ScriptedCommand::new(|_state, args| {
+                let Some(chr) = args.chars().next() else {
+                    return Err("expected char argument".to_string());
+                };
+                if chr != '\n' {
+                    return Ok(());
+                }
+
+                dbg!("TODO auto indent plz");
+
+                Ok(())
+            }),
+        );
 
         this.state.set_active_editor(active_editor_handle);
 
@@ -309,6 +324,10 @@ impl Core {
         let editor = self.state.editors.active_editor_mut();
         let buffer = editor.get_buffer_mut(&mut self.state.buffers.buffers_arena);
         editor.execute_command(command, buffer);
+
+        if let EditorCommand::Insert(chr) = command {
+            self.run_hooks_after_insert(chr);
+        }
     }
 
     pub fn viewport_size(&self) -> Size {
@@ -469,9 +488,8 @@ impl Core {
         }
         active_buffer.modified = false;
 
-        let config_state = self.state.extract_config_state();
-        let applied_config = self.state.config.applied_to(&config_state);
-        let Some(cmds) = applied_config
+        let config = self.state.extract_applied_config();
+        let Some(cmds) = config
             .get("hooks")
             .and_then(|hooks| hooks.get("modify-buffer"))
         else {
@@ -479,6 +497,22 @@ impl Core {
         };
 
         for command in cmds.iter().cloned() {
+            self.execute_command(Command::ScriptedCommand(command));
+        }
+    }
+
+    fn run_hooks_after_insert(&mut self, chr: char) {
+        let config = self.state.extract_applied_config();
+        let Some(cmds) = config
+            .get("hooks")
+            .and_then(|hooks| hooks.get("after-insert"))
+        else {
+            return;
+        };
+
+        for mut command in cmds.iter().cloned() {
+            command.push(' ');
+            command.push(chr);
             self.execute_command(Command::ScriptedCommand(command));
         }
     }
