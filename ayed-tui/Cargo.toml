@@ -7,7 +7,5 @@ edition = "2021"
 
 [dependencies]
 ayed-core = { path = "../ayed-core/" }
-crossterm = "0.26"
 
-[target.'cfg(unix)'.dependencies]
-signal-hook = "0.3.15"
+crossterm = "0.26"
