@@ -1,10 +1,12 @@
-pub mod arena;
-pub mod buffer;
 pub mod command;
+#[macro_use]
+pub mod scripted_command;
+
+pub mod arena;
 pub mod config;
 pub mod controls;
 pub mod core;
-pub mod scripted_command;
+pub mod text_buffer;
 
 pub mod panels;
 

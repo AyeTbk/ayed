@@ -13,3 +13,9 @@ impl ScriptedCommand {
         (self.f)(state, args)
     }
 }
+
+macro_rules! register_command {
+    ($cmds:expr, $fn:expr) => {
+        $cmds.insert(stringify!($fn).replace('_', "-"), ScriptedCommand::new($fn));
+    };
+}

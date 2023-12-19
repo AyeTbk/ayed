@@ -1,8 +1,6 @@
 use std::collections::HashMap;
-use std::path::Path;
 
 use crate::arena::Arena;
-use crate::buffer::TextBuffer;
 use crate::command::{Command, CoreCommand, EditorCommand};
 use crate::config::make_config;
 use crate::highlight::regex_syntax_highlight;
@@ -16,6 +14,7 @@ use crate::panels::{
 };
 use crate::scripted_command::ScriptedCommand;
 use crate::state::{Buffers, Editors, State};
+use crate::text_buffer::{self, TextBuffer};
 use crate::ui_state::{Color, Style, UiPanel, UiState};
 use crate::utils::{Rect, Size};
 
@@ -118,6 +117,8 @@ impl Core {
             }),
         );
 
+        text_buffer::commands::register_commands(&mut this.scripted_commands);
+
         this.state.set_active_editor(active_editor_handle);
 
         this
@@ -177,7 +178,7 @@ impl Core {
                     }
                 }
                 EditFile(filepath) => {
-                    let buffer = self.state.get_buffer_from_filepath(filepath);
+                    let buffer = self.state.get_buffer_from_filepath(&filepath).unwrap();
                     self.state.edit_buffer(buffer);
                     self.run_hooks_modify_buffer(); // TODO maybe change this to an open-buffer hook?
                 }
@@ -188,7 +189,6 @@ impl Core {
                         .buffers
                         .active_buffer()
                         .filepath()
-                        .map(Path::to_string_lossy)
                         .unwrap_or_default();
                     self.set_mode_line_message(format!("saved as {path}"));
                 }
@@ -441,7 +441,7 @@ impl Core {
 
     fn mode_line_infos(&mut self) -> Vec<ModeLineInfo> {
         let filepath_text = if let Some(path) = self.state.buffers.active_buffer().filepath() {
-            path.to_string_lossy().into_owned()
+            path.to_owned()
         } else {
             "*scratch*".to_string()
         };
@@ -483,10 +483,9 @@ impl Core {
 
     fn run_hooks_modify_buffer(&mut self) {
         let active_buffer = self.state.buffers.active_buffer_mut();
-        if !active_buffer.modified {
+        if !active_buffer.take_is_modified() {
             return;
         }
-        active_buffer.modified = false;
 
         let config = self.state.extract_applied_config();
         let Some(cmds) = config

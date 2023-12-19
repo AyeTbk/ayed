@@ -7,6 +7,12 @@ pub enum Command {
     ScriptedCommand(String),
 }
 
+impl Command {
+    pub fn new(scripted_command: impl Into<String>) -> Self {
+        Self::ScriptedCommand(scripted_command.into())
+    }
+}
+
 impl From<CoreCommand> for Command {
     fn from(value: CoreCommand) -> Self {
         Command::Core(value)
@@ -43,8 +49,6 @@ pub enum EditorCommand {
 
     // Selection manipulation commands
     AnchorNext,
-    AnchorDown,
-    AnchorUp,
 
     MoveCursorUp,
     MoveCursorDown,

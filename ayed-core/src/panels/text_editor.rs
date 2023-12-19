@@ -1,10 +1,10 @@
 use crate::{
     arena::{Arena, Handle},
-    buffer::TextBuffer,
     command::EditorCommand,
-    controls::TextBufferEdit,
+    controls::TextEdit,
     highlight::{Highlight, HighlightPosition},
     panels::line_numbers::LineNumbers,
+    text_buffer::{SelectionsId, TextBuffer},
     ui_state::{Span, UiPanel},
     utils::Position,
     utils::Rect,
@@ -13,7 +13,7 @@ use crate::{
 pub struct TextEditor {
     buffer: Handle<TextBuffer>,
     rect: Rect,
-    inner: TextBufferEdit,
+    inner: TextEdit,
     line_numbers: LineNumbers,
     current_mode: String,
 }
@@ -23,7 +23,7 @@ impl TextEditor {
         let mut this = Self {
             buffer,
             rect: Rect::new(0, 0, 1, 1),
-            inner: TextBufferEdit::new(),
+            inner: TextEdit::new(),
             line_numbers: LineNumbers::new(),
             current_mode: String::new(),
         };
@@ -51,6 +51,10 @@ impl TextEditor {
         buffers.get_mut(self.buffer)
     }
 
+    pub fn selections_id(&self) -> SelectionsId {
+        self.inner.selections_id()
+    }
+
     pub fn mode(&self) -> &str {
         &self.current_mode
     }
@@ -70,6 +74,8 @@ impl TextEditor {
     }
 
     pub fn render(&mut self, buffer: &TextBuffer, highlights: &[Highlight]) -> Vec<UiPanel> {
+        // TODO split the details this into separate methods
+
         // Update inner rects (this is here because access to the buffer is needed)
         self.line_numbers
             .set_line_data(buffer.line_count(), self.view_top_left_position().row);
@@ -108,7 +114,7 @@ impl TextEditor {
             _ => self.current_mode = String::from("command"),
         }
 
-        self.inner.use_alt_cursor_style = self.current_mode == "edit";
+        // self.inner.use_alt_cursor_style = self.current_mode == "edit"; // TODO make this work again
     }
 
     fn convert_highlight_to_span(&self, highlight: Highlight) -> Option<Span> {

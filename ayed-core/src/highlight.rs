@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use regex::Regex;
 
 use crate::{
-    buffer::TextBuffer,
+    text_buffer::TextBuffer,
     ui_state::{priority_from_str, Color, Style},
     utils::Position,
 };
@@ -62,9 +62,8 @@ pub fn regex_syntax_highlight(
         rules.push((regexes, color, priority));
     }
 
-    let mut line = String::new();
     for line_index in 0..buffer.line_count() {
-        let Ok(()) = buffer.copy_line(line_index, &mut line) else {
+        let Some(line) = buffer.line(line_index) else {
             break;
         };
         for (regexes, color, priority) in &rules {

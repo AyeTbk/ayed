@@ -1,5 +1,3 @@
-use std::ops::RangeInclusive;
-
 use crate::utils::Position;
 
 #[derive(Debug, Clone)]
@@ -78,6 +76,14 @@ impl Selections {
             Some(self.primary_selection)
         } else {
             self.extra_selections.get(index - 1).copied()
+        }
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Selection> {
+        if index == 0 {
+            Some(&mut self.primary_selection)
+        } else {
+            self.extra_selections.get_mut(index - 1)
         }
     }
 
@@ -180,6 +186,14 @@ impl Selection {
         }
     }
 
+    pub fn with_start_and_end(&self, start: Position, end: Position) -> Self {
+        if self.is_forward() {
+            self.with_anchor(start).with_cursor(end)
+        } else {
+            self.with_cursor(start).with_anchor(end)
+        }
+    }
+
     pub fn shrunk_to_cursor(&self) -> Self {
         let mut this = *self;
         this.anchor = this.cursor;
@@ -227,6 +241,15 @@ impl Selection {
         self.anchor.with_column(self.desired_anchor_column_index)
     }
 
+    pub fn to_desired(&self) -> Self {
+        Self {
+            cursor: self.cursor,
+            anchor: self.anchor,
+            desired_cursor_column_index: self.cursor.column,
+            desired_anchor_column_index: self.anchor.column,
+        }
+    }
+
     pub fn start(&self) -> Position {
         self.start_end().0
     }
@@ -235,12 +258,16 @@ impl Selection {
         self.start_end().1
     }
 
-    pub fn is_forward(&self) -> bool {
-        self.anchor < self.cursor
+    pub fn start_end(&self) -> (Position, Position) {
+        if self.cursor < self.anchor {
+            (self.cursor, self.anchor)
+        } else {
+            (self.anchor, self.cursor)
+        }
     }
 
-    pub fn line_span(&self) -> RangeInclusive<u32> {
-        self.start().row..=self.end().row
+    pub fn is_forward(&self) -> bool {
+        self.anchor <= self.cursor
     }
 
     pub fn merged_with(&self, other: &Self) -> Option<Self> {
@@ -272,50 +299,33 @@ impl Selection {
         self.start() <= position && position <= self.end()
     }
 
+    pub fn split_lines(&self) -> impl Iterator<Item = Selection> {
+        let (self_start, self_end) = self.start_end();
+        let line_count = self_end.row.saturating_sub(self_start.row) + 1;
+        let mut i = 0;
+        std::iter::from_fn(move || {
+            if i >= line_count {
+                return None;
+            }
+
+            let start_column = if i == 0 { self_start.column } else { 0 };
+            let end_column = if i == line_count - 1 {
+                self_end.column
+            } else {
+                u32::MAX
+            };
+            let line = self_start.row + i;
+            i += 1;
+            Some(Selection::new().with_start_and_end(
+                Position::new(start_column, line),
+                Position::new(end_column, line),
+            ))
+        })
+    }
+
     fn cursor_is_at_start(&self) -> bool {
         self.cursor <= self.anchor
     }
-
-    fn start_end(&self) -> (Position, Position) {
-        if self.cursor <= self.anchor {
-            (self.cursor, self.anchor)
-        } else {
-            (self.anchor, self.cursor)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum EditInfo {
-    Deleted(DeletedEditInfo),
-    AddedOne(Position),
-    LineSplit(Position), // position points where the char (now first char of the new line) was.
-}
-
-impl EditInfo {
-    pub fn pos(&self) -> Position {
-        match self {
-            &Self::Deleted(edit) => Position::new(
-                (edit.pos1_before_delete_start_column_index + 1) as u32,
-                edit.pos1_line_index,
-            ),
-            &Self::AddedOne(pos) => pos,
-            &Self::LineSplit(pos) => pos,
-        }
-    }
-}
-
-impl From<DeletedEditInfo> for EditInfo {
-    fn from(value: DeletedEditInfo) -> Self {
-        Self::Deleted(value)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct DeletedEditInfo {
-    pub pos1_line_index: u32,
-    pub pos1_before_delete_start_column_index: i64, // Can be -1
-    pub pos2: Position,                             // Position after deleted content end
 }
 
 #[allow(non_snake_case)]

@@ -1,11 +1,11 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, io};
 
 use crate::{
     arena::{Arena, Handle},
-    buffer::TextBuffer,
     config::{AppliedConfig, Config, ConfigState},
     highlight::Highlight,
     panels::{mode_line::ModeLineInfos, text_editor::TextEditor},
+    text_buffer::TextBuffer,
     utils::Size,
 };
 
@@ -35,9 +35,7 @@ impl State {
         self.buffers.buffers_arena.allocate(TextBuffer::new_empty())
     }
 
-    pub fn get_buffer_from_filepath(&mut self, path: impl AsRef<Path>) -> Handle<TextBuffer> {
-        let path = path.as_ref();
-
+    pub fn get_buffer_from_filepath(&mut self, path: &str) -> io::Result<Handle<TextBuffer>> {
         let alreay_opened_buffer = self
             .buffers
             .buffers_arena
@@ -54,13 +52,13 @@ impl State {
                 }
             });
 
-        if let Some(buffer) = alreay_opened_buffer {
+        Ok(if let Some(buffer) = alreay_opened_buffer {
             buffer
         } else {
             self.buffers
                 .buffers_arena
-                .allocate(TextBuffer::from_filepath(path.as_ref()))
-        }
+                .allocate(TextBuffer::from_filepath(path)?)
+        })
     }
 
     pub fn edit_buffer(&mut self, buffer: Handle<TextBuffer>) {
@@ -83,7 +81,10 @@ impl State {
     }
 
     pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        self.buffers.buffers_arena.get(buffer).save().unwrap();
+        // FIXME return something to indicate wether it was save successfully or not
+        if let Some(result) = self.buffers.buffers_arena.get(buffer).save() {
+            result.unwrap();
+        }
     }
 
     pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {
@@ -112,7 +113,7 @@ impl State {
             .buffers
             .active_buffer()
             .filepath()
-            .and_then(|p| p.to_str().map(str::to_string))
+            .map(str::to_string)
             .unwrap_or_default();
         cs.set("file", file);
         cs
@@ -125,8 +126,9 @@ impl State {
 
 pub struct Buffers {
     pub buffers_arena: Arena<TextBuffer>,
-    pub active_buffer_handle: Handle<TextBuffer>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
+    // This is for convinience only, the source of truth for this is the active editor.
+    pub active_buffer_handle: Handle<TextBuffer>,
 }
 
 impl Buffers {
