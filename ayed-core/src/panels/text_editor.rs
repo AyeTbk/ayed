@@ -96,7 +96,7 @@ impl TextEditor {
         self.inner.set_rect(inner_rect);
 
         // Render stuff
-        let mut panel = self.inner.render(buffer);
+        let mut panel = self.inner.render(buffer, self.mode() == "edit");
         panel.spans.extend(
             highlights
                 .iter()

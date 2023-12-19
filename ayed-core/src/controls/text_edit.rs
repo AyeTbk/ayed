@@ -16,6 +16,7 @@ pub struct TextEdit {
     rect: Rect,
     view_top_left_position: Position,
     selections_id: SelectionsId,
+    anchor_next_tracker: AnchorNextTracker,
 }
 
 impl TextEdit {
@@ -24,6 +25,7 @@ impl TextEdit {
             rect: Rect::new(0, 0, 25, 25),
             view_top_left_position: Position::ZERO,
             selections_id: SelectionsId::default(),
+            anchor_next_tracker: AnchorNextTracker::new(),
         }
     }
 
@@ -39,28 +41,45 @@ impl TextEdit {
         self.view_top_left_position
     }
 
+    pub fn view_rect(&self) -> Rect {
+        Rect::with_position_and_size(self.view_top_left_position, self.rect.size())
+    }
+
     pub fn selections_id(&self) -> SelectionsId {
         self.selections_id
     }
 
     pub fn execute_command(&mut self, command: EditorCommand, buffer: &mut TextBuffer) {
+        let is_anchored = self.anchor_next_tracker.is_anchored();
+
         use EditorCommand::*;
         match command {
             Noop => (),
+            //
             Insert(chr) => {
                 buffer.insert_char(self.selections_id, chr).unwrap();
                 // if not anchored:
                 // self.shrink_selections(buffer);
             }
-            MoveCursorUp => move_cursor_up_impl(buffer, self.selections_id),
-            MoveCursorDown => move_cursor_down_impl(buffer, self.selections_id),
-            MoveCursorLeft => move_cursor_left_impl(buffer, self.selections_id),
-            MoveCursorRight => move_cursor_right_impl(buffer, self.selections_id),
+            DeleteSelection => todo!(),
+            DeleteCursor => todo!(),
+            DeleteBeforeCursor => todo!(),
+            //
+            AnchorNext => self.anchor_next_tracker.start(),
+            MoveCursorUp => move_cursor_up_impl(buffer, self.selections_id, is_anchored),
+            MoveCursorDown => move_cursor_down_impl(buffer, self.selections_id, is_anchored),
+            MoveCursorLeft => move_cursor_left_impl(buffer, self.selections_id, is_anchored),
+            MoveCursorRight => move_cursor_right_impl(buffer, self.selections_id, is_anchored),
             _ => (),
         }
+
+        self.anchor_next_tracker.tick();
+        self.adjust_viewport_to_primary_selection(buffer);
     }
 
-    pub fn render(&mut self, buffer: &TextBuffer) -> UiPanel {
+    pub fn render(&mut self, buffer: &TextBuffer, use_alt_selection_style: bool) -> UiPanel {
+        self.adjust_viewport_to_primary_selection(buffer); // this is here to keep the cursor in view when resizing the window
+
         let size = self.rect.size();
         let mut spans = Vec::new();
         let mut content = buffer
@@ -72,7 +91,9 @@ impl TextEdit {
                     .chars()
                     .skip(self.view_top_left_position.column as usize)
                     .take(size.column as usize);
-                let padding_len = size.column.saturating_sub(char_count(&line));
+                let line_chars_count_in_view =
+                    char_count(&line).saturating_sub(self.view_top_left_position.column);
+                let padding_len = size.column.saturating_sub(line_chars_count_in_view);
                 let padding_chars = std::iter::once(' ').cycle().take(padding_len as usize);
                 let mut buf = String::new();
                 buf.extend(line_chars_in_view);
@@ -98,7 +119,7 @@ impl TextEdit {
             })
         }
 
-        spans.extend(self.compute_selections_spans(buffer));
+        spans.extend(self.compute_selections_spans(buffer, use_alt_selection_style));
 
         UiPanel {
             position: self.rect.top_left(),
@@ -108,14 +129,14 @@ impl TextEdit {
         }
     }
 
-    pub fn compute_selections_spans(&self, buffer: &TextBuffer) -> Vec<Span> {
+    pub fn compute_selections_spans(&self, buffer: &TextBuffer, alt_style: bool) -> Vec<Span> {
         let mut spans = Vec::new();
 
-        let use_alt_cursor_style = false;
+        let view_offset = -self.view_top_left_position.to_offset();
 
         for (i, selection) in buffer.get_selections(self.selections_id).iter().enumerate() {
             let is_primary = i == 0;
-            let cursor_color = if use_alt_cursor_style {
+            let cursor_color = if alt_style {
                 if is_primary {
                     Some(Color::RED)
                 } else {
@@ -128,7 +149,7 @@ impl TextEdit {
                     Some(Color::rgb(180, 180, 180))
                 }
             };
-            let selection_color = if use_alt_cursor_style {
+            let selection_color = if alt_style {
                 if is_primary {
                     Some(Color::rgb(100, 32, 96))
                 } else {
@@ -143,20 +164,34 @@ impl TextEdit {
             };
 
             // Cursor span
-            spans.push(Span {
-                from: selection.cursor(),
-                to: selection.cursor(),
-                style: Style {
-                    foreground_color: cursor_color,
-                    invert: true,
-                    ..Default::default()
-                },
-                priority: 255,
-            });
+            let cursor = selection.cursor();
+            if self.view_rect().contains_position(cursor) {
+                spans.push(Span {
+                    from: cursor.offset(view_offset),
+                    to: cursor.offset(view_offset),
+                    style: Style {
+                        foreground_color: cursor_color,
+                        invert: true,
+                        ..Default::default()
+                    },
+                    priority: 255,
+                });
+            }
 
             for line_selection in selection.split_lines() {
                 let line_selection = buffer.limit_selection_to_content(&line_selection);
                 let (from, to) = line_selection.start_end();
+
+                let Some(line_sel_rect) =
+                    Rect::from_positions(from, to).intersection(self.view_rect())
+                else {
+                    continue;
+                };
+
+                let (from, to) = (
+                    line_sel_rect.top_left().offset(view_offset),
+                    line_sel_rect.bottom_right().offset(view_offset),
+                );
 
                 // Selection span on line
                 spans.push(Span {
@@ -172,5 +207,56 @@ impl TextEdit {
             }
         }
         spans
+    }
+
+    fn adjust_viewport_to_primary_selection(&mut self, buffer: &TextBuffer) {
+        let mut new_viewport_top_left_position = self.view_top_left_position;
+        let primary_cursor = buffer.get_selections(self.selections_id).primary().cursor();
+
+        // Horizontal
+        let vp_start_x = self.view_top_left_position.column;
+        let vp_after_end_x = vp_start_x as u64 + self.rect.width as u64;
+        let selection_x = primary_cursor.column;
+
+        if selection_x < vp_start_x {
+            new_viewport_top_left_position.column = selection_x;
+        } else if selection_x as u64 >= vp_after_end_x {
+            new_viewport_top_left_position.column = selection_x - self.rect.width + 1;
+        }
+
+        // Vertical
+        let vp_start_y = self.view_top_left_position.row;
+        let vp_after_end_y = vp_start_y as u64 + self.rect.height as u64;
+        let selection_y = primary_cursor.row;
+
+        if selection_y < vp_start_y {
+            new_viewport_top_left_position.row = selection_y;
+        } else if selection_y as u64 >= vp_after_end_y {
+            new_viewport_top_left_position.row = selection_y - self.rect.height + 1;
+        }
+
+        self.view_top_left_position = new_viewport_top_left_position;
+    }
+}
+
+struct AnchorNextTracker {
+    counter: u8,
+}
+
+impl AnchorNextTracker {
+    pub fn new() -> Self {
+        Self { counter: 0 }
+    }
+
+    pub fn is_anchored(&self) -> bool {
+        self.counter != 0
+    }
+
+    pub fn start(&mut self) {
+        self.counter = 2;
+    }
+
+    pub fn tick(&mut self) {
+        self.counter = self.counter.saturating_sub(1);
     }
 }

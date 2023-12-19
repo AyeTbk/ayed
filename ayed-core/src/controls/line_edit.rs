@@ -65,7 +65,7 @@ impl LineEdit {
     }
 
     pub fn render(&mut self) -> UiPanel {
-        let mut editor_panel = self.edit.render(&self.buffer);
+        let mut editor_panel = self.edit.render(&self.buffer, false);
 
         editor_panel.position = self.rect().top_left();
         editor_panel.size = self.rect().size();

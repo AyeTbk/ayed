@@ -16,12 +16,75 @@ impl Rect {
         }
     }
 
+    pub fn with_position_and_size(position: Position, size: Size) -> Self {
+        Self {
+            x: position.column,
+            y: position.row,
+            width: size.column,
+            height: size.row,
+        }
+    }
+
+    pub fn from_positions(a: Position, b: Position) -> Self {
+        let top = u32::min(a.row, b.row);
+        let bottom = u32::max(a.row, b.row);
+        let left = u32::min(a.column, b.column);
+        let right = u32::max(a.column, b.column);
+
+        let width = right - left + 1;
+        let height = bottom - top + 1;
+
+        Self {
+            x: left,
+            y: top,
+            width,
+            height,
+        }
+    }
+
+    pub fn top(&self) -> u32 {
+        self.y
+    }
+
+    pub fn bottom(&self) -> u32 {
+        (self.y + self.height).saturating_sub(1)
+    }
+
+    pub fn left(&self) -> u32 {
+        self.x
+    }
+
+    pub fn right(&self) -> u32 {
+        (self.x + self.width).saturating_sub(1)
+    }
+
     pub fn top_left(&self) -> Position {
         (self.x, self.y).into()
     }
 
+    pub fn bottom_right(&self) -> Position {
+        (self.right(), self.bottom()).into()
+    }
+
     pub fn size(&self) -> Size {
         (self.width, self.height).into()
+    }
+
+    pub fn contains_position(&self, position: Position) -> bool {
+        self.top_left() <= position && position <= self.bottom_right()
+    }
+
+    pub fn intersection(&self, other: Rect) -> Option<Rect> {
+        let top = u32::max(self.top(), other.top());
+        let bottom = u32::min(self.bottom(), other.bottom());
+        let left = u32::max(self.left(), other.left());
+        let right = u32::min(self.right(), other.right());
+
+        if top <= bottom && left <= right {
+            Some(Rect::new(left, top, right - left + 1, bottom - top + 1))
+        } else {
+            None
+        }
     }
 }
 
@@ -145,6 +208,15 @@ impl std::ops::Sub for Offset {
         Self {
             column: self.column - rhs.column,
             row: self.row - rhs.row,
+        }
+    }
+}
+impl std::ops::Neg for Offset {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        Self {
+            column: -self.column,
+            row: -self.row,
         }
     }
 }
