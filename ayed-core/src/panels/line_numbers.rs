@@ -28,24 +28,30 @@ impl LineNumbers {
     }
 
     pub fn needed_width(&self) -> u32 {
+        self.numbers_width() + self.right_padding_width()
+    }
+
+    pub fn numbers_width(&self) -> u32 {
         let line_count_log = (self.total_line_count as f32).log10() as u32;
-        let sides_padding = 2;
-        line_count_log + 1 + sides_padding
+        line_count_log + 1
+    }
+
+    pub fn right_padding_width(&self) -> u32 {
+        2
     }
 
     pub fn render(&self) -> UiPanel {
         let mut content = Vec::new();
         let mut spans = Vec::new();
-        let line_count_log =
-            (u32::max(self.total_line_count, self.rect.height) as f32).log10() as u32;
 
         for i in 0..self.rect.height {
             let line_no = i + self.start_line + 1;
             let content_line = if line_no <= self.total_line_count {
                 let line_no_str = line_no.to_string();
-                let padding_len = ((line_count_log + 1) as usize).saturating_sub(line_no_str.len());
+                let padding_len = (self.numbers_width() as usize).saturating_sub(line_no_str.len());
                 let padding_str = " ".repeat(padding_len);
-                format!("{padding_str}{line_no_str}  ")
+                let right_padding = " ".repeat(self.right_padding_width() as usize);
+                format!("{padding_str}{line_no_str}{right_padding}")
             } else {
                 " ".repeat(self.needed_width() as usize)
             };
