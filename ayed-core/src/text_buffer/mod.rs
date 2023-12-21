@@ -92,29 +92,25 @@ impl TextBuffer {
         self.selections_sets[set_id.0].get_mut(index)
     }
 
-    pub fn insert(&mut self, id: SelectionsId, text: &str) -> Result<(), ()> {
+    pub fn insert(&mut self, id: SelectionsId, text: &str) {
         for selection in self.selections_sets[id.0].clone().iter() {
-            self.insert_at(selection.cursor(), text)?;
+            self.insert_at(selection.cursor(), text);
         }
-        for selection in self.selections_sets[id.0].iter_mut() {
-            *selection = selection.to_desired();
-        }
-        Ok(())
     }
 
-    pub fn insert_char(&mut self, id: SelectionsId, chr: char) -> Result<(), ()> {
+    pub fn insert_char(&mut self, id: SelectionsId, chr: char) {
         let mut buf = [0u8; 4];
         chr.encode_utf8(&mut buf);
         self.insert(id, std::str::from_utf8(&buf[..chr.len_utf8()]).unwrap())
     }
 
-    pub fn insert_char_at(&mut self, pos: Position, chr: char) -> Result<(), ()> {
+    pub fn insert_char_at(&mut self, pos: Position, chr: char) {
         let mut buf = [0u8; 4];
         chr.encode_utf8(&mut buf);
         self.insert_at(pos, std::str::from_utf8(&buf[..chr.len_utf8()]).unwrap())
     }
 
-    pub fn insert_at(&mut self, pos: Position, text: &str) -> Result<(), ()> {
+    pub fn insert_at(&mut self, pos: Position, text: &str) {
         let (insert_index, _) = self.position_as_indices(pos).unwrap();
         let text_lines: Vec<_> = text.split('\n').collect();
 
@@ -143,30 +139,75 @@ impl TextBuffer {
                 }
 
                 let last_line = format!("{last}{end}");
-                to_column = char_count(&last_line);
+                to_column = 0; //char_count(&last_line); // Idk what im doing just work plz
                 self.insert_line(insert_line_index, last_line);
             }
         }
 
-        self.displace_selections(pos, Position::new(to_column, to_row), EditKind::Insert);
+        let (from, to) = (pos, Position::new(to_column, to_row));
+        self.displace_selections(from, to, None, EditKind::Insert);
         self.modified = true;
 
-        Ok(())
+        self.make_selections_desired();
     }
 
-    pub fn delete(&mut self) {
-        todo!()
+    pub fn delete(&mut self, id: SelectionsId) {
+        for selection in self.selections_sets[id.0].clone().iter() {
+            self.delete_selection(*selection);
+        }
     }
 
-    pub fn delete_selection(&mut self, _selection: Selection) {
+    pub fn delete_selection(&mut self, selection: Selection) {
+        let start = selection.start();
+        let end = selection.end();
+
+        let (first_line_delete_start, _) = self.position_as_indices(start).unwrap();
+        let (last_line_delete_end, _) = self.position_as_indices(end.offset((1, 0))).unwrap();
+        let join_next_line = end.column >= self.line_char_count(end.row).unwrap();
+
+        if start.row == end.row {
+            let line = self.line_mut(start.row).unwrap();
+            line.drain(first_line_delete_start..last_line_delete_end);
+        } else {
+            let mut last_line = std::mem::take(self.line_mut(end.row).unwrap());
+            last_line.drain(..last_line_delete_end);
+
+            let first_line = self.line_mut(start.row).unwrap();
+            first_line.drain(first_line_delete_start..);
+            first_line.push_str(&last_line);
+
+            self.lines
+                .drain((start.row as usize + 1)..=(end.row as usize));
+        }
+
+        let mut join_next_line_fix = None;
+        if join_next_line {
+            let next_line_row = start.row.saturating_add(1);
+            if next_line_row <= self.last_line_index() {
+                let next_line = self.lines.remove(next_line_row as usize);
+                join_next_line_fix = Some(self.line_char_count(start.row).unwrap());
+                let first_line = self.line_mut(start.row).unwrap();
+                first_line.push_str(&next_line);
+            }
+        }
+
+        self.displace_selections(start, end, join_next_line_fix, EditKind::Delete);
         self.modified = true;
-        todo!()
+
+        self.make_selections_desired();
     }
 
-    pub fn displace_selections(&mut self, from: Position, to: Position, edit: EditKind) {
+    pub fn displace_selections(
+        &mut self,
+        from: Position,
+        to: Position,
+        join_next_line_fix: Option<u32>,
+        edit: EditKind,
+    ) {
         for selections in &mut self.selections_sets {
             for selection in selections.iter_mut() {
-                *selection = Self::displace_selection(selection, from, to, edit);
+                *selection =
+                    Self::displace_selection(selection, from, to, join_next_line_fix, edit);
             }
         }
     }
@@ -175,10 +216,13 @@ impl TextBuffer {
         selection: &Selection,
         from: Position,
         to: Position,
+        join_next_line_fix: Option<u32>,
         edit: EditKind,
     ) -> Selection {
-        let cursor = Self::displace_position_from_edit(selection.cursor(), from, to, edit);
-        let anchor = Self::displace_position_from_edit(selection.anchor(), from, to, edit);
+        let scursor = selection.cursor();
+        let sanchor = selection.anchor();
+        let cursor = Self::displace_position_from_edit(scursor, from, to, join_next_line_fix, edit);
+        let anchor = Self::displace_position_from_edit(sanchor, from, to, join_next_line_fix, edit);
         selection
             .with_provisional_cursor(cursor)
             .with_provisional_anchor(anchor)
@@ -188,50 +232,64 @@ impl TextBuffer {
         position: Position,
         from: Position,
         to: Position,
+        join_next_line_fix: Option<u32>,
         edit: EditKind,
     ) -> Position {
         if from > to {
-            // Nonsensical request
-            return position;
-        }
-
-        if position < from {
+            // Nonsensical request, just return the position
             return position;
         }
 
         let row_diff = to.row.saturating_sub(from.row);
-        let column_diff = to.column.saturating_sub(from.column);
-
-        // NOTE I'm not convinced this is correct
+        let column_diff = (to.column as i64) - (from.column as i64);
 
         match edit {
             EditKind::Insert => {
-                let column = if position.row == from.row && position.column >= from.column {
-                    if from.row == to.row {
-                        position.column.saturating_add(column_diff)
-                    } else {
-                        position.column.saturating_add(to.column)
-                    }
+                if position < from {
+                    position
                 } else {
-                    position.column
-                };
-
-                let row = position.row.saturating_add(row_diff);
-                Position::new(column, row)
+                    let row = position.row.saturating_add(row_diff);
+                    let column = if position.row == from.row {
+                        let i64_column = position.column as i64 + column_diff;
+                        i64_column.clamp(u32::MIN as _, u32::MAX as _) as u32
+                    } else {
+                        position.column
+                    };
+                    Position::new(column, row)
+                }
             }
             EditKind::Delete => {
-                let column = if position.row == to.row && position.column > to.column {
-                    if from.row == to.row {
-                        position.column.saturating_sub(column_diff)
+                if from <= position && position <= to {
+                    from
+                } else if position > to {
+                    if position.row == to.row {
+                        let i64_column = position.column as i64 - column_diff - 1;
+                        let column = i64_column.clamp(u32::MIN as _, u32::MAX as _) as u32;
+                        Position::new(column, from.row)
                     } else {
-                        position.column.saturating_sub(to.column)
+                        match join_next_line_fix {
+                            Some(to_row_original_char_count)
+                                if position.row == to.row.saturating_add(1) =>
+                            {
+                                Position::new(to_row_original_char_count, to.row)
+                            }
+                            _ => {
+                                let row = position.row.saturating_sub(row_diff);
+                                Position::new(position.column, row)
+                            }
+                        }
                     }
                 } else {
-                    position.column
-                };
+                    position
+                }
+            }
+        }
+    }
 
-                let row = position.row.saturating_sub(row_diff);
-                Position::new(column, row)
+    pub fn make_selections_desired(&mut self) {
+        for selections in self.selections_sets.iter_mut() {
+            for selection in selections.iter_mut() {
+                *selection = selection.to_desired();
             }
         }
     }

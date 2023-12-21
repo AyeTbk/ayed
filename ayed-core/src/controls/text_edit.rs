@@ -1,5 +1,6 @@
 use crate::{
     command::EditorCommand,
+    selection::Selection,
     text_buffer::{
         char_count,
         commands::{
@@ -57,13 +58,26 @@ impl TextEdit {
             Noop => (),
             //
             Insert(chr) => {
-                buffer.insert_char(self.selections_id, chr).unwrap();
+                buffer.insert_char(self.selections_id, chr);
                 // if not anchored:
                 // self.shrink_selections(buffer);
             }
-            DeleteSelection => todo!(),
-            DeleteCursor => todo!(),
-            DeleteBeforeCursor => todo!(),
+            DeleteSelection => {
+                buffer.delete(self.selections_id);
+            }
+            DeleteCursor => {
+                for selection in buffer.get_selections(self.selections_id).clone().iter() {
+                    buffer.delete_selection(Selection::with_position(selection.cursor()));
+                }
+            }
+            DeleteBeforeCursor => {
+                for selection in buffer.get_selections(self.selections_id).clone().iter() {
+                    let before_cursor = buffer.move_position_left(selection.cursor());
+                    if before_cursor != selection.cursor() {
+                        buffer.delete_selection(Selection::with_position(before_cursor));
+                    }
+                }
+            }
             //
             AnchorNext => self.anchor_next_tracker.start(),
             MoveCursorUp => move_cursor_up_impl(buffer, self.selections_id, is_anchored),
@@ -107,7 +121,13 @@ impl TextEdit {
             (self.view_top_left_position.row + size.row).saturating_sub(content_lines_count);
         for i in 0..non_content_lines_count {
             let row = content_lines_count + i;
-            content.push("~".into());
+            let mut nil_line = String::from("~");
+            nil_line.extend(
+                std::iter::once(' ')
+                    .cycle()
+                    .take(size.column.saturating_sub(1) as usize),
+            );
+            content.push(nil_line);
             spans.push(Span {
                 from: Position::new(0, row),
                 to: Position::new(0, row),
