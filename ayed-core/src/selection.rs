@@ -323,6 +323,11 @@ impl Selection {
         })
     }
 
+    pub fn line_span(&self) -> u32 {
+        let (start, end) = self.start_end();
+        end.row.saturating_sub(start.row).saturating_add(1)
+    }
+
     fn cursor_is_at_start(&self) -> bool {
         self.cursor <= self.anchor
     }

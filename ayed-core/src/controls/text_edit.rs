@@ -1,11 +1,12 @@
 use crate::{
     command::EditorCommand,
-    selection::Selection,
+    selection::{Selection, Selections},
     text_buffer::{
         char_count,
         commands::{
-            move_cursor_down_impl, move_cursor_left_impl, move_cursor_right_impl,
-            move_cursor_up_impl,
+            duplicate_selection_impl, move_cursor_down_impl, move_cursor_left_impl,
+            move_cursor_right_impl, move_cursor_to_line_edge_impl as mctlei,
+            move_cursor_to_near_symbol_impl as mctnsi, move_cursor_up_impl,
         },
         SelectionsId, TextBuffer,
     },
@@ -51,7 +52,7 @@ impl TextEdit {
     }
 
     pub fn execute_command(&mut self, command: EditorCommand, buffer: &mut TextBuffer) {
-        let is_anchored = self.anchor_next_tracker.is_anchored();
+        let anchored = self.anchor_next_tracker.is_anchored();
 
         use EditorCommand::*;
         match command {
@@ -80,11 +81,53 @@ impl TextEdit {
             }
             //
             AnchorNext => self.anchor_next_tracker.start(),
-            MoveCursorUp => move_cursor_up_impl(buffer, self.selections_id, is_anchored),
-            MoveCursorDown => move_cursor_down_impl(buffer, self.selections_id, is_anchored),
-            MoveCursorLeft => move_cursor_left_impl(buffer, self.selections_id, is_anchored),
-            MoveCursorRight => move_cursor_right_impl(buffer, self.selections_id, is_anchored),
-            _ => (),
+            //
+            MoveCursorUp => move_cursor_up_impl(buffer, self.selections_id, anchored),
+            MoveCursorDown => move_cursor_down_impl(buffer, self.selections_id, anchored),
+            MoveCursorLeft => move_cursor_left_impl(buffer, self.selections_id, anchored),
+            MoveCursorRight => move_cursor_right_impl(buffer, self.selections_id, anchored),
+            //
+            SetSelection(selection) => {
+                *buffer.get_selections_mut(self.selections_id) =
+                    Selections::new_with(selection, &[]);
+            }
+            //
+            MoveCursorToLeftSymbol => mctnsi(buffer, self.selections_id, anchored, false, false),
+            MoveCursorToRightSymbol => mctnsi(buffer, self.selections_id, anchored, false, true),
+            SelectLeftSymbol => mctnsi(buffer, self.selections_id, anchored, true, false),
+            SelectRightSymbol => mctnsi(buffer, self.selections_id, anchored, true, true),
+            //
+            MoveCursorToLineStart => mctlei(buffer, self.selections_id, anchored, true, false),
+            MoveCursorToLineStartSmart => mctlei(buffer, self.selections_id, anchored, true, true),
+            MoveCursorToLineEnd => mctlei(buffer, self.selections_id, anchored, false, false),
+            MoveCursorToLineEndSmart => mctlei(buffer, self.selections_id, anchored, false, true),
+            //
+            DismissSecondarySelections => {
+                buffer.get_selections_mut(self.selections_id).clear_extras();
+            }
+            ShrinkSelectionToCursor => {
+                for selection in buffer.get_selections_mut(self.selections_id).iter_mut() {
+                    *selection = selection.shrunk_to_cursor();
+                }
+            }
+            FlipSelection => {
+                for selection in buffer.get_selections_mut(self.selections_id).iter_mut() {
+                    *selection = selection.flipped();
+                }
+            }
+            FlipSelectionForward => {
+                for selection in buffer.get_selections_mut(self.selections_id).iter_mut() {
+                    *selection = selection.flipped_forward();
+                }
+            }
+            FlipSelectionBackward => {
+                for selection in buffer.get_selections_mut(self.selections_id).iter_mut() {
+                    *selection = selection.flipped_forward().flipped();
+                }
+            }
+            //
+            DuplicateSelectionAbove => duplicate_selection_impl(buffer, self.selections_id, true),
+            DuplicateSelectionBelow => duplicate_selection_impl(buffer, self.selections_id, false),
         }
 
         self.anchor_next_tracker.tick();

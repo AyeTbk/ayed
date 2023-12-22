@@ -210,6 +210,8 @@ impl TextBuffer {
                     Self::displace_selection(selection, from, to, join_next_line_fix, edit);
             }
         }
+
+        self.merge_overlapping_selections();
     }
 
     pub fn displace_selection(
@@ -412,6 +414,12 @@ impl TextBuffer {
             .next()
             .unwrap_or_else(|| line.len());
         Some((column_byte_idx, pos.row as usize))
+    }
+
+    pub fn merge_overlapping_selections(&mut self) {
+        for selections in self.selections_sets.iter_mut() {
+            *selections = selections.overlapping_selections_merged();
+        }
     }
 
     fn insert_line(&mut self, line_index: u32, string: impl Into<String>) {
