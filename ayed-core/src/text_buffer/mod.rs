@@ -436,3 +436,15 @@ pub enum EditKind {
     Insert,
     Delete,
 }
+
+pub fn first_non_whitespace_column_of_line(buffer: &TextBuffer, row: u32) -> Option<u32> {
+    buffer.line(row).and_then(|line| {
+        line.char_indices().find_map(|(i, ch)| {
+            if !ch.is_ascii_whitespace() {
+                Some(i as u32)
+            } else {
+                None
+            }
+        })
+    })
+}

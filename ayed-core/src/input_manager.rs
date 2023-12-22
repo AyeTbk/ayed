@@ -128,16 +128,16 @@ pub fn initialize_input_manager() -> InputManager {
                         .unwrap();
                     im.register(
                         "<s-i>",
+                        [Editor(MoveCursorToLineStartSmart), Core(set_edit_mode())],
+                    )
+                    .unwrap();
+                    im.register(
+                        "<a-i>",
                         [
                             Editor(FlipSelectionBackward),
                             Core(set_edit_mode()),
                             Editor(AnchorNext),
                         ],
-                    )
-                    .unwrap();
-                    im.register(
-                        "<a-i>",
-                        [Editor(MoveCursorToLineStartSmart), Core(set_edit_mode())],
                     )
                     .unwrap();
 
@@ -153,17 +153,17 @@ pub fn initialize_input_manager() -> InputManager {
                     .unwrap();
                     im.register(
                         "<s-a>",
+                        [Editor(MoveCursorToLineEnd), Core(set_edit_mode())],
+                    )
+                    .unwrap();
+                    im.register(
+                        "<a-a>",
                         [
                             Editor(FlipSelectionForward),
                             Core(set_edit_mode()),
                             Editor(AnchorNext),
                             Editor(MoveCursorRight),
                         ],
-                    )
-                    .unwrap();
-                    im.register(
-                        "<a-a>",
-                        [Editor(MoveCursorToLineEnd), Core(set_edit_mode())],
                     )
                     .unwrap();
 
@@ -312,10 +312,10 @@ fn register_cursor_movement_inputs(im: &mut InputMapper) -> Result<(), ()> {
     im.register("<s-home>", [AnchorNext, MoveCursorToLineStartSmart])?;
     im.register("<a-home>", MoveCursorToLineStart)?;
     im.register("<sa-home>", [AnchorNext, MoveCursorToLineStart])?;
-    im.register("<end>", MoveCursorToLineEndSmart)?;
-    im.register("<s-end>", [AnchorNext, MoveCursorToLineEndSmart])?;
-    im.register("<a-end>", MoveCursorToLineEnd)?;
-    im.register("<sa-end>", [AnchorNext, MoveCursorToLineEnd])?;
+    im.register("<end>", MoveCursorToLineEnd)?;
+    im.register("<s-end>", [AnchorNext, MoveCursorToLineEnd])?;
+    im.register("<a-end>", MoveCursorToLineEndSmart)?;
+    im.register("<sa-end>", [AnchorNext, MoveCursorToLineEndSmart])?;
 
     Ok(())
 }

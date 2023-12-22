@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{SelectionsId, TextBuffer};
+use super::{first_non_whitespace_column_of_line, SelectionsId, TextBuffer};
 use crate::{scripted_command::ScriptedCommand, state::State, utils::Position};
 
 pub fn register_commands(commands: &mut HashMap<String, ScriptedCommand>) {
@@ -220,18 +220,8 @@ pub fn move_cursor_to_line_edge_impl(
         let cursor = selection.cursor();
         let column = if to_start {
             if smart {
-                let first_non_whitespace_column = buffer
-                    .line(cursor.row)
-                    .and_then(|line| {
-                        line.char_indices().find_map(|(i, ch)| {
-                            if !ch.is_ascii_whitespace() {
-                                Some(i as u32)
-                            } else {
-                                None
-                            }
-                        })
-                    })
-                    .unwrap_or(0);
+                let first_non_whitespace_column =
+                    first_non_whitespace_column_of_line(buffer, cursor.row).unwrap_or(0);
                 if cursor.column != first_non_whitespace_column {
                     first_non_whitespace_column
                 } else {

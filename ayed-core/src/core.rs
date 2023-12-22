@@ -14,7 +14,7 @@ use crate::panels::{
 };
 use crate::scripted_command::ScriptedCommand;
 use crate::state::{Buffers, Editors, State};
-use crate::text_buffer::{self, TextBuffer};
+use crate::text_buffer::{self, first_non_whitespace_column_of_line, TextBuffer};
 use crate::ui_state::{Color, Style, UiPanel, UiState};
 use crate::utils::{Rect, Size};
 
@@ -75,6 +75,7 @@ impl Core {
             scripted_commands: Default::default(),
         };
 
+        // TODO move these scripted commands definition outside of here to keep things tidy
         this.scripted_commands.insert(
             "conf".into(),
             ScriptedCommand::new(|state, _args| {
@@ -103,7 +104,7 @@ impl Core {
         );
         this.scripted_commands.insert(
             "builtin-auto-indent".into(),
-            ScriptedCommand::new(|_state, args| {
+            ScriptedCommand::new(|state, args| {
                 let Some(chr) = args.chars().next() else {
                     return Err("expected char argument".to_string());
                 };
@@ -111,7 +112,32 @@ impl Core {
                     return Ok(());
                 }
 
-                dbg!("TODO auto indent plz");
+                let selections_id = state.editors.active_editor().selections_id();
+                let buffer = state.buffers.active_buffer_mut();
+
+                for selection_idx in 0..buffer.get_selections(selections_id).count() {
+                    let selection = buffer.get_selection(selections_id, selection_idx).unwrap();
+                    let cursor = selection.cursor();
+
+                    let Some(previous_row) = cursor.row.checked_sub(1) else {
+                        continue;
+                    };
+                    let mut white_count =
+                        first_non_whitespace_column_of_line(buffer, previous_row).unwrap_or(0);
+
+                    let add_extra_indent = buffer
+                        .line(previous_row)
+                        .unwrap()
+                        .chars()
+                        .last()
+                        .is_some_and(|ch| ['(', '[', '{'].contains(&ch));
+                    if add_extra_indent {
+                        const INDENT_SIZE: u32 = 4;
+                        white_count += INDENT_SIZE;
+                    }
+
+                    buffer.insert_at(cursor, &(" ".repeat(white_count as usize)));
+                }
 
                 Ok(())
             }),
