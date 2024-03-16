@@ -194,13 +194,10 @@ pub fn initialize_input_manager() -> InputManager {
                     im.register(
                         "x",
                         [
-                            FlipSelectionForward,
-                            AnchorNext,
-                            MoveCursorToLineEnd,
-                            FlipSelectionBackward,
                             AnchorNext,
                             MoveCursorToLineStart,
-                            FlipSelectionForward,
+                            AnchorNext,
+                            MoveCursorToLineEnd,
                         ],
                     )
                     .unwrap();

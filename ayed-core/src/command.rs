@@ -64,8 +64,8 @@ pub enum EditorCommand {
 
     MoveCursorToLineStart,      // Go to column 0 of current line.
     MoveCursorToLineStartSmart, // Flip flop between line start and first non white char.
-    MoveCursorToLineEnd,        // Go to last column of current line.
-    MoveCursorToLineEndSmart,   // Flip flop between line end and last char of line.
+    MoveCursorToLineEnd, // Go to last column of current line. Set desired column to infinity.
+    MoveCursorToLineEndSmart, // Flip flop between line end and last char of line.
 
     DismissSecondarySelections,
     ShrinkSelectionToCursor,

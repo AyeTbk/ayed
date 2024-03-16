@@ -137,37 +137,32 @@ impl Selection {
     pub fn with_cursor(&self, cursor: Position) -> Self {
         Self {
             cursor,
-            anchor: self.anchor,
             desired_cursor_column_index: cursor.column,
-            desired_anchor_column_index: self.desired_anchor_column_index,
+            ..*self
         }
     }
 
     pub fn with_provisional_cursor(&self, cursor: Position) -> Self {
+        Self { cursor, ..*self }
+    }
+
+    pub fn with_desired_cursor_column_index(&self, desired_cursor_column_index: u32) -> Self {
         Self {
-            cursor,
-            anchor: self.anchor,
-            desired_cursor_column_index: self.desired_cursor_column_index,
-            desired_anchor_column_index: self.desired_anchor_column_index,
+            desired_cursor_column_index,
+            ..*self
         }
     }
 
     pub fn with_anchor(&self, anchor: Position) -> Self {
         Self {
-            cursor: self.cursor,
             anchor,
-            desired_cursor_column_index: self.desired_cursor_column_index,
             desired_anchor_column_index: anchor.column,
+            ..*self
         }
     }
 
     pub fn with_provisional_anchor(&self, anchor: Position) -> Self {
-        Self {
-            cursor: self.cursor,
-            anchor,
-            desired_cursor_column_index: self.desired_cursor_column_index,
-            desired_anchor_column_index: self.desired_anchor_column_index,
-        }
+        Self { anchor, ..*self }
     }
 
     pub fn with_start(&self, start: Position) -> Self {

@@ -250,7 +250,9 @@ pub fn move_cursor_to_line_edge_impl(
         let selection = buffer
             .get_selection_mut(selections_id, selection_idx)
             .unwrap();
-        *selection = selection.with_cursor(cursor.with_column(column));
+        *selection = selection
+            .with_cursor(cursor.with_column(column))
+            .with_desired_cursor_column_index(std::u32::MAX);
         if !anchored {
             *selection = selection.with_anchor(cursor.with_column(column));
         }
