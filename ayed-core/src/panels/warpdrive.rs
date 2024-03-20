@@ -199,6 +199,7 @@ impl WarpDrive {
     }
 
     fn gather_words(text_content: &[String]) -> Vec<(&str, Selection)> {
+        // FIXME make static instead of compiling every call
         let re_word = regex::Regex::new(r"\b\w+\b").unwrap();
         let mut words: Vec<(&str, Selection)> = Vec::new();
         for (line_index, line) in text_content.iter().enumerate() {

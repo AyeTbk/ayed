@@ -62,6 +62,7 @@ impl Input {
             Ok(modifiers)
         }
 
+        // FIXME make static instead of compiling them every function call
         let re_mod = regex::Regex::new(r"<([^-]+)-([^>]+)>").unwrap();
         let re_key = regex::Regex::new(r"<([^>]+)>").unwrap();
 
@@ -143,11 +144,12 @@ pub enum Key {
     End,
     PageUp,
     PageDown,
+    Escape,
 }
 
 impl Key {
     pub fn from_char_normalized(ch: char) -> Self {
-        let normalized_ch = ch.to_lowercase().next().unwrap();
+        let normalized_ch = ch.to_lowercase().next().unwrap_or(ch);
         Self::Char(normalized_ch)
     }
 
@@ -167,6 +169,7 @@ impl Key {
             Key::Right => "right",
             Key::PageUp => "pageup",
             Key::PageDown => "pagedown",
+            Key::Escape => "esc",
             Key::Char('<') => "lt",
             Key::Char('>') => "gt",
             Key::Char(ch) => {
@@ -193,13 +196,14 @@ impl Key {
             "right" => Key::Right,
             "pageup" => Key::PageUp,
             "pagedown" => Key::PageDown,
+            "esc" => Key::Escape,
             "lt" => Key::Char('<'),
             "gt" => Key::Char('>'),
             s => {
                 if s.len() != 1 {
                     return None;
                 }
-                let ch = s.chars().next().unwrap();
+                let ch = s.chars().next()?;
                 Key::Char(ch)
             }
         };

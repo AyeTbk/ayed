@@ -69,7 +69,9 @@ pub fn regex_syntax_highlight(
         for (regexes, color, priority) in &rules {
             for regex in regexes {
                 for capture in regex.captures_iter(&line) {
-                    let matchh = capture.get(1).unwrap_or(capture.get(0).unwrap());
+                    let matchh = capture
+                        .get(1)
+                        .unwrap_or(capture.get(0).expect("group 0 cannot fail"));
                     let match_chars_start = line
                         .char_indices()
                         .take_while(|(idx, _)| *idx != matchh.start())

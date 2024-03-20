@@ -204,7 +204,8 @@ fn convert_key_code_and_modifiers_to_ayed(
         KeyCode::PageUp => AyedKey::PageUp,
         KeyCode::PageDown => AyedKey::PageDown,
         KeyCode::Char(ch) => AyedKey::Char(ch),
-        KeyCode::Esc => panic!("ESCape hatch activated!"),
+        KeyCode::Esc => AyedKey::Escape,
+        // FIXME display some error message visible to the user without crashing
         k => unimplemented!("key: {:?}", k),
     };
     (ayed_code, ayed_modifiers)

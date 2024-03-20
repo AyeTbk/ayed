@@ -204,22 +204,32 @@ impl Core {
                     }
                 }
                 EditFile(filepath) => {
-                    let buffer = self.state.get_buffer_from_filepath(&filepath).unwrap();
+                    let Ok(buffer) = self.state.get_buffer_from_filepath(&filepath) else {
+                        self.set_mode_line_error(format!("could not open file '{filepath}'"));
+                        return;
+                    };
                     self.state.edit_buffer(buffer);
                     self.run_hooks_modify_buffer(); // TODO maybe change this to an open-buffer hook?
                 }
-                WriteBuffer => {
-                    self.state.save_buffer(self.state.active_buffer_handle());
-                    let path = self
-                        .state
-                        .buffers
-                        .active_buffer()
-                        .filepath()
-                        .unwrap_or_default();
-                    self.set_mode_line_message(format!("saved as {path}"));
-                }
+                WriteBuffer => match self.state.save_buffer(self.state.active_buffer_handle()) {
+                    Ok(Ok(())) => {
+                        let path = self
+                            .state
+                            .buffers
+                            .active_buffer()
+                            .filepath()
+                            .unwrap_or_default();
+                        self.set_mode_line_message(format!("saved as {path}"));
+                    }
+                    Ok(Err(e)) => {
+                        self.set_mode_line_error(format!("couldn't save buffer: {}", e));
+                    }
+                    Err(()) => {
+                        self.set_mode_line_error(format!("cannot save scratch buffers"));
+                    }
+                },
                 WriteBufferQuit => {
-                    self.state.save_buffer(self.state.active_buffer_handle());
+                    let _ = self.state.save_buffer(self.state.active_buffer_handle());
                     self.state.request_quit();
                 }
                 Quit => {

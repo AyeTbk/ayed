@@ -80,11 +80,8 @@ impl State {
         self.set_active_editor(editor);
     }
 
-    pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) {
-        // FIXME return something to indicate wether it was save successfully or not
-        if let Some(result) = self.buffers.buffers_arena.get(buffer).save() {
-            result.unwrap();
-        }
+    pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) -> Result<io::Result<()>, ()> {
+        self.buffers.buffers_arena.get(buffer).save()
     }
 
     pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {

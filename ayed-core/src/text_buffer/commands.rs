@@ -123,6 +123,7 @@ pub fn move_cursor_to_near_symbol_impl(
     select_symbol: bool,
     next_instead_of_previous: bool,
 ) {
+    // FIXME make static instead of compiling every call
     let re_symbol = regex::Regex::new(r"\w+|[\{\}\[\]\(\)<>]|[^\w\s[\{\}\[\]\(\)<>]]+").unwrap();
 
     for selection_idx in 0..buffer.get_selections(selections_id).count() {

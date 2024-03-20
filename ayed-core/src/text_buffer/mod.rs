@@ -47,12 +47,12 @@ impl TextBuffer {
         })
     }
 
-    pub fn save(&self) -> Option<io::Result<()>> {
+    pub fn save(&self) -> Result<io::Result<()>, ()> {
         if let Some(filepath) = &self.filepath {
             let contents = self.lines.join("\n");
-            Some(std::fs::write(filepath, contents))
+            Ok(std::fs::write(filepath, contents))
         } else {
-            None
+            Err(())
         }
     }
 

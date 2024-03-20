@@ -148,7 +148,7 @@ impl std::cmp::PartialOrd for Position {
 }
 impl std::cmp::Ord for Position {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Less)
     }
 }
 
