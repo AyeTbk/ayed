@@ -88,6 +88,7 @@ impl TextEdit {
             MoveCursorRight => move_cursor_right_impl(buffer, self.selections_id, anchored),
             //
             SetSelection(selection) => {
+                let selection = buffer.limit_selection_to_content(&selection);
                 *buffer.get_selections_mut(self.selections_id) =
                     Selections::new_with(selection, &[]);
             }
