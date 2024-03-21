@@ -1,5 +1,5 @@
 use std::{
-    io::{stdout, Stdout, Write},
+    io::{self, stdout, Stdout, Write},
     time::Duration,
 };
 
@@ -19,6 +19,7 @@ use crossterm::{
 pub struct Tui {
     core: ayed_core::core::Core,
     screen: Stdout,
+    error_message: Option<String>,
 }
 
 impl Tui {
@@ -27,13 +28,14 @@ impl Tui {
         Self {
             core,
             screen: stdout,
+            error_message: None,
         }
     }
 
     pub fn run(&mut self) {
         self.to_alternate_screen();
 
-        self.render();
+        self.render().unwrap();
 
         while !self.core.is_quit() {
             if !crossterm::event::poll(Duration::from_millis(1000)).unwrap() {
@@ -44,49 +46,58 @@ impl Tui {
             match event {
                 Event::Key(KeyEvent {
                     code, modifiers, ..
-                }) => {
-                    let (key, modifiers) = convert_key_code_and_modifiers_to_ayed(code, modifiers);
-                    let input = Input::new(key, modifiers);
-                    self.core.input(input);
-                }
+                }) => match convert_key_code_and_modifiers_to_ayed(code, modifiers) {
+                    Ok((key, modifiers)) => {
+                        let input = Input::new(key, modifiers);
+                        self.core.input(input);
+                    }
+                    Err(msg) => {
+                        self.set_error_message(msg);
+                    }
+                },
                 Event::Resize(_, _) => (),
                 e => {
-                    println!("huh: {:?}", e);
+                    self.set_error_message(format!("unhandled event: {:?}", e));
                 }
             }
 
-            self.render();
+            self.render().unwrap();
         }
 
         self.to_main_screen();
     }
 
-    fn render(&mut self) {
-        fn cleanup_span_style(screen: &mut impl Write) {
+    fn set_error_message(&mut self, mut msg: String) {
+        msg.insert_str(0, "[tui error] ");
+        self.error_message = Some(msg);
+    }
+
+    fn render(&mut self) -> io::Result<()> {
+        fn cleanup_span_style(screen: &mut impl Write) -> io::Result<()> {
             write!(
                 screen,
                 "{}{}",
                 crossterm::style::ResetColor,
                 crossterm::style::Attribute::Reset
             )
-            .unwrap();
         }
-        fn prepare_span_style(span: &Span, screen: &mut impl Write) {
-            cleanup_span_style(screen);
+        fn prepare_span_style(span: &Span, screen: &mut impl Write) -> io::Result<()> {
+            cleanup_span_style(screen)?;
             if let Some(foreground_color) = span.style.foreground_color {
                 let fg = convert_color_to_crossterm(foreground_color);
-                screen.execute(SetForegroundColor(fg)).unwrap();
+                screen.execute(SetForegroundColor(fg))?;
             }
             if let Some(background_color) = span.style.background_color {
                 let bg = convert_color_to_crossterm(background_color);
-                screen.execute(SetBackgroundColor(bg)).unwrap();
+                screen.execute(SetBackgroundColor(bg))?;
             }
             if span.style.invert {
-                write!(screen, "{}", crossterm::style::Attribute::Reverse).unwrap();
+                write!(screen, "{}", crossterm::style::Attribute::Reverse)?;
             }
             if span.style.underlined {
-                write!(screen, "{}", crossterm::style::Attribute::Underlined).unwrap();
+                write!(screen, "{}", crossterm::style::Attribute::Underlined)?;
             }
+            Ok(())
         }
 
         self.update_viewport_size_if_needed();
@@ -104,11 +115,9 @@ impl Tui {
             let after_end_x = start_x + panel.size.column;
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
-                self.screen
-                    .execute(MoveTo((start_x) as _, (y) as _))
-                    .unwrap();
+                self.screen.execute(MoveTo((start_x) as _, (y) as _))?;
 
-                cleanup_span_style(&mut self.screen);
+                cleanup_span_style(&mut self.screen)?;
 
                 let panel_row = y - panel.position.row; // NOTE this line makes the row local to panel position
                 let mut char_str = String::new();
@@ -120,12 +129,12 @@ impl Tui {
                         .filter(|span| span.from.column == panel_column)
                         .next()
                     {
-                        prepare_span_style(span, &mut self.screen);
+                        prepare_span_style(span, &mut self.screen)?;
                     }
 
                     char_str.clear();
                     char_str.push(ch);
-                    self.screen.write(char_str.as_bytes()).unwrap();
+                    self.screen.write(char_str.as_bytes())?;
 
                     if spans_on_line
                         .iter()
@@ -133,13 +142,31 @@ impl Tui {
                         .next()
                         .is_some()
                     {
-                        cleanup_span_style(&mut self.screen);
+                        cleanup_span_style(&mut self.screen)?;
                     }
                 }
             }
         }
 
-        self.screen.flush().unwrap();
+        self.render_error_message()?;
+
+        self.screen.flush()?;
+        Ok(())
+    }
+
+    fn render_error_message(&mut self) -> io::Result<()> {
+        let Some(msg) = self.error_message.take() else {
+            return Ok(());
+        };
+        self.screen
+            .execute(SetForegroundColor(convert_color_to_crossterm(Color::WHITE)))?;
+        self.screen
+            .execute(SetBackgroundColor(convert_color_to_crossterm(
+                Color::DARK_RED,
+            )))?;
+        self.screen.execute(MoveTo(0, 0))?;
+        self.screen.write(msg.as_bytes())?;
+        Ok(())
     }
 
     fn to_alternate_screen(&mut self) {
@@ -186,7 +213,7 @@ fn convert_color_to_crossterm(color: Color) -> crossterm::style::Color {
 fn convert_key_code_and_modifiers_to_ayed(
     code: KeyCode,
     modifiers: KeyModifiers,
-) -> (ayed_core::input::Key, ayed_core::input::Modifiers) {
+) -> Result<(ayed_core::input::Key, ayed_core::input::Modifiers), String> {
     let ayed_modifiers = convert_key_modifiers_to_ayed(modifiers);
 
     use ayed_core::input::Key as AyedKey;
@@ -205,10 +232,11 @@ fn convert_key_code_and_modifiers_to_ayed(
         KeyCode::PageDown => AyedKey::PageDown,
         KeyCode::Char(ch) => AyedKey::Char(ch),
         KeyCode::Esc => AyedKey::Escape,
-        // FIXME display some error message visible to the user without crashing
-        k => unimplemented!("key: {:?}", k),
+        k => {
+            return Err(format!("key not implemented: {:?}", k));
+        }
     };
-    (ayed_code, ayed_modifiers)
+    Ok((ayed_code, ayed_modifiers))
 }
 
 fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> ayed_core::input::Modifiers {
@@ -225,7 +253,7 @@ fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> ayed_core::input::M
     mods
 }
 
-fn unset_crossterm_styling() -> std::io::Result<()> {
+fn unset_crossterm_styling() -> io::Result<()> {
     disable_raw_mode()?;
     let mut stdout = stdout();
     stdout.execute(LeaveAlternateScreen)?;

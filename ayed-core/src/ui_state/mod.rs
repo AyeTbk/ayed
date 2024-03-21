@@ -193,6 +193,7 @@ impl Color {
     };
     pub const BLUE: Self = Self { r: 0, g: 0, b: 255 };
     pub const RED: Self = Self { r: 255, g: 0, b: 0 };
+    pub const DARK_RED: Self = Self { r: 128, g: 0, b: 0 };
 
     pub fn from_hex(hex: &str) -> Result<Color, ()> {
         // Valid hexcodes are made exclusively of ascii characters, so working on bytes is ok.
