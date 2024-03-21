@@ -35,6 +35,7 @@ pub enum CoreCommand {
     WriteBuffer,
     WriteBufferQuit,
     Quit,
+    ForceQuit,
 }
 
 #[derive(Debug, Clone, Copy)]

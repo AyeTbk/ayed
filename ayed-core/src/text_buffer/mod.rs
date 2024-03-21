@@ -22,7 +22,8 @@ pub struct TextBuffer {
     // There should always be at least one
     selections_sets: Vec<Selections>,
     filepath: Option<String>,
-    modified: bool,
+    should_run_modify_hook: bool,
+    has_unsaved_changes: bool,
 }
 
 impl TextBuffer {
@@ -31,7 +32,8 @@ impl TextBuffer {
             lines: vec![String::new()],
             selections_sets: vec![Selections::new()],
             filepath: None,
-            modified: false,
+            should_run_modify_hook: false,
+            has_unsaved_changes: false,
         }
     }
 
@@ -43,14 +45,19 @@ impl TextBuffer {
             lines,
             selections_sets: vec![Selections::new()],
             filepath: Some(filepath),
-            modified: true,
+            should_run_modify_hook: true,
+            has_unsaved_changes: false,
         })
     }
 
-    pub fn save(&self) -> Result<io::Result<()>, ()> {
+    pub fn save(&mut self) -> Result<io::Result<()>, ()> {
         if let Some(filepath) = &self.filepath {
             let contents = self.lines.join("\n");
-            Ok(std::fs::write(filepath, contents))
+            let res = std::fs::write(filepath, contents);
+            if res.is_ok() {
+                self.has_unsaved_changes = false;
+            }
+            Ok(res)
         } else {
             Err(())
         }
@@ -60,10 +67,14 @@ impl TextBuffer {
         self.filepath.as_ref().map(String::as_str)
     }
 
-    pub fn take_is_modified(&mut self) -> bool {
-        let modified = self.modified;
-        self.modified = false;
-        modified
+    pub fn has_unsaved_changes(&self) -> bool {
+        self.has_unsaved_changes
+    }
+
+    pub fn take_should_run_modify_hook(&mut self) -> bool {
+        let temp = self.should_run_modify_hook;
+        self.should_run_modify_hook = false;
+        temp
     }
 
     pub fn add_selections_set(&mut self) -> SelectionsId {
@@ -146,9 +157,10 @@ impl TextBuffer {
 
         let (from, to) = (pos, Position::new(to_column, to_row));
         self.displace_selections(from, to, None, EditKind::Insert);
-        self.modified = true;
 
         self.make_selections_desired();
+
+        self.on_content_modified();
     }
 
     pub fn delete(&mut self, id: SelectionsId) {
@@ -192,9 +204,10 @@ impl TextBuffer {
         }
 
         self.displace_selections(start, end, join_next_line_fix, EditKind::Delete);
-        self.modified = true;
 
         self.make_selections_desired();
+
+        self.on_content_modified();
     }
 
     pub fn displace_selections(
@@ -387,7 +400,7 @@ impl TextBuffer {
     }
 
     pub fn line_mut(&mut self, row: u32) -> Option<&mut String> {
-        self.modified = true;
+        self.on_content_modified();
         self.lines.get_mut(row as usize)
     }
 
@@ -424,6 +437,11 @@ impl TextBuffer {
 
     fn insert_line(&mut self, line_index: u32, string: impl Into<String>) {
         self.lines.insert(line_index as usize, string.into());
+    }
+
+    fn on_content_modified(&mut self) {
+        self.should_run_modify_hook = true;
+        self.has_unsaved_changes = true;
     }
 }
 

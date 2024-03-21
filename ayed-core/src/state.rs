@@ -81,7 +81,7 @@ impl State {
     }
 
     pub fn save_buffer(&mut self, buffer: Handle<TextBuffer>) -> Result<io::Result<()>, ()> {
-        self.buffers.buffers_arena.get(buffer).save()
+        self.buffers.buffers_arena.get_mut(buffer).save()
     }
 
     pub fn set_active_editor(&mut self, editor: Handle<TextEditor>) {

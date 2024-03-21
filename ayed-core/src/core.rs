@@ -211,6 +211,7 @@ impl Core {
                     self.state.edit_buffer(buffer);
                     self.run_hooks_modify_buffer(); // TODO maybe change this to an open-buffer hook?
                 }
+                // FIXME make stuff like writebuffer and quit and such more composable to reuse code instead of having to duplicate it
                 WriteBuffer => match self.state.save_buffer(self.state.active_buffer_handle()) {
                     Ok(Ok(())) => {
                         let path = self
@@ -229,10 +230,25 @@ impl Core {
                     }
                 },
                 WriteBufferQuit => {
-                    let _ = self.state.save_buffer(self.state.active_buffer_handle());
-                    self.state.request_quit();
+                    // let _ = self.state.save_buffer(self.state.active_buffer_handle());
+                    // // FIXME if an error occurs while saving file, potential loss of work
+                    // self.state.request_quit();
+                    self.set_mode_line_error("properly implement 'wq' if you want to use it");
                 }
                 Quit => {
+                    if self
+                        .state
+                        .buffers
+                        .buffers_arena
+                        .elements()
+                        .any(|(_, buf)| buf.has_unsaved_changes())
+                    {
+                        self.set_mode_line_error("there are unsaved buffers");
+                    } else {
+                        self.state.request_quit();
+                    }
+                }
+                ForceQuit => {
                     self.state.request_quit();
                 }
             },
@@ -272,6 +288,7 @@ impl Core {
         Some(Ok(match command {
             "" => return None,
             "q" | "quit" => Command::Core(CoreCommand::Quit),
+            "q!" | "quit!" => Command::Core(CoreCommand::ForceQuit),
             "e" | "edit" => {
                 let filename = match parts.next() {
                     None | Some("") => return Some(Err(format!("filename expected"))),
@@ -519,7 +536,7 @@ impl Core {
 
     fn run_hooks_modify_buffer(&mut self) {
         let active_buffer = self.state.buffers.active_buffer_mut();
-        if !active_buffer.take_is_modified() {
+        if !active_buffer.take_should_run_modify_hook() {
             return;
         }
 
