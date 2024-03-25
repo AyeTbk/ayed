@@ -102,32 +102,35 @@ impl<V, K> SlotMap<V, K> {
         }
     }
 
-    pub fn remove(&mut self, k: Handle<K>) -> Result<V, StaleHandleError> {
+    pub fn remove(&mut self, k: Handle<K>) -> V {
         let slot = self
             .slots
             .get_mut(k.id as usize)
             .filter(|slot| slot.generation == k.id)
-            .ok_or(StaleHandleError)?;
-        let v = slot.element.take().ok_or(StaleHandleError)?;
+            .ok_or(StaleHandleError)
+            .unwrap();
+        let maybe_value = slot.element.take().ok_or(StaleHandleError);
         slot.generation = slot.generation.checked_add(1).unwrap();
         self.free_slots.push(k.id);
-        Ok(v)
+        maybe_value.unwrap()
     }
 
-    pub fn get(&self, k: Handle<K>) -> Result<&V, StaleHandleError> {
+    pub fn get(&self, k: Handle<K>) -> &V {
         self.slots
             .get(k.id as usize)
             .filter(|slot| slot.generation == k.generation)
             .and_then(|slot| slot.element.as_ref())
             .ok_or(StaleHandleError)
+            .unwrap()
     }
 
-    pub fn get_mut(&mut self, k: Handle<K>) -> Result<&mut V, StaleHandleError> {
+    pub fn get_mut(&mut self, k: Handle<K>) -> &mut V {
         self.slots
             .get_mut(k.id as usize)
             .filter(|slot| slot.generation == k.generation)
             .and_then(|slot| slot.element.as_mut())
             .ok_or(StaleHandleError)
+            .unwrap()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Handle<K>, &V)> + '_ {

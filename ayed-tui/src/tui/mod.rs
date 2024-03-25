@@ -3,11 +3,12 @@ use std::{
     time::Duration,
 };
 
-use ayed_core::{
-    input::Input,
-    ui_state::{Color, Span},
-    utils::Size,
+use ayed_nucore::{
+    core::Core,
+    input::{self, Input},
+    ui::{ui_state::Span, Color, Size},
 };
+
 use crossterm::{
     cursor::MoveTo,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
@@ -17,13 +18,13 @@ use crossterm::{
 };
 
 pub struct Tui {
-    core: ayed_core::core::Core,
+    core: Core,
     screen: Stdout,
     error_message: Option<String>,
 }
 
 impl Tui {
-    pub fn new(core: ayed_core::core::Core) -> Self {
+    pub fn new(core: Core) -> Self {
         let stdout = stdout();
         Self {
             core,
@@ -37,7 +38,7 @@ impl Tui {
 
         self.render().unwrap();
 
-        while !self.core.is_quit() {
+        while !self.core.quit_requested() {
             if !crossterm::event::poll(Duration::from_millis(1000)).unwrap() {
                 continue;
             }
@@ -49,7 +50,7 @@ impl Tui {
                 }) => match convert_key_code_and_modifiers_to_ayed(code, modifiers) {
                     Ok((key, modifiers)) => {
                         let input = Input::new(key, modifiers);
-                        self.core.input(input);
+                        self.core.emit_input_event(input);
                     }
                     Err(msg) => {
                         self.set_error_message(msg);
@@ -60,6 +61,8 @@ impl Tui {
                     self.set_error_message(format!("unhandled event: {:?}", e));
                 }
             }
+
+            self.core.tick();
 
             self.render().unwrap();
         }
@@ -213,10 +216,10 @@ fn convert_color_to_crossterm(color: Color) -> crossterm::style::Color {
 fn convert_key_code_and_modifiers_to_ayed(
     code: KeyCode,
     modifiers: KeyModifiers,
-) -> Result<(ayed_core::input::Key, ayed_core::input::Modifiers), String> {
+) -> Result<(input::Key, input::Modifiers), String> {
     let ayed_modifiers = convert_key_modifiers_to_ayed(modifiers);
 
-    use ayed_core::input::Key as AyedKey;
+    use input::Key as AyedKey;
     let ayed_code = match code {
         KeyCode::Backspace => AyedKey::Backspace,
         KeyCode::Delete => AyedKey::Delete,
@@ -231,7 +234,8 @@ fn convert_key_code_and_modifiers_to_ayed(
         KeyCode::PageUp => AyedKey::PageUp,
         KeyCode::PageDown => AyedKey::PageDown,
         KeyCode::Char(ch) => AyedKey::Char(ch),
-        KeyCode::Esc => AyedKey::Escape,
+        KeyCode::Esc => panic!("ESCape hatch"), // DEBUG
+        // KeyCode::Esc => AyedKey::Escape,
         k => {
             return Err(format!("key not implemented: {:?}", k));
         }
@@ -239,8 +243,8 @@ fn convert_key_code_and_modifiers_to_ayed(
     Ok((ayed_code, ayed_modifiers))
 }
 
-fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> ayed_core::input::Modifiers {
-    let mut mods = ayed_core::input::Modifiers::default();
+fn convert_key_modifiers_to_ayed(modifiers: KeyModifiers) -> input::Modifiers {
+    let mut mods = input::Modifiers::default();
     if modifiers.contains(KeyModifiers::CONTROL) {
         mods = mods.with_ctrl();
     }

@@ -1,13 +1,16 @@
-use ayed_core::command::CoreCommand;
+use ayed_nucore::core::Core;
 
 mod tui;
 
 fn main() {
-    let mut core = ayed_core::core::Core::new();
+    let mut core = Core::with_builtins();
 
     for arg in std::env::args().skip(1) {
-        core.execute_command(CoreCommand::EditFile(arg).into())
+        core.queue_command("edit".to_string(), arg);
     }
+    core.tick();
+
+    core.events.on("input", "show-err");
 
     let mut tui = tui::Tui::new(core);
 

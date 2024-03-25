@@ -1,8 +1,12 @@
 use crate::{
-    command::{CommandQueue, CommandRegistry, ExecuteCommandContext},
+    command::{
+        builtins::register_builtin_commands, CommandQueue, CommandRegistry, ExecuteCommandContext,
+    },
     event::EventRegistry,
+    input::Input,
     panels::Panels,
     state::State,
+    ui::{ui_state::UiState, Size},
 };
 
 #[derive(Default)]
@@ -15,6 +19,34 @@ pub struct Core {
 }
 
 impl Core {
+    pub fn with_builtins() -> Self {
+        let mut this = Self::default();
+        register_builtin_commands(&mut this.commands);
+        this
+    }
+
+    pub fn queue_command(&mut self, command: String, options: String) {
+        self.queue.push(command, options)
+    }
+
+    pub fn emit_input_event(&mut self, input: Input) {
+        let mut buf = String::new();
+        input.serialize(&mut buf);
+        self.events.emit("input", buf);
+    }
+
+    pub fn quit_requested(&self) -> bool {
+        self.state.quit_requested
+    }
+
+    pub fn viewport_size(&self) -> Size {
+        self.state.viewport_size
+    }
+
+    pub fn set_viewport_size(&mut self, size: Size) {
+        self.state.viewport_size = size;
+    }
+
     pub fn tick(&mut self) {
         loop {
             self.queue.extend_front(self.events.emitted_commands());
@@ -22,18 +54,34 @@ impl Core {
             let Some((command, options)) = self.queue.pop() else {
                 break;
             };
-            self.commands
-                .execute_command(
-                    &command,
-                    &options,
-                    ExecuteCommandContext {
-                        events: &mut self.events,
-                        queue: &mut self.queue,
-                        state: &mut self.state,
-                    },
-                )
-                .unwrap();
+
+            self.queue.start_scope();
+
+            let res = self.commands.execute_command(
+                &command,
+                &options,
+                ExecuteCommandContext {
+                    events: &mut self.events,
+                    queue: &mut self.queue,
+                    state: &mut self.state,
+                },
+            );
+
+            match res {
+                Ok(()) => (),
+                Err(err) => {
+                    self.queue.clear();
+                    self.state.modeline_err = Some(err);
+                    dbg!(&self.state.modeline_err);
+                    return;
+                }
+            }
         }
+    }
+
+    pub fn render(&mut self) -> UiState {
+        let panels = vec![self.panels.editor.render(&self.state)];
+        UiState { panels }
     }
 }
 
