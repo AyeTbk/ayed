@@ -8,6 +8,12 @@ pub struct Rect {
     pub height: u32,
 }
 
+impl Default for Rect {
+    fn default() -> Self {
+        Self::new(0, 0, 1, 1)
+    }
+}
+
 impl Rect {
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
         Self {

@@ -6,7 +6,7 @@ use std::{
 use ayed_nucore::{
     core::Core,
     input::{self, Input},
-    ui::{ui_state::Span, Color, Size},
+    ui::{ui_state::StyledRegion, Color, Size},
 };
 
 use crossterm::{
@@ -84,7 +84,7 @@ impl Tui {
                 crossterm::style::Attribute::Reset
             )
         }
-        fn prepare_span_style(span: &Span, screen: &mut impl Write) -> io::Result<()> {
+        fn prepare_span_style(span: &StyledRegion, screen: &mut impl Write) -> io::Result<()> {
             cleanup_span_style(screen)?;
             if let Some(foreground_color) = span.style.foreground_color {
                 let fg = convert_color_to_crossterm(foreground_color);

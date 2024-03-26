@@ -10,8 +10,6 @@ fn main() {
     }
     core.tick();
 
-    core.events.on("input", "show-err");
-
     let mut tui = tui::Tui::new(core);
 
     tui.run();

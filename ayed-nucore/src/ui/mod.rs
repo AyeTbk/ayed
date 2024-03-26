@@ -5,3 +5,5 @@ mod style;
 pub use style::{Color, Style};
 
 pub mod ui_state;
+
+pub mod theme;

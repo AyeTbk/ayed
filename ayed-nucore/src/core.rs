@@ -6,7 +6,7 @@ use crate::{
     input::Input,
     panels::Panels,
     state::State,
-    ui::{ui_state::UiState, Size},
+    ui::{ui_state::UiState, Rect, Size},
 };
 
 #[derive(Default)]
@@ -30,6 +30,7 @@ impl Core {
     }
 
     pub fn emit_input_event(&mut self, input: Input) {
+        self.state.last_input = Some(input);
         let mut buf = String::new();
         input.serialize(&mut buf);
         self.events.emit("input", buf);
@@ -48,6 +49,8 @@ impl Core {
     }
 
     pub fn tick(&mut self) {
+        self.state.modeline.clear_content_override();
+
         loop {
             self.queue.extend_front(self.events.emitted_commands());
 
@@ -71,16 +74,35 @@ impl Core {
                 Ok(()) => (),
                 Err(err) => {
                     self.queue.clear();
-                    self.state.modeline_err = Some(err);
-                    dbg!(&self.state.modeline_err);
+                    self.state.modeline.set_error(err);
                     return;
                 }
             }
         }
+
+        self.state.fill_modeline_infos();
     }
 
     pub fn render(&mut self) -> UiState {
-        let panels = vec![self.panels.editor.render(&self.state)];
+        self.panels.editor.set_rect(Rect::new(
+            0,
+            0,
+            self.state.viewport_size.column,
+            self.state.viewport_size.row.saturating_sub(1),
+        ));
+
+        self.panels.modeline.set_rect(Rect::new(
+            0,
+            self.state.viewport_size.row.saturating_sub(1),
+            self.state.viewport_size.column,
+            1,
+        ));
+
+        let panels = vec![
+            self.panels.editor.render(&self.state),
+            self.panels.modeline.render(&self.state),
+        ];
+
         UiState { panels }
     }
 }

@@ -12,7 +12,7 @@ pub struct UiPanel {
     pub position: Position,
     pub size: Size,
     pub content: Vec<String>,
-    pub spans: Vec<Span>,
+    pub spans: Vec<StyledRegion>,
 }
 
 impl UiPanel {
@@ -43,7 +43,7 @@ impl UiPanel {
                         u32::MAX
                     };
 
-                    Span {
+                    StyledRegion {
                         from: (from_column, row).into(),
                         to: (to_column, row).into(),
                         ..span
@@ -129,7 +129,7 @@ impl UiPanel {
                 continue;
             };
             let span = &spans[span_idx];
-            nonoverlapping_spans.push(Span {
+            nonoverlapping_spans.push(StyledRegion {
                 from: start,
                 to: end,
                 style: span.style,
@@ -140,7 +140,7 @@ impl UiPanel {
         self.spans = nonoverlapping_spans;
     }
 
-    pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &Span> {
+    pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &StyledRegion> {
         self.spans.iter().filter(move |span| {
             let is_before = span.from.row < line_index;
             let is_after = span.to.row > line_index;
@@ -151,8 +151,9 @@ impl UiPanel {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct Span {
-    // Spans position are relative to the panel's top-left.
+// FIXME change 'from' and 'to' to a Rect
+pub struct StyledRegion {
+    // Relative to the panel's top-left.
     pub from: Position,
     pub to: Position,
     pub style: Style,
@@ -171,13 +172,13 @@ mod tests {
             size: (1, 1).into(),
             content: Vec::new(),
             spans: vec![
-                Span {
+                StyledRegion {
                     from: Position::new(0, 0),
                     to: Position::new(15, 0),
                     style: Default::default(),
                     priority: 0,
                 },
-                Span {
+                StyledRegion {
                     from: Position::new(4, 0),
                     to: Position::new(10, 0),
                     style: Default::default(),

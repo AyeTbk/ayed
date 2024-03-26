@@ -1,14 +1,29 @@
-use crate::{position::Position, state::State, ui::ui_state::UiPanel};
+use crate::{
+    position::Position,
+    state::State,
+    ui::{ui_state::UiPanel, Rect},
+};
+
+use super::line_clamped_filled;
 
 #[derive(Default)]
 pub struct Editor {
     // Just use state.active_view for now
     // view: Option<Handle<View>>,
+    rect: Rect,
 }
 
 impl Editor {
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    pub fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
     pub fn render(&self, state: &State) -> UiPanel {
-        let size = state.viewport_size;
+        let size = self.rect.size();
 
         let Some(view_handle) = state.active_view else {
             let mut content = vec![" ".repeat(size.column as _); size.row as _];
@@ -35,24 +50,10 @@ impl Editor {
         }
 
         UiPanel {
-            position: Position::ZERO,
+            position: self.rect.top_left(),
             size,
             content,
             spans: Vec::new(),
         }
     }
-}
-
-fn line_clamped_filled(line: &str, char_count: u32, fill: char) -> String {
-    let mut s = String::new();
-    let mut char_taken_count = 0;
-    for ch in line.chars().take(char_count as _) {
-        s.push(ch);
-        char_taken_count += 1;
-    }
-    let missing_char_count = char_count.saturating_sub(char_taken_count);
-    for _ in 0..missing_char_count {
-        s.push(fill);
-    }
-    s
 }

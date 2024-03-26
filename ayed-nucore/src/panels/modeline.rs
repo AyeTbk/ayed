@@ -1,0 +1,135 @@
+use crate::{
+    position::Position,
+    state::State,
+    ui::{
+        theme,
+        ui_state::{StyledRegion, UiPanel},
+        Color, Rect, Style,
+    },
+    utils::string_utils::line_builder::LineBuilder,
+};
+
+pub const FG_COLOR: Color = theme::colors::MODELINE_TEXT;
+pub const BG_COLOR: Color = theme::colors::ACCENT;
+
+#[derive(Default)]
+pub struct Modeline {
+    rect: Rect,
+}
+
+impl Modeline {
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    pub fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
+    pub fn render(&self, state: &State) -> UiPanel {
+        let size = self.rect.size();
+
+        let mut line_builder = LineBuilder::new_with_length(size.column as _);
+
+        let mut style = Style {
+            foreground_color: Some(FG_COLOR),
+            background_color: Some(BG_COLOR),
+            ..Default::default()
+        };
+
+        if let Some(content_override) = &state.modeline.content_override {
+            line_builder = line_builder.add_left_aligned(&content_override.text, ());
+            style = content_override.style;
+        } else {
+            for info in state.modeline.infos.iter() {
+                // TODO styles for the infos
+                match info.align {
+                    Align::Right => {
+                        line_builder = line_builder.add_right_aligned(&info.text, ());
+                        line_builder = line_builder.add_right_aligned("  ", ());
+                    }
+                    Align::Left => {
+                        line_builder = line_builder.add_left_aligned(&info.text, ());
+                        line_builder = line_builder.add_left_aligned("  ", ());
+                    }
+                }
+            }
+        }
+
+        let (content, _) = line_builder.build();
+
+        UiPanel {
+            position: self.rect.top_left(),
+            size,
+            content: vec![content],
+            spans: vec![StyledRegion {
+                from: Position::ZERO,
+                to: Position::ZERO.with_column(size.column.saturating_sub(1)),
+                style,
+                ..Default::default()
+            }],
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ModelineInfos {
+    pub infos: Vec<ModelineInfo>,
+    pub content_override: Option<ContentOverride>,
+}
+
+impl ModelineInfos {
+    pub fn new() -> Self {
+        Self {
+            infos: Default::default(),
+            content_override: Default::default(),
+        }
+    }
+
+    pub fn set_message(&mut self, text: String) {
+        self.content_override = Some(ContentOverride {
+            text,
+            style: Style {
+                ..Default::default()
+            },
+        });
+    }
+
+    pub fn set_error(&mut self, text: String) {
+        self.content_override = Some(ContentOverride {
+            text,
+            style: Style {
+                foreground_color: Some(theme::colors::MODELINE_TEXT),
+                background_color: Some(theme::colors::ERROR_DARK),
+                ..Default::default()
+            },
+        });
+    }
+
+    pub fn clear_content_override(&mut self) {
+        self.content_override = None;
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ModelineInfo> + '_ {
+        self.infos.iter()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ModelineInfo {
+    pub text: String,
+    pub style: Style,
+    pub align: Align,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContentOverride {
+    pub text: String,
+    pub style: Style,
+}
