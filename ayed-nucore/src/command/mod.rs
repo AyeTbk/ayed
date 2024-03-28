@@ -17,9 +17,14 @@ impl CommandRegistry {
     pub fn register(
         &mut self,
         name: impl Into<String>,
-        func: Box<dyn Fn(&str, ExecuteCommandContext) -> Result<(), String>>,
+        func: impl (Fn(&str, ExecuteCommandContext) -> Result<(), String>) + 'static,
     ) {
-        self.commands.insert(name.into(), Command { func });
+        self.commands.insert(
+            name.into(),
+            Command {
+                func: Box::new(func),
+            },
+        );
     }
 
     pub fn execute_command(
