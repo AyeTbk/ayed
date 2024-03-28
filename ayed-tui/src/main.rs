@@ -10,6 +10,24 @@ fn main() {
     }
     core.tick();
 
+    core.commands.register(
+        "input-look",
+        Box::new(|opt, ctx| {
+            let command = match opt {
+                "<up>" => Some(("look", "u")),
+                "<down>" => Some(("look", "d")),
+                "<left>" => Some(("look", "l")),
+                "<right>" => Some(("look", "r")),
+                _ => None,
+            };
+            if let Some((command, options)) = command {
+                ctx.queue.push(command, options)
+            }
+            Ok(())
+        }),
+    );
+    core.events.on("input", "input-look");
+
     let mut tui = tui::Tui::new(core);
 
     tui.run();

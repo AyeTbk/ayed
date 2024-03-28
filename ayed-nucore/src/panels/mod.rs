@@ -11,10 +11,10 @@ pub struct Panels {
     pub warpdrive: (),
 }
 
-fn line_clamped_filled(line: &str, char_count: u32, fill: char) -> String {
+fn line_clamped_filled(line: &str, start: u32, char_count: u32, fill: char) -> String {
     let mut s = String::new();
     let mut char_taken_count = 0;
-    for ch in line.chars().take(char_count as _) {
+    for ch in line.chars().skip(start as _).take(char_count as _) {
         s.push(ch);
         char_taken_count += 1;
     }

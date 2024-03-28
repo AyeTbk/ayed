@@ -46,6 +46,12 @@ impl Position {
             row: self.row as i32,
         }
     }
+
+    pub fn local_to(&self, other: Self) -> Option<Self> {
+        let column = self.column.checked_sub(other.column)?;
+        let row = self.row.checked_sub(other.row)?;
+        Some(Self::new(column, row))
+    }
 }
 
 impl std::cmp::PartialOrd for Position {
