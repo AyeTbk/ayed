@@ -74,7 +74,7 @@ impl Editor {
                 let nil_line = String::from("~") + &" ".repeat(size.column.saturating_sub(1) as _);
                 spans.push(StyledRegion {
                     from: Position::new(0, i as u32),
-                    to: Position::new(u32::MAX, i as u32),
+                    to: Position::new(0, i as u32),
                     style: Style {
                         foreground_color: Some(NIL_LINE_COLOR),
                         ..Default::default()
@@ -103,7 +103,8 @@ impl Editor {
             };
 
             // Cursor style
-            if let Some(cursor) = selection.cursor().local_to(view.top_left) {
+            if let (Some(column), Some(row)) = selection.cursor().local_to(view.top_left) {
+                let cursor = Position::new(column, row);
                 spans.push(StyledRegion {
                     from: cursor,
                     to: cursor,
@@ -119,16 +120,26 @@ impl Editor {
             // Selection style
             for split_selection in selection.split_lines() {
                 // FIXME dont produce styled regions outside the viewport plz.
-                let maybe_from = split_selection.start().local_to(view.top_left);
-                let maybe_to = split_selection.end().local_to(view.top_left);
+                let (from_column, from_row) = buffer
+                    .limit_position_to_content(split_selection.start())
+                    .local_to(view.top_left);
+                let (to_column, to_row) = buffer
+                    .limit_position_to_content(split_selection.end())
+                    .local_to(view.top_left);
+
+                let maybe_from =
+                    (|column, row| Some(Position::new(column?, row?)))(from_column, from_row);
+                let maybe_to =
+                    (|column, row| Some(Position::new(column?, row?)))(to_column, to_row);
 
                 if maybe_from.is_none() && maybe_to.is_none() {
                     continue;
                 }
 
                 spans.push(StyledRegion {
-                    from: maybe_from.unwrap_or_default(),
-                    to: maybe_to.unwrap_or_default(),
+                    from: maybe_from
+                        .unwrap_or(Position::ZERO.with_row(from_row.unwrap_or_default())),
+                    to: maybe_to.unwrap_or(Position::ZERO.with_row(to_row.unwrap_or_default())),
                     style: Style {
                         foreground_color: Some(SELECTION_TEXT_COLOR),
                         background_color: Some(selection_color),

@@ -60,4 +60,31 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+
+    cr.register("insert-char", |opt, ctx| {
+        let Some(view_handle) = ctx.state.active_view else {
+            return Ok(());
+        };
+
+        let the_char = opt
+            .chars()
+            .next()
+            .ok_or_else(|| format!("not a char: {opt}"))?;
+
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        let sel_count = {
+            // Using a block to limit the borrow to this line.
+            view.selections.borrow().count()
+        };
+        for sel_idx in (0..sel_count).rev() {
+            let Some(sel) = view.selections.borrow().get(sel_idx) else {
+                continue;
+            };
+            buffer.insert_char_at(sel.cursor(), the_char)?;
+        }
+
+        Ok(())
+    });
 }

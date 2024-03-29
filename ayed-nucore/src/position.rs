@@ -47,10 +47,10 @@ impl Position {
         }
     }
 
-    pub fn local_to(&self, other: Self) -> Option<Self> {
-        let column = self.column.checked_sub(other.column)?;
-        let row = self.row.checked_sub(other.row)?;
-        Some(Self::new(column, row))
+    pub fn local_to(&self, other: Self) -> (Option<u32>, Option<u32>) {
+        let column = self.column.checked_sub(other.column);
+        let row = self.row.checked_sub(other.row);
+        (column, row)
     }
 }
 
