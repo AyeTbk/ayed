@@ -12,6 +12,11 @@ use crate::{
 use super::CommandRegistry;
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
+    cr.register("quit!", |_opt, ctx| {
+        ctx.state.quit_requested = true;
+        Ok(())
+    });
+
     cr.register("show-err", |opt, _ctx| Err(format!("error: {}", opt)));
 
     cr.register("edit", |opt, ctx| {

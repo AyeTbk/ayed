@@ -234,8 +234,7 @@ fn convert_key_code_and_modifiers_to_ayed(
         KeyCode::PageUp => AyedKey::PageUp,
         KeyCode::PageDown => AyedKey::PageDown,
         KeyCode::Char(ch) => AyedKey::Char(ch),
-        KeyCode::Esc => panic!("ESCape hatch"), // DEBUG
-        // KeyCode::Esc => AyedKey::Escape,
+        KeyCode::Esc => AyedKey::Escape,
         k => {
             return Err(format!("key not implemented: {:?}", k));
         }
