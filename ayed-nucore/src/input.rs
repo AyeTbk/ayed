@@ -22,6 +22,18 @@ impl Input {
         Self::from_char_mods(ch, Default::default())
     }
 
+    pub fn char(&self) -> Option<char> {
+        let Key::Char(ch) = self.key else {
+            return None;
+        };
+
+        if self.modifiers.shift() {
+            Some(ch.to_ascii_uppercase())
+        } else {
+            Some(ch)
+        }
+    }
+
     fn normalized(self) -> Self {
         if let Key::Char(ch) = self.key {
             let key = Key::from_char_normalized(ch);
@@ -248,6 +260,14 @@ impl Modifiers {
             (false, true, true) => "sa",
             (true, true, true) => "csa",
         }
+    }
+}
+
+impl std::fmt::Display for Input {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut buf = String::new();
+        self.serialize(&mut buf);
+        f.write_str(&buf)
     }
 }
 

@@ -27,7 +27,8 @@ impl TextBuffer {
     }
 
     pub fn new_from_path(path: &str) -> Result<Self, String> {
-        let content = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
+        let content =
+            std::fs::read_to_string(path).map_err(|err| format!("can't read '{path}': {err}"))?;
         let lines = content.split('\n').map(str::to_string).collect();
         Ok(Self {
             lines,

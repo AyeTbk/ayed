@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 
 use crate::{
+    config::ConfigState,
+    event::EventRegistry,
     position::{Offset, Position},
     selection::Selections,
     state::View,
@@ -9,13 +11,14 @@ use crate::{
 
 use super::CommandRegistry;
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
     cr.register("show-err", |opt, _ctx| Err(format!("error: {}", opt)));
 
     cr.register("edit", |opt, ctx| {
-        let buffer_handle = match ctx.state.buffer_with_path(opt) {
+        let path = opt;
+        let buffer_handle = match ctx.state.buffer_with_path(path) {
             Some(handle) => handle,
-            None => ctx.state.open_file(opt)?,
+            None => ctx.state.open_file(path)?,
         };
 
         let view_handle = match ctx.state.view_with_buffer(buffer_handle) {
@@ -37,6 +40,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         };
 
         ctx.state.active_view = Some(view_handle);
+
+        ctx.state.config.set_state(ConfigState::FILE, path);
 
         Ok(())
     });

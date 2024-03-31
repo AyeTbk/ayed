@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::{event::EventRegistry, state::State};
 
-pub mod builtins;
+pub mod commands;
 
 struct Command {
     func: Box<dyn Fn(&str, ExecuteCommandContext) -> Result<(), String>>,
@@ -47,7 +47,7 @@ pub struct ExecuteCommandContext<'a> {
     pub state: &'a mut State,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CommandQueue {
     queue: VecDeque<(String, String)>,
     scope_stack: Vec<Scope>,
@@ -99,7 +99,7 @@ impl CommandQueue {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Scope {
     remaining_commands: u32,
 }

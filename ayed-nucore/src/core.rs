@@ -1,7 +1,6 @@
 use crate::{
-    command::{
-        builtins::register_builtin_commands, CommandQueue, CommandRegistry, ExecuteCommandContext,
-    },
+    command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext},
+    config,
     event::EventRegistry,
     input::Input,
     panels::Panels,
@@ -21,7 +20,11 @@ pub struct Core {
 impl Core {
     pub fn with_builtins() -> Self {
         let mut this = Self::default();
-        register_builtin_commands(&mut this.commands);
+        command::commands::register_builtin_commands(&mut this.commands, &mut this.events);
+
+        config::commands::register_builtin_commands(&mut this.commands, &mut this.events);
+        this.state.config = config::make_builtin_config();
+
         this
     }
 
@@ -31,9 +34,7 @@ impl Core {
 
     pub fn emit_input_event(&mut self, input: Input) {
         self.state.last_input = Some(input);
-        let mut buf = String::new();
-        input.serialize(&mut buf);
-        self.events.emit("input", buf);
+        self.events.emit("input", input.to_string());
     }
 
     pub fn quit_requested(&self) -> bool {

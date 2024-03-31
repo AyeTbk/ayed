@@ -25,6 +25,11 @@ file .*\.rs {
     }
 }
 
+mode text/edit {
+    <esc> set-mode text/command
+    else insert-char
+}
+
 combo files {
     keybinds {
         s write-buffer
