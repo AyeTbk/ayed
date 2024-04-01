@@ -53,6 +53,10 @@ impl TextBuffer {
         self.lines.get(row_index as usize).map(String::as_str)
     }
 
+    pub fn first_line(&self) -> &str {
+        self.lines.get(0).expect("TextBuffer invariant #1")
+    }
+
     pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
         let cursor = self.limit_position_to_content(selection.cursor());
         let anchor = self.limit_position_to_content(selection.anchor());
@@ -76,9 +80,9 @@ impl TextBuffer {
             let line = self
                 .lines
                 .get_mut(at.row as usize)
-                .ok_or_else(|| format!("position out of bounds: {at:?}"))?;
+                .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
             let at_idx = char_index_to_byte_index(&line, at.column)
-                .ok_or_else(|| format!("position out of bounds: {at:?}"))?;
+                .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
 
             line.insert(at_idx, ch);
 
@@ -92,9 +96,9 @@ impl TextBuffer {
         let line = self
             .lines
             .get_mut(at.row as usize)
-            .ok_or_else(|| format!("position out of bounds: {at:?}"))?;
+            .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
         let at_idx = char_index_to_byte_index(&line, at.column)
-            .ok_or_else(|| format!("position out of bounds: {at:?}"))?;
+            .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
 
         let rest = line.split_off(at_idx);
         self.lines.insert(at.row.saturating_add(1) as _, rest);
@@ -188,6 +192,7 @@ fn char_index_to_byte_index(s: &str, ch_idx: u32) -> Option<usize> {
         Some(0)
     } else {
         s.char_indices()
+            .chain(Some((s.len(), '\n')))
             .skip(ch_idx as _)
             .map(|(idx, _)| idx)
             .next()

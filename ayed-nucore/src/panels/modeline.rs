@@ -9,6 +9,8 @@ use crate::{
     utils::string_utils::line_builder::LineBuilder,
 };
 
+use super::{Editor, FocusedPanel};
+
 pub const FG_COLOR: Color = theme::colors::MODELINE_TEXT;
 pub const BG_COLOR: Color = theme::colors::ACCENT;
 
@@ -29,56 +31,101 @@ impl Modeline {
     pub fn render(&self, state: &State) -> UiPanel {
         let size = self.rect.size();
 
-        let mut line_builder = LineBuilder::new_with_length(size.column as _);
+        if let FocusedPanel::Modeline(view_handle) = state.focused_panel {
+            let mut editor = Editor::with_view(view_handle);
+            editor.set_rect(Rect::from_positions(
+                self.rect.top_left(),
+                self.rect.bottom_right(),
+            ));
 
-        let mut style = Style {
-            foreground_color: Some(FG_COLOR),
-            background_color: Some(BG_COLOR),
-            ..Default::default()
-        };
+            let mut editor_panel = editor.render(state);
 
-        if let Some(content_override) = &state.modeline.content_override {
-            line_builder = line_builder.add_left_aligned(&content_override.text, ());
-            style = content_override.style;
+            for line in &mut editor_panel.content {
+                line.insert(0, '›');
+            }
+
+            for region in &mut editor_panel.spans {
+                region.from = region.from.offset((1, 0));
+                region.to = region.to.offset((1, 0));
+            }
+
+            // Prompt color
+            editor_panel.spans.push(StyledRegion {
+                from: Position::ZERO,
+                to: Position::ZERO,
+                style: Style {
+                    foreground_color: None,
+                    background_color: Some(theme::colors::ACCENT_BRIGHT),
+                    ..Default::default()
+                },
+                priority: 1,
+            });
+
+            // Bg color
+            editor_panel.spans.push(StyledRegion {
+                from: Position::ZERO,
+                to: Position::ZERO.with_moved_indices(self.rect().width as _, 0),
+                style: Style {
+                    foreground_color: None,
+                    background_color: Some(theme::colors::ACCENT),
+                    ..Default::default()
+                },
+                priority: 0,
+            });
+
+            editor_panel
         } else {
-            for info in state.modeline.infos.iter() {
-                // TODO styles for the infos
-                match info.align {
-                    Align::Right => {
-                        line_builder = line_builder.add_right_aligned(&info.text, ());
-                        line_builder = line_builder.add_right_aligned("  ", ());
-                    }
-                    Align::Left => {
-                        line_builder = line_builder.add_left_aligned(&info.text, ());
-                        line_builder = line_builder.add_left_aligned("  ", ());
+            let mut line_builder = LineBuilder::new_with_length(size.column as _);
+
+            let mut style = Style {
+                foreground_color: Some(FG_COLOR),
+                background_color: Some(BG_COLOR),
+                ..Default::default()
+            };
+
+            if let Some(content_override) = &state.modeline.content_override {
+                line_builder = line_builder.add_left_aligned(&content_override.text, ());
+                style = content_override.style;
+            } else {
+                for info in state.modeline.infos.iter() {
+                    // TODO styles for the infos
+                    match info.align {
+                        Align::Right => {
+                            line_builder = line_builder.add_right_aligned(&info.text, ());
+                            line_builder = line_builder.add_right_aligned("  ", ());
+                        }
+                        Align::Left => {
+                            line_builder = line_builder.add_left_aligned(&info.text, ());
+                            line_builder = line_builder.add_left_aligned("  ", ());
+                        }
                     }
                 }
             }
-        }
 
-        let (content, _) = line_builder.build();
+            let (content, _) = line_builder.build();
 
-        UiPanel {
-            position: self.rect.top_left(),
-            size,
-            content: vec![content],
-            spans: vec![StyledRegion {
-                from: Position::ZERO,
-                to: Position::ZERO.with_column(size.column.saturating_sub(1)),
-                style,
-                ..Default::default()
-            }],
+            UiPanel {
+                position: self.rect.top_left(),
+                size,
+                content: vec![content],
+                spans: vec![StyledRegion {
+                    from: Position::ZERO,
+                    to: Position::ZERO.with_column(size.column.saturating_sub(1)),
+                    style,
+                    ..Default::default()
+                }],
+            }
         }
     }
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct ModelineInfos {
+pub struct ModelineState {
     pub infos: Vec<ModelineInfo>,
     pub content_override: Option<ContentOverride>,
 }
 
-impl ModelineInfos {
+impl ModelineState {
     pub fn new() -> Self {
         Self {
             infos: Default::default(),

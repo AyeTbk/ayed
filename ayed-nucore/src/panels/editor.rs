@@ -1,6 +1,7 @@
 use crate::{
     position::Position,
-    state::State,
+    slotmap::Handle,
+    state::{State, View},
     ui::{
         ui_state::{StyledRegion, UiPanel},
         Color, Rect, Style,
@@ -25,12 +26,18 @@ const NIL_LINE_COLOR: Color = Color::rgb(155, 100, 200);
 
 #[derive(Default)]
 pub struct Editor {
-    // Just use state.active_view for now
-    // view: Option<Handle<View>>,
+    view: Option<Handle<View>>,
     rect: Rect,
 }
 
 impl Editor {
+    pub fn with_view(view: Handle<View>) -> Self {
+        Self {
+            view: Some(view),
+            rect: Rect::default(),
+        }
+    }
+
     pub fn rect(&self) -> Rect {
         self.rect
     }
@@ -42,7 +49,7 @@ impl Editor {
     pub fn render(&self, state: &State) -> UiPanel {
         let size = self.rect.size();
 
-        let Some(view_handle) = state.active_view else {
+        let Some(view_handle) = self.view.or(state.active_editor_view) else {
             let mut content = vec![" ".repeat(size.column as _); size.row as _];
             content[0] =
                 String::new() + "[no view]" + &(" ".repeat((size.column.saturating_sub(7)) as _));

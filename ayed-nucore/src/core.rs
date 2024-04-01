@@ -1,5 +1,5 @@
 use crate::{
-    command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext},
+    command::{self, parse_command, CommandQueue, CommandRegistry, ExecuteCommandContext},
     config,
     event::EventRegistry,
     input::Input,
@@ -28,8 +28,8 @@ impl Core {
         this
     }
 
-    pub fn queue_command(&mut self, command: String, options: String) {
-        self.queue.push(command, options)
+    pub fn queue_command(&mut self, command: String) {
+        self.queue.push(command)
     }
 
     pub fn emit_input_event(&mut self, input: Input) {
@@ -55,7 +55,7 @@ impl Core {
         loop {
             self.queue.extend_front(self.events.emitted_commands());
 
-            let Some((command, options)) = self.queue.pop() else {
+            let Some(command) = self.queue.pop() else {
                 break;
             };
 
@@ -63,7 +63,6 @@ impl Core {
 
             let res = self.commands.execute_command(
                 &command,
-                &options,
                 ExecuteCommandContext {
                     events: &mut self.events,
                     queue: &mut self.queue,
@@ -72,12 +71,19 @@ impl Core {
             );
 
             match res {
-                Ok(()) => (),
-                Err(err) => {
+                Ok(Err(cmd_err)) => {
                     self.queue.clear();
-                    self.state.modeline.set_error(err);
+                    let (command_name, _) = parse_command(&command);
+                    let err_msg = format!("{command_name}: {cmd_err}");
+                    self.state.modeline.set_error(err_msg);
                     return;
                 }
+                Err(exec_err) => {
+                    self.queue.clear();
+                    self.state.modeline.set_error(exec_err);
+                    return;
+                }
+                _ => (),
             }
         }
 

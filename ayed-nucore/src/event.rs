@@ -21,14 +21,14 @@ impl EventRegistry {
         });
     }
 
-    pub(super) fn emitted_commands(&mut self) -> Vec<(String, String)> {
+    pub(super) fn emitted_commands(&mut self) -> Vec<String> {
         let mut emitted = Vec::new();
         for ev in std::mem::take(&mut self.queued_events) {
             let Some(commands) = self.event_commands.get(&ev.event) else {
                 continue;
             };
             for command in commands {
-                emitted.push((command.clone(), ev.options.clone()));
+                emitted.push(format!("{} {}", command, ev.options));
             }
         }
         emitted

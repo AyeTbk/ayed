@@ -1,7 +1,10 @@
 use crate::{
     config::Config,
     input::Input,
-    panels::modeline::{Align, ModelineInfo, ModelineInfos},
+    panels::{
+        modeline::{Align, ModelineInfo, ModelineState},
+        FocusedPanel,
+    },
     slotmap::{Handle, SlotMap},
     ui::{Size, Style},
 };
@@ -15,10 +18,11 @@ pub use view::View;
 #[derive(Default)]
 pub struct State {
     pub views: SlotMap<View>,
-    pub active_view: Option<Handle<View>>,
+    pub active_editor_view: Option<Handle<View>>,
     pub buffers: SlotMap<TextBuffer>,
     pub config: Config,
-    pub modeline: ModelineInfos,
+    pub modeline: ModelineState,
+    pub focused_panel: FocusedPanel,
     pub quit_requested: bool,
     pub viewport_size: Size,
     pub last_input: Option<Input>,
@@ -43,12 +47,19 @@ impl State {
             .map(|(handle, _)| handle)
     }
 
-    pub fn active_buffer(&self) -> Option<Handle<TextBuffer>> {
-        Some(self.views.get(self.active_view?).buffer)
+    pub fn focused_view(&self) -> Option<Handle<View>> {
+        match self.focused_panel {
+            FocusedPanel::Editor => self.active_editor_view,
+            FocusedPanel::Modeline(view) => Some(view),
+        }
     }
 
-    pub fn active_buffer_path(&self) -> Option<&str> {
-        self.buffers.get(self.active_buffer()?).path()
+    pub fn active_editor_buffer(&self) -> Option<Handle<TextBuffer>> {
+        Some(self.views.get(self.active_editor_view?).buffer)
+    }
+
+    pub fn active_editor_buffer_path(&self) -> Option<&str> {
+        self.buffers.get(self.active_editor_buffer()?).path()
     }
 
     pub fn fill_modeline_infos(&mut self) {
@@ -68,7 +79,10 @@ impl State {
         };
 
         let path_info = ModelineInfo {
-            text: self.active_buffer_path().unwrap_or("<no path>").to_string(),
+            text: self
+                .active_editor_buffer_path()
+                .unwrap_or("<no path>")
+                .to_string(),
             style: Style::default(),
             align: Align::Right,
         };

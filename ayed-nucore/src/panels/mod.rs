@@ -1,4 +1,8 @@
 mod editor;
+
+use crate::slotmap::Handle;
+use crate::state::View;
+
 pub use self::editor::Editor;
 
 pub mod modeline;
@@ -9,6 +13,13 @@ pub struct Panels {
     pub editor: Editor,
     pub modeline: Modeline,
     pub warpdrive: (),
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub enum FocusedPanel {
+    #[default]
+    Editor,
+    Modeline(Handle<View>),
 }
 
 fn line_clamped_filled(line: &str, start: u32, char_count: u32, fill: char) -> String {

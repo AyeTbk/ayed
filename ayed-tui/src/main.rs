@@ -6,7 +6,7 @@ fn main() {
     let mut core = Core::with_builtins();
 
     for arg in std::env::args().skip(1) {
-        core.queue_command("edit".to_string(), arg);
+        core.queue_command(format!("edit {arg}"));
     }
     core.tick();
 

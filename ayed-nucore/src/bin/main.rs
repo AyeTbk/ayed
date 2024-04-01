@@ -12,7 +12,7 @@ pub fn main() {
     core.commands.register("insert", |opt, ctx| {
         let ch = opt.chars().next().unwrap();
         println!("{ch}");
-        ctx.queue.push("say-hi", "");
+        ctx.queue.push("say-hi");
         Ok(())
     });
     core.events.on("input", "insert");

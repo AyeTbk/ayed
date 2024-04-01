@@ -3,9 +3,10 @@ use std::cell::RefCell;
 use crate::{
     config::ConfigState,
     event::EventRegistry,
+    panels::FocusedPanel,
     position::{Offset, Position},
     selection::Selections,
-    state::View,
+    state::{TextBuffer, View},
     Ref,
 };
 
@@ -17,7 +18,54 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("show-err", |opt, _ctx| Err(format!("error: {}", opt)));
+    cr.register("error", |opt, _ctx| Err(opt.to_string()));
+
+    cr.register("focus-panel", |opt, ctx| {
+        match opt {
+            "editor" => {
+                ctx.state.focused_panel = FocusedPanel::Editor;
+            }
+            "modeline" => {
+                // FIXME cleanup old view and buffer
+                let selections = Ref::new(RefCell::new(Selections::new()));
+
+                let buffer = ctx.state.buffers.insert(TextBuffer::new_empty());
+                ctx.state
+                    .buffers
+                    .get_mut(buffer)
+                    .add_selections(&selections);
+
+                let view = ctx.state.views.insert(View {
+                    top_left: Position::ZERO,
+                    buffer,
+                    selections,
+                });
+
+                ctx.state.focused_panel = FocusedPanel::Modeline(view);
+            }
+            _ => return Err(format!("unknown panel '{opt}'")),
+        }
+
+        ctx.state.config.set_state("panel", opt);
+
+        Ok(())
+    });
+
+    cr.register("modeline-exec", |_opt, ctx| {
+        let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel else {
+            return Err("modeline not focused".into());
+        };
+
+        let buffer_handle = ctx.state.views.get(view_handle).buffer;
+        let line = ctx.state.buffers.get(buffer_handle).first_line();
+
+        ctx.queue.push("focus-panel editor");
+        if !line.is_empty() {
+            ctx.queue.push(line);
+        }
+
+        Ok(())
+    });
 
     cr.register("edit", |opt, ctx| {
         let path = opt;
@@ -44,7 +92,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             }
         };
 
-        ctx.state.active_view = Some(view_handle);
+        ctx.state.active_editor_view = Some(view_handle);
 
         ctx.state.config.set_state(ConfigState::FILE, path);
 
@@ -63,7 +111,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             }
         }
 
-        if let Some(view_handle) = ctx.state.active_view {
+        if let Some(view_handle) = ctx.state.focused_view() {
             let view = ctx.state.views.get_mut(view_handle);
             view.top_left = view.top_left.offset(offset);
         }
@@ -72,7 +120,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
     });
 
     cr.register("insert-char", |opt, ctx| {
-        let Some(view_handle) = ctx.state.active_view else {
+        let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
 

@@ -29,15 +29,15 @@ impl CommandRegistry {
 
     pub fn execute_command(
         &self,
-        name: &str,
-        options: &str,
+        command: &str,
         ctx: ExecuteCommandContext,
-    ) -> Result<(), String> {
+    ) -> Result<Result<(), String>, String> {
+        let (name, options) = parse_command(command);
         let command = self
             .commands
             .get(name)
             .ok_or_else(|| format!("unknown command '{name}'"))?;
-        (command.func)(options, ctx)
+        Ok((command.func)(options, ctx))
     }
 }
 
@@ -49,13 +49,13 @@ pub struct ExecuteCommandContext<'a> {
 
 #[derive(Debug, Default)]
 pub struct CommandQueue {
-    queue: VecDeque<(String, String)>,
+    queue: VecDeque<String>,
     scope_stack: Vec<Scope>,
 }
 
 impl CommandQueue {
-    pub fn push(&mut self, command: impl Into<String>, options: impl Into<String>) {
-        let command = (command.into(), options.into());
+    pub fn push(&mut self, command: impl Into<String>) {
+        let command = command.into();
         if let Some(scope) = self.scope_stack.last_mut() {
             self.queue.insert(scope.remaining_commands as _, command);
             scope.remaining_commands += 1;
@@ -64,7 +64,7 @@ impl CommandQueue {
         }
     }
 
-    pub fn pop(&mut self) -> Option<(String, String)> {
+    pub fn pop(&mut self) -> Option<String> {
         if let Some(scope) = self.scope_stack.last_mut() {
             if scope.remaining_commands == 0 {
                 loop {
@@ -83,7 +83,7 @@ impl CommandQueue {
         self.queue.pop_front()
     }
 
-    pub fn extend_front(&mut self, iter: impl IntoIterator<Item = (String, String)>) {
+    pub fn extend_front(&mut self, iter: impl IntoIterator<Item = String>) {
         for (i, item) in iter.into_iter().enumerate() {
             self.queue.insert(i, item);
         }
@@ -102,4 +102,8 @@ impl CommandQueue {
 #[derive(Debug, Default)]
 struct Scope {
     remaining_commands: u32,
+}
+
+pub fn parse_command(command: &str) -> (&str, &str) {
+    command.split_once(' ').unwrap_or((command, ""))
 }
