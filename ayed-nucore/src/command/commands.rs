@@ -17,6 +17,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         ctx.state.quit_requested = true;
         Ok(())
     });
+    cr.register("q!", |_opt, ctx| {
+        ctx.queue.push("quit!");
+        Ok(())
+    });
 
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
