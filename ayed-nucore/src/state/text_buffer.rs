@@ -124,10 +124,7 @@ impl TextBuffer {
                     Self::adjust_position_after_insert_char(selection.cursor(), inserted_at);
                 let anchor =
                     Self::adjust_position_after_insert_char(selection.anchor(), inserted_at);
-
-                *selection = selection
-                    .with_provisional_anchor(anchor)
-                    .with_provisional_cursor(cursor);
+                *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
     }
@@ -137,10 +134,7 @@ impl TextBuffer {
             for selection in selections.borrow_mut().iter_mut() {
                 let cursor = Self::adjust_position_after_split_line(selection.cursor(), split_at);
                 let anchor = Self::adjust_position_after_split_line(selection.anchor(), split_at);
-
-                *selection = selection
-                    .with_provisional_anchor(anchor)
-                    .with_provisional_cursor(cursor);
+                *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
     }

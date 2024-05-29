@@ -3,6 +3,12 @@ keybinds {
     <down> move d
     <left> move l
     <right> move r
+    <s-up> move u anchored
+    <s-down> move d anchored
+    <s-left> move l anchored
+    <s-right> move r anchored
+    C dupe d
+    <a-C> dupe u
     : focus-panel modeline
     else insert-char
 }

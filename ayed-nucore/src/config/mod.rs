@@ -33,9 +33,19 @@ impl Config {
     }
 
     pub fn get_keybind(&self, input: Input) -> Option<String> {
-        self.get("keybinds")?
-            .get(&input.to_string())
-            .map(|v| v.join(" "))
+        // TODO have a map of actual inputs in the Applied config instead of this.
+        for (k, v) in self.get("keybinds")? {
+            let Some(k_input) = Input::parse(&k).ok() else {
+                if k != "else" {
+                    eprintln!("Config::get_keybind: failed to parse input: {:?}", k);
+                }
+                continue;
+            };
+            if k_input == input {
+                return Some(v.join(" "));
+            }
+        }
+        None
     }
 
     pub fn get_keybind_else_insert_char(&self) -> bool {
@@ -81,6 +91,7 @@ impl Config {
                 }
 
                 // TODO remember that this commented code was for and why it got commented out
+                // NOTE couple months later: i confirm i dont remember
                 // current_mapping.extend(
                 //     cond_mapping
                 //         .mapping

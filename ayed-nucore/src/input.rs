@@ -12,7 +12,7 @@ impl Input {
     }
 
     pub fn from_char_mods(ch: char, mut modifiers: Modifiers) -> Self {
-        if ch.is_uppercase() {
+        if ch.is_ascii_uppercase() {
             modifiers.shift = true;
         }
         Self::new(Key::Char(ch), modifiers)

@@ -108,6 +108,16 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         Ok(())
     });
 
+    cr.register("merge-view-overlapping-selections", |_opt, ctx| {
+        if let Some(view_handle) = ctx.state.focused_view() {
+            let view = ctx.state.views.get_mut(view_handle);
+            let mut selections = view.selections.borrow_mut();
+            *selections = selections.overlapping_selections_merged()
+        }
+
+        Ok(())
+    });
+
     cr.register("look", |opt, ctx| {
         let mut offset = Offset::new(0, 0);
         for ch in opt.chars() {
@@ -142,54 +152,104 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
     ev.on("resize", "look-keep-primary-cursor-in-view");
 
     cr.register("move", |opt, ctx| {
-        let offset = match opt.chars().next() {
-            Some('u') => Offset::new(0, -1),
-            Some('d') => Offset::new(0, 1),
-            Some('l') => Offset::new(-1, 0),
-            Some('r') => Offset::new(1, 0),
+        let Some(ch) = opt.chars().next() else {
+            return Err(format!("missing option: (u, d, l, r)"));
+        };
+        let offset = match ch.to_ascii_lowercase() {
+            'u' => Offset::new(0, -1),
+            'd' => Offset::new(0, 1),
+            'l' => Offset::new(-1, 0),
+            'r' => Offset::new(1, 0),
             _ => return Err(format!("invalid option: {opt}")),
         };
+        let anchored = opt.contains("anchored");
 
-        if let Some(view_handle) = ctx.state.focused_view() {
-            let view = ctx.state.views.get(view_handle);
-            let buffer = ctx.state.buffers.get_mut(view.buffer);
-            let mut selections = view.selections.borrow().clone();
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
 
-            for selection in selections.iter_mut() {
-                let horizontal_move = offset.column != 0;
-                if horizontal_move {
-                    let cursor = selection.cursor();
-                    let target_column = cursor.column as i64 + offset.column as i64;
-                    let cursor = if target_column < 0 && cursor.row != 0 {
-                        // Go to end of previous line.
-                        let prev_line_row = cursor.row.saturating_sub(1);
-                        let column = buffer.line_char_count(prev_line_row).unwrap_or(0);
-                        Position::new(column, prev_line_row)
-                    } else if buffer
-                        .line_char_count(cursor.row)
-                        .is_some_and(|end_column| target_column > end_column as i64)
-                        && cursor.row != buffer.last_row()
-                    {
-                        // Go to start of next line.
-                        let next_line_row = cursor.row.saturating_add(1);
-                        Position::new(0, next_line_row)
-                    } else {
-                        cursor.offset(offset)
-                    };
-                    let new_cursor = buffer.limit_position_to_content(cursor);
-                    *selection = selection.with_anchor(new_cursor).with_cursor(new_cursor);
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let mut selections = view.selections.borrow().clone();
+
+        for selection in selections.iter_mut() {
+            let horizontal_move = offset.column != 0;
+            if horizontal_move {
+                let cursor = selection.cursor();
+                let target_column = cursor.column as i64 + offset.column as i64;
+                let cursor = if target_column < 0 && cursor.row != 0 {
+                    // Go to end of previous line.
+                    let prev_line_row = cursor.row.saturating_sub(1);
+                    let column = buffer.line_char_count(prev_line_row).unwrap_or(0);
+                    Position::new(column, prev_line_row)
+                } else if buffer
+                    .line_char_count(cursor.row)
+                    .is_some_and(|end_column| target_column > end_column as i64)
+                    && cursor.row != buffer.last_row()
+                {
+                    // Go to start of next line.
+                    let next_line_row = cursor.row.saturating_add(1);
+                    Position::new(0, next_line_row)
                 } else {
-                    let limited_cursor =
-                        buffer.limit_position_to_content(selection.desired_cursor().offset(offset));
-                    *selection = selection
+                    cursor.offset(offset)
+                };
+                let new_cursor = buffer.limit_position_to_content(cursor);
+
+                *selection = if anchored {
+                    selection.with_cursor(new_cursor)
+                } else {
+                    selection.with_anchor(new_cursor).with_cursor(new_cursor)
+                };
+            } else {
+                let limited_cursor =
+                    buffer.limit_position_to_content(selection.desired_cursor().offset(offset));
+                *selection = if anchored {
+                    selection.with_provisional_cursor(limited_cursor)
+                } else {
+                    selection
                         .with_anchor(limited_cursor)
-                        .with_provisional_cursor(limited_cursor);
+                        .with_provisional_cursor(limited_cursor)
                 }
             }
-
-            *view.selections.borrow_mut() = selections;
-            ctx.queue.push("look-keep-primary-cursor-in-view");
         }
+
+        *view.selections.borrow_mut() = selections;
+        ctx.queue.push("merge-view-overlapping-selections");
+        ctx.queue.push("look-keep-primary-cursor-in-view");
+
+        Ok(())
+    });
+
+    cr.register("dupe", |opt, ctx| {
+        let row_offset = match opt.chars().next() {
+            Some('u') => -1,
+            Some('d') => 1,
+            _ => return Err(format!("invalid option: {opt}")),
+        };
+        let offset = Offset::new(0, row_offset);
+
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get(view.buffer);
+        let mut selections = view.selections.borrow().clone();
+        let dupes = selections
+            .iter()
+            .map(|sel| {
+                buffer.limit_selection_to_content(
+                    &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
+                        .with_provisional_cursor(sel.desired_cursor().offset(offset)),
+                )
+            })
+            .collect::<Vec<_>>();
+        for dupe in dupes {
+            selections.add(dupe);
+        }
+
+        *view.selections.borrow_mut() = selections;
+        ctx.queue.push("merge-view-overlapping-selections");
 
         Ok(())
     });
