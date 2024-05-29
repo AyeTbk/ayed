@@ -1,4 +1,4 @@
-use crate::position::Position;
+use crate::position::{Offset, Position};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
@@ -93,6 +93,32 @@ impl Rect {
         } else {
             None
         }
+    }
+
+    pub fn offset_from_position(&self, position: Position) -> Offset {
+        let column_offset: i32 = if position.column < self.left() {
+            (position.column as i64 - self.left() as i64)
+                .try_into()
+                .unwrap()
+        } else if position.column > self.right() {
+            (position.column as i64 - self.right() as i64)
+                .try_into()
+                .unwrap()
+        } else {
+            0
+        };
+        let row_offset: i32 = if position.row < self.top() {
+            (position.row as i64 - self.top() as i64)
+                .try_into()
+                .unwrap()
+        } else if position.row > self.bottom() {
+            (position.row as i64 - self.bottom() as i64)
+                .try_into()
+                .unwrap()
+        } else {
+            0
+        };
+        Offset::new(column_offset, row_offset)
     }
 }
 

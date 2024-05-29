@@ -8,9 +8,10 @@ use crate::{
 // #2. The line terminators are not part of the content, they are implied for the
 //     current line when there is a following line.
 // #3. Positions refer to lines in row and to codepoints (Rust chars) of said line in column.
-// #4. A position of column == line.chars().count() is allowed and represents the
-//     position of the line terminator, iif a line terminator is implied for that line.
-// #5. When inserting text, the line terminator character is '\n'.
+// #4. A position with column == line.chars().count() is allowed. It can be thought of as the
+//     position of the line terminator (also allowed for the last line even though there is
+//     no implied line terminator).
+// #5. When inserting text, the character '\n' represents a line terminator.
 pub struct TextBuffer {
     lines: Vec<String>,
     selections: Vec<WeakRef<Selections>>,
@@ -49,12 +50,20 @@ impl TextBuffer {
         self.lines.len().try_into().unwrap()
     }
 
+    pub fn line_char_count(&self, row: u32) -> Option<u32> {
+        self.line(row).map(|line| char_count(line))
+    }
+
     pub fn line(&self, row_index: u32) -> Option<&str> {
         self.lines.get(row_index as usize).map(String::as_str)
     }
 
     pub fn first_line(&self) -> &str {
         self.lines.get(0).expect("TextBuffer invariant #1")
+    }
+
+    pub fn last_row(&self) -> u32 {
+        self.line_count().saturating_sub(1)
     }
 
     pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
@@ -66,7 +75,7 @@ impl TextBuffer {
     }
 
     pub fn limit_position_to_content(&self, position: Position) -> Position {
-        let row = position.row.clamp(0, self.last_line_index());
+        let row = position.row.clamp(0, self.last_row());
         let column = position
             .column
             .clamp(0, self.line_char_count(row).unwrap_or(0));
@@ -176,14 +185,6 @@ impl TextBuffer {
         };
 
         Position::new(column, row)
-    }
-
-    fn line_char_count(&self, row: u32) -> Option<u32> {
-        self.line(row).map(|line| char_count(line))
-    }
-
-    fn last_line_index(&self) -> u32 {
-        self.line_count().saturating_sub(1)
     }
 }
 

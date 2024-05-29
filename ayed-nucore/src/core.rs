@@ -46,7 +46,11 @@ impl Core {
     }
 
     pub fn set_viewport_size(&mut self, size: Size) {
-        self.state.viewport_size = size;
+        self.update_viewport_size(size);
+        self.events
+            .emit("resize", format!("{} {}", size.column, size.row));
+
+        self.tick();
     }
 
     pub fn tick(&mut self) {
@@ -91,12 +95,24 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
+        let panels = vec![
+            self.panels.editor.render(&self.state),
+            self.panels.modeline.render(&self.state),
+        ];
+
+        UiState { panels }
+    }
+
+    fn update_viewport_size(&mut self, viewport_size: Size) {
+        self.state.viewport_size = viewport_size;
+
         self.panels.editor.set_rect(Rect::new(
             0,
             0,
             self.state.viewport_size.column,
             self.state.viewport_size.row.saturating_sub(1),
         ));
+        self.state.editor_size = self.panels.editor.rect().size();
 
         self.panels.modeline.set_rect(Rect::new(
             0,
@@ -104,13 +120,6 @@ impl Core {
             self.state.viewport_size.column,
             1,
         ));
-
-        let panels = vec![
-            self.panels.editor.render(&self.state),
-            self.panels.modeline.render(&self.state),
-        ];
-
-        UiState { panels }
     }
 }
 

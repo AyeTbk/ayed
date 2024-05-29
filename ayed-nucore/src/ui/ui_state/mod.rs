@@ -72,7 +72,7 @@ impl UiPanel {
                 .entry(span.from)
                 .or_default();
             non_overlapping_subspans_by_position
-                .entry(span.to.with_moved_indices(1, 0))
+                .entry(span.to.offset((1, 0)))
                 .or_default();
         }
 
@@ -119,7 +119,7 @@ impl UiPanel {
         let subspan_end = non_overlapping_subspans_by_position
             .iter()
             .skip(1)
-            .map(|(pos, _)| pos.with_moved_indices(-1, 0));
+            .map(|(pos, _)| pos.offset((-1, 0)));
         let subspans = subspan_start.zip(subspan_end);
 
         for ((&start, &maybe_span_idx), end) in subspans {

@@ -194,7 +194,7 @@ impl Tui {
     fn update_viewport_size_if_needed(&mut self) {
         let size = self.viewport_size();
         let vsize = self.core.viewport_size();
-        if size.column != vsize.column || size.row != vsize.row {
+        if size != vsize {
             self.core.set_viewport_size(size);
         }
     }

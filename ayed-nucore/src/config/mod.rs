@@ -185,6 +185,9 @@ pub fn make_builtin_config() -> Config {
                     name: "keybinds".to_string(),
                     selectors: vec![],
                     mapping: map! {
+                        "<up>".to_string() => vec!["move".to_string(), "u".to_string()],
+                        "<down>".to_string() => vec!["move".to_string(), "d".to_string()],
+                        "<left>".to_string() => vec!["move".to_string(), "l".to_string()],
                         "<right>".to_string() => vec!["move".to_string(), "r".to_string()],
                         ":".to_string() => vec!["focus-panel".to_string(), "modeline".to_string()],
                         "else".to_string() => vec!["insert-char".to_string()],

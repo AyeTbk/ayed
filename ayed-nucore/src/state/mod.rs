@@ -6,7 +6,7 @@ use crate::{
         FocusedPanel,
     },
     slotmap::{Handle, SlotMap},
-    ui::{Size, Style},
+    ui::{Rect, Size, Style},
 };
 
 mod text_buffer;
@@ -25,6 +25,7 @@ pub struct State {
     pub focused_panel: FocusedPanel,
     pub quit_requested: bool,
     pub viewport_size: Size,
+    pub editor_size: Size,
     pub last_input: Option<Input>,
 }
 
@@ -52,6 +53,14 @@ impl State {
             FocusedPanel::Editor => self.active_editor_view,
             FocusedPanel::Modeline(view) => Some(view),
         }
+    }
+
+    pub fn focused_view_rect(&self) -> Rect {
+        let top_left = self
+            .active_editor_view
+            .map(|handle| self.views.get(handle).top_left)
+            .unwrap_or_default();
+        Rect::with_position_and_size(top_left, self.editor_size)
     }
 
     pub fn active_editor_buffer(&self) -> Option<Handle<TextBuffer>> {

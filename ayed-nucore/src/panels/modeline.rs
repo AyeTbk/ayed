@@ -64,7 +64,7 @@ impl Modeline {
             // Bg color
             editor_panel.spans.push(StyledRegion {
                 from: Position::ZERO,
-                to: Position::ZERO.with_moved_indices(self.rect().width as _, 0),
+                to: Position::ZERO.offset((self.rect().width as _, 0)),
                 style: Style {
                     foreground_color: None,
                     background_color: Some(theme::colors::ACCENT),
