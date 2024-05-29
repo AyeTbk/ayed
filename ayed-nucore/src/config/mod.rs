@@ -6,19 +6,6 @@ use crate::input::Input;
 
 pub mod commands;
 
-macro_rules! map {
-    () => {{
-        HashMap::new()
-    }};
-    ($($key:expr => $val:expr),* $(,)?) => {{
-        let mut map = HashMap::new();
-        $(
-            map.insert($key, $val);
-        )*
-        map
-    }};
-}
-
 #[derive(Default)]
 pub struct Config {
     modules: Vec<ConfigModule>,
@@ -27,6 +14,14 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn add_module(&mut self, src: &str) -> Result<(), ()> {
+        let module = parse_module(src)?;
+        self.modules.push(module);
+        self.rebuild_current_config();
+
+        Ok(())
+    }
+
     pub fn get(&self, key: &str) -> Option<&HashMap<String, Vec<String>>> {
         self.current_config.get(key)
     }
@@ -133,6 +128,7 @@ impl ConditionalMapping {
     }
 }
 
+#[derive(Debug, Clone)]
 struct Selector {
     targeted_state: String,
     regex: Regex,
@@ -178,88 +174,61 @@ impl ConfigState {
 }
 
 pub fn make_builtin_config() -> Config {
-    let mut conf = Config {
-        modules: vec![ConfigModule {
-            mappings: vec![
-                ConditionalMapping {
-                    name: "keybinds".to_string(),
-                    selectors: vec![],
-                    mapping: map! {
-                        "<up>".to_string() => vec!["move".to_string(), "u".to_string()],
-                        "<down>".to_string() => vec!["move".to_string(), "d".to_string()],
-                        "<left>".to_string() => vec!["move".to_string(), "l".to_string()],
-                        "<right>".to_string() => vec!["move".to_string(), "r".to_string()],
-                        ":".to_string() => vec!["focus-panel".to_string(), "modeline".to_string()],
-                        "else".to_string() => vec!["insert-char".to_string()],
-                    },
-                },
-                ConditionalMapping {
-                    name: "keybinds".to_string(),
-                    selectors: vec![Selector::new("panel", "modeline").unwrap()],
-                    mapping: map! {
-                        "<ret>".to_string() => vec!["modeline-exec".to_string()],
-                    },
-                },
-                ConditionalMapping {
-                    name: "syntax-style".to_string(),
-                    selectors: vec![],
-                    mapping: map! {
-                        "keyword".to_string() => vec!["#4488cf".to_string()],
-                        "keyword-statement".to_string() => vec!["#aa77cc".to_string()],
-                        "builtin".to_string() => vec!["#62b0fb".to_string(), "priority:11".to_string()],
-                        "operator".to_string() => vec!["#ddccdd".to_string()],
-                        "delimiter".to_string() => vec!["#ccaa11".to_string(), "priority:11".to_string()],
-                        "macro".to_string() => vec!["#3377cc".to_string(), "priority:11".to_string()],
-                        "type".to_string() => vec!["#55b89b".to_string(), "priority:12".to_string()],
-                        "literal".to_string() => vec!["#aaddcc".to_string(), "priority:11".to_string()],
-                        "string".to_string() => vec!["#bb8866".to_string(), "priority:14".to_string()],
-                        "function".to_string() => vec!["#b8a4fc".to_string(), "priority:13".to_string()],
-                        "namespace".to_string() => vec!["#55b89b".to_string()],
-                        "comment".to_string() => vec!["#55887a".to_string(), "priority:15".to_string()],
-                    },
-                },
-                ConditionalMapping {
-                    name: "syntax".to_string(),
-                    selectors: vec![Selector::new("file", r".*\.rs").unwrap()],
-                    mapping: map! {
-                        // All keywords
-                        "keyword".to_string() => vec![r"\b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move)\b".to_string() ,r"\b(struct|enum|type)\b".to_string()],
-                        "keyword-statement".to_string() => vec![r"\b(if|else|while|for|in|loop|continue|break|match)\b".to_string()],
-                        "builtin".to_string() => vec![r"\b(Some|None|Ok|Err)\b".to_string()],
-                        "operator".to_string() => vec![r"(==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)".to_string()],
-                        "delimiter".to_string() => vec![r"(->|=>|\{|\}|\[|\]|\(|\)|<|>)".to_string()],
-                        "macro".to_string() => vec![r"\b([a-zA-Z0-9_]+\!)".to_string()],
-                        "type".to_string() => vec![
-                            r"\b([A-Z][a-zA-Z0-9_]*)\b".to_string(),
-                            r"\b((u|i)(8|16|32|64|128)|f32|f64)\b".to_string(),
-                            r"\b(char)\b".to_string(),
-                        ],
-                        "literal".to_string() => vec![
-                            r"(([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?)".to_string(),
-                            r"\b(true|false)\b".to_string(),
-                        ],
-                        "string".to_string() => vec![
-                            "(r?\\\"[^\\\"]*\\\")".to_string(),
-                            "(r?'[^']*')".to_string(),
-                        ],
-                        "function".to_string() => vec![r"\b([a-z0-9_][a-zA-Z0-9_]*)\(".to_string()],
-                        "namespace".to_string() => vec![r"\b([a-zA-Z0-9_]+)::".to_string()],
-                        "comment".to_string() => vec![r"(//.*)$".to_string()],
-                    },
-                },
-                ConditionalMapping {
-                    name: "hooks".into(),
-                    selectors: vec![],
-                    mapping: map! {
-                        r"modify-buffer".to_string() => vec!["builtin-syntax-highlight".to_string()],
-                        r"after-insert".to_string() => vec!["builtin-auto-indent".to_string()],
-                    },
-                },
-            ],
-        }],
-        ..Default::default()
-    };
-
-    conf.rebuild_current_config();
+    let mut conf = Config::default();
+    conf.add_module(include_str!("./builtin.ayedconf")).unwrap();
     conf
+}
+
+fn parse_module(src: &str) -> Result<ConfigModule, ()> {
+    use ayed_config_parser::ast;
+    // TODO proper error handling
+
+    let (ast, errors) = ayed_config_parser::parse_module(src);
+    if !errors.is_empty() {
+        dbg!(errors);
+        return Err(());
+    }
+
+    fn aux(
+        mappings: &mut Vec<ConditionalMapping>,
+        block: &ast::Block,
+        selector_stack: &[Selector],
+    ) {
+        match block {
+            ast::Block::SelectorBlock(ast::SelectorBlock {
+                state_name,
+                pattern,
+                children,
+            }) => {
+                let mut selector_stack = selector_stack.to_vec();
+                selector_stack.push(Selector::new(state_name.slice, pattern.slice).unwrap());
+
+                for child in children {
+                    aux(mappings, child, &selector_stack);
+                }
+            }
+            ast::Block::MappingBlock(ast::MappingBlock { name, entries }) => {
+                let mapping = entries
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry.name.to_string(),
+                            entry.value.slice.split(' ').map(str::to_string).collect(),
+                        )
+                    })
+                    .collect();
+                mappings.push(ConditionalMapping {
+                    name: name.to_string(),
+                    selectors: selector_stack.to_vec(),
+                    mapping,
+                });
+            }
+        }
+    }
+
+    let mut mappings = Vec::new();
+    for block in &ast.top_level_blocks {
+        aux(&mut mappings, block, &[])
+    }
+    Ok(ConfigModule { mappings })
 }

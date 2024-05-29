@@ -49,6 +49,12 @@ pub struct Span<'a> {
     pub slice: &'a str,
 }
 
+impl<'a> Span<'a> {
+    pub fn to_string(&self) -> String {
+        self.slice.to_string()
+    }
+}
+
 impl<'a> From<&'a str> for Span<'a> {
     fn from(value: &'a str) -> Self {
         Span { slice: value }

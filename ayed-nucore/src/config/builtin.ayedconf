@@ -1,0 +1,51 @@
+keybinds {
+    <up> move u
+    <down> move d
+    <left> move l
+    <right> move r
+    : focus-panel modeline
+    else insert-char
+}
+
+panel modeline {
+    keybinds {
+        <ret> modeline-exec
+    }
+}
+
+syntax-style {
+    keyword             #4488cf
+    keyword-statement   #aa77cc
+    builtin             #62b0fb priority:11
+    operator            #ddccdd
+    delimiter           #ccaa11 priority:11
+    macro               #3377cc priority:11
+    type                #55b89b priority:12
+    literal             #aaddcc priority:11
+    string              #bb8866 priority:14
+    function            #b8a4fc priority:13
+    namespace           #55b89b
+    comment             #55887a priority:15
+}
+
+file .*\.rs {
+    syntax {
+        keyword \b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move|struct|enum|type)\b
+        keyword-statement \b(if|else|while|for|in|loop|continue|break|match)\b
+        builtin \b(Some|None|Ok|Err)\b
+        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
+        delimiter (->|=>|\{|\}|\[|\]|\(|\)|<|>)
+        macro \b([a-zA-Z0-9_]+\!)
+        type \b([A-Z][a-zA-Z0-9_]*)\b \b((u|i)(8|16|32|64|128)|f32|f64)\b \b(char)\b
+        literal (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) \b(true|false)\b
+        string (r?\"[^\"]*\") (r?'[^']*')
+        function \b([a-z0-9_][a-zA-Z0-9_]*)\(
+        namespace \b([a-zA-Z0-9_]+)::
+        comment (//.*)$
+    }
+}
+
+hooks {
+    modify-buffer builtin-syntax-highlight
+    after-insert builtin-auto-indent
+}
