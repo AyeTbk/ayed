@@ -128,7 +128,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         Ok(())
     });
 
-    cr.register("look-at-primary-cursor", |_opt, ctx| {
+    cr.register("look-keep-primary-cursor-in-view", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
             let view_rect = ctx.state.focused_view_rect();
             let view = ctx.state.views.get_mut(view_handle);
@@ -139,7 +139,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
         Ok(())
     });
-    ev.on("resize", "look-at-primary-cursor");
+    ev.on("resize", "look-keep-primary-cursor-in-view");
 
     cr.register("move", |opt, ctx| {
         let offset = match opt.chars().next() {
@@ -188,7 +188,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             }
 
             *view.selections.borrow_mut() = selections;
-            ctx.queue.push("look-at-primary-cursor");
+            ctx.queue.push("look-keep-primary-cursor-in-view");
         }
 
         Ok(())
