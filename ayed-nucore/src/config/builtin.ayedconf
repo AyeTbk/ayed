@@ -7,10 +7,12 @@ keybinds {
     <s-down> move d anchored
     <s-left> move l anchored
     <s-right> move r anchored
+    <c-right> move-regex \w+|[^\s\w]+
     C dupe d
     <a-C> dupe u
-    # e move-regex \w+|[^\s\w]+
-    f move-regex [cC]ore
+    <del> delete
+    <backspace> delete-around -p
+    <a-backspace> delete-around
     : focus-panel modeline
     else insert-char
 }
