@@ -9,6 +9,8 @@ keybinds {
     <s-right> move r anchored
     C dupe d
     <a-C> dupe u
+    # e move-regex \w+|[^\s\w]+
+    f move-regex [cC]ore
     : focus-panel modeline
     else insert-char
 }

@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use regex::Regex;
+
 use crate::{
     config::ConfigState,
     event::EventRegistry,
@@ -7,6 +9,7 @@ use crate::{
     position::{Offset, Position},
     selection::Selections,
     state::{TextBuffer, View},
+    utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
     Ref,
 };
 
@@ -217,6 +220,68 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         ctx.queue.push("merge-view-overlapping-selections");
         ctx.queue.push("look-keep-primary-cursor-in-view");
 
+        Ok(())
+    });
+
+    cr.register("move-regex", |opt, ctx| {
+        // TODO todo
+        // move-regex [n|p, n if absent] [anchored] pattern
+        let next = true;
+        let pattern = opt;
+
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let mut selections = view.selections.borrow().clone();
+
+        for selection in selections.iter_mut() {
+            let mut begin_column = selection.cursor().column;
+            let mut row = selection.cursor().row;
+            // TODO implement searching backwards
+            // TODO implement anchored
+            // TODO implement cycling through the whole file.
+            while let Some(line) = buffer.line(row) {
+                let start_index = char_index_to_byte_index(line, begin_column).unwrap();
+                let maybe_match = regex
+                    .find_iter(line)
+                    .skip_while(|m| {
+                        if start_index == 0 {
+                            m.start() < start_index
+                        } else {
+                            m.start() <= start_index
+                        }
+                    })
+                    .next();
+                if let Some(matsh) = maybe_match {
+                    let start_column = byte_index_to_char_index(line, matsh.start()).unwrap();
+                    let end_column =
+                        byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap();
+                    *selection = selection
+                        .with_anchor(Position::new(start_column, row))
+                        .with_cursor(Position::new(end_column, row));
+                    break;
+                }
+
+                if next {
+                    row += 1;
+                    begin_column = 0;
+                } else {
+                    if row == 0 {
+                        break;
+                    }
+                    row = row.saturating_sub(1);
+                }
+            }
+        }
+
+        *view.selections.borrow_mut() = selections;
+
+        ctx.queue.push("merge-view-overlapping-selections");
+        ctx.queue.push("look-keep-primary-cursor-in-view");
         Ok(())
     });
 

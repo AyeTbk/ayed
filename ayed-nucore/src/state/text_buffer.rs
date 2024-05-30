@@ -1,6 +1,7 @@
 use crate::{
     position::Position,
     selection::{Selection, Selections},
+    utils::string_utils::{char_count, char_index_to_byte_index},
     Ref, WeakRef,
 };
 
@@ -180,20 +181,4 @@ impl TextBuffer {
 
         Position::new(column, row)
     }
-}
-
-fn char_index_to_byte_index(s: &str, ch_idx: u32) -> Option<usize> {
-    if ch_idx == 0 {
-        Some(0)
-    } else {
-        s.char_indices()
-            .chain(Some((s.len(), '\n')))
-            .skip(ch_idx as _)
-            .map(|(idx, _)| idx)
-            .next()
-    }
-}
-
-fn char_count(s: &str) -> u32 {
-    s.chars().count().try_into().unwrap()
 }
