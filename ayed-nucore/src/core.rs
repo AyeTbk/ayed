@@ -25,6 +25,9 @@ impl Core {
         config::commands::register_builtin_commands(&mut this.commands, &mut this.events);
         this.state.config = config::make_builtin_config();
 
+        this.events.emit("editor-started", "");
+        this.tick();
+
         this
     }
 

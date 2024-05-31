@@ -26,6 +26,10 @@ impl Config {
         self.current_config.get(key)
     }
 
+    pub fn state_value(&mut self, state_name: &str) -> Option<&str> {
+        self.state.get(state_name)
+    }
+
     pub fn set_state(&mut self, state_name: impl Into<String>, value: impl Into<String>) {
         self.state.set(state_name, value);
         // TODO rebuild more efficiently instead of rebuilding completely

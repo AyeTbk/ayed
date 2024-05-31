@@ -32,6 +32,17 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
+    cr.register("editor-initialize", |_opt, ctx| {
+        ctx.queue.push("mode-set command");
+        Ok(())
+    });
+    ev.on("editor-started", "editor-initialize");
+
+    cr.register("mode-set", |opt, ctx| {
+        ctx.state.config.set_state("mode", opt);
+        Ok(())
+    });
+
     cr.register("focus-panel", |opt, ctx| {
         match opt {
             "editor" => {

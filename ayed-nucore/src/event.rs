@@ -1,5 +1,10 @@
 use std::collections::HashMap;
 
+// FIXME I feel like events might be "superfluous" in a sense.
+//          There could be a way to register commands to be executed
+//          before/after any other command. With something like that,
+//          events would just be dummy commands that the editor
+//          queues up. (be wary of infinite loop tho)
 #[derive(Default)]
 pub struct EventRegistry {
     event_commands: HashMap<String, Vec<String>>,

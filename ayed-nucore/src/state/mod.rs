@@ -78,8 +78,12 @@ impl State {
     }
 
     pub fn fill_modeline_infos(&mut self) {
-        let hello_info = ModelineInfo {
-            text: "hello".to_string(),
+        let mode_info = ModelineInfo {
+            text: self
+                .config
+                .state_value("mode")
+                .unwrap_or("<no mode>")
+                .to_string(),
             style: Style::default(),
             align: Align::Left,
         };
@@ -102,6 +106,6 @@ impl State {
             align: Align::Right,
         };
 
-        self.modeline.infos = vec![hello_info, input_info, path_info]
+        self.modeline.infos = vec![mode_info, input_info, path_info]
     }
 }

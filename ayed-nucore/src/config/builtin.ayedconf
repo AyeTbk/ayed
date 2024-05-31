@@ -1,25 +1,37 @@
-keybinds {
-    <up> move u
-    <down> move d
-    <left> move l
-    <right> move r
-    <s-up> move u anchored
-    <s-down> move d anchored
-    <s-left> move l anchored
-    <s-right> move r anchored
-    <c-right> move-regex \w+|[^\s\w]+
-    C dupe d
-    <a-C> dupe u
-    <del> delete
-    <backspace> delete-around -p
-    <a-backspace> delete-around
-    : focus-panel modeline
-    else insert-char
+mode command {
+    keybinds {
+        <up> move u
+        <down> move d
+        <left> move l
+        <right> move r
+        <s-up> move u anchored
+        <s-down> move d anchored
+        <s-left> move l anchored
+        <s-right> move r anchored
+        <c-right> move-regex \w+|[^\s\w]+
+        C dupe d
+        <a-C> dupe u
+        d delete
+        <del> delete
+        <backspace> delete-around -p
+        <a-backspace> delete-around
+        : focus-panel modeline
+        i mode-set insert
+    }
+}
+
+mode insert {
+    keybinds {
+        <esc> mode-set command
+        else insert-char
+    }
 }
 
 panel modeline {
     keybinds {
+        <esc> focus-panel editor
         <ret> modeline-exec
+        else insert-char
     }
 }
 
