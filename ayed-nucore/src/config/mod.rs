@@ -48,6 +48,10 @@ impl Config {
         None
     }
 
+    pub fn get_syntax(&self) -> &HashMap<String, Vec<Regex>> {
+        &self.current_config.syntax
+    }
+
     pub fn get_keybind_else_insert_char(&self) -> bool {
         (|| Some(self.get("keybinds")?.get("else")?.get(0)? == "insert-char"))().unwrap_or(false)
     }
@@ -101,13 +105,27 @@ impl Config {
             }
         }
 
-        AppliedConfig { mappings }
+        let syntax = mappings
+            .get("syntax")
+            .unwrap_or(&HashMap::new())
+            .iter()
+            .map(|(rule_name, patterns)| {
+                let regexes = patterns
+                    .iter()
+                    .map(|pat| Regex::new(pat).unwrap())
+                    .collect();
+                (rule_name.to_string(), regexes)
+            })
+            .collect();
+
+        AppliedConfig { mappings, syntax }
     }
 }
 
 #[derive(Debug, Default)]
 pub struct AppliedConfig {
     mappings: HashMap<String, HashMap<String, Vec<String>>>,
+    syntax: HashMap<String, Vec<Regex>>,
 }
 
 impl AppliedConfig {

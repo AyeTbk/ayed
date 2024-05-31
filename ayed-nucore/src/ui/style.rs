@@ -64,3 +64,13 @@ impl Color {
         Ok(Color::rgb(r, g, b))
     }
 }
+
+pub const DEFAULT_PRIORITY: u8 = 10;
+
+pub fn priority_from_str(src: &str) -> Result<u8, ()> {
+    if !src.starts_with("priority:") {
+        return Err(());
+    }
+    let num_str = src.trim_start_matches("priority:");
+    num_str.parse::<u8>().map_err(|_| ())
+}

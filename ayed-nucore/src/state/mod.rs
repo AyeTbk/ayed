@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     config::Config,
     input::Input,
@@ -15,11 +17,15 @@ pub use text_buffer::TextBuffer;
 mod view;
 pub use view::View;
 
+mod highlight;
+pub use highlight::{regex_syntax_highlight, Highlight};
+
 #[derive(Default)]
 pub struct State {
     pub views: SlotMap<View>,
     pub active_editor_view: Option<Handle<View>>,
     pub buffers: SlotMap<TextBuffer>,
+    pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub config: Config,
     pub modeline: ModelineState,
     pub focused_panel: FocusedPanel,

@@ -83,7 +83,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         let path = opt;
         let buffer_handle = match ctx.state.buffer_with_path(path) {
             Some(handle) => handle,
-            None => ctx.state.open_file(path)?,
+            None => {
+                let handle = ctx.state.open_file(path)?;
+                ctx.events.emit("buffer-opened", path);
+                handle
+            }
         };
 
         let view_handle = match ctx.state.view_with_buffer(buffer_handle) {
@@ -327,6 +331,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             buffer.insert_char_at(sel.cursor(), the_char)?;
         }
 
+        ctx.events.emit("buffer-modified", "");
         Ok(())
     });
 
@@ -350,6 +355,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         }
 
         ctx.queue.push("merge-overlapping-selections");
+        ctx.events.emit("buffer-modified", "");
         Ok(())
     });
 
@@ -395,6 +401,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         }
 
         ctx.queue.push("merge-overlapping-selections");
+        ctx.events.emit("buffer-modified", "");
         Ok(())
     });
 }
