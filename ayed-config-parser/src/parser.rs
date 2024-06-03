@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Block, MappingBlock, MappingEntry, SelectorBlock},
+    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, SelectorBlock, Span},
     error::Expected,
     token::{next_entry_value, next_token, Token, TokenKind},
     Error, ErrorKind,
@@ -39,21 +39,40 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_block(&mut self) -> Result<Block<'a>, Error<'a>> {
-        // EITHER selector block OR mapping block
+        let annotations = self.parse_annotations()?;
+        let is_override = annotations.iter().any(|s| s.slice == "@override");
+        if annotations.iter().any(|s| s.slice == "@raw") {
+            todo!()
+        }
+
         let name = self.expect(TokenKind::CharSoup)?;
 
         let lookahead = self.peek_token();
-        let block = match lookahead.kind {
-            TokenKind::CharSoup => Block::SelectorBlock(self.parse_selector_block(name)?),
-            TokenKind::Delimiter => Block::MappingBlock(self.parse_mapping_block(name)?),
-            kind => {
+        let kind = match lookahead.kind {
+            TokenKind::CharSoup => BlockKind::SelectorBlock(self.parse_selector_block(name)?),
+            TokenKind::Delimiter => BlockKind::MappingBlock(self.parse_mapping_block(name)?),
+            token_kind => {
                 return Err(Error::new(
-                    ErrorKind::Unexpected(kind.into()),
+                    ErrorKind::Unexpected(token_kind.into()),
                     lookahead.slice,
                 ))
             }
         };
-        Ok(block)
+        Ok(Block { is_override, kind })
+    }
+
+    fn parse_annotations(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
+        let mut annotations = Vec::new();
+        loop {
+            let lookahead = self.peek_token();
+            if lookahead.slice.starts_with('@') {
+                annotations.push(Span::from(lookahead.slice));
+                self.read_token();
+            } else {
+                break;
+            }
+        }
+        Ok(annotations)
     }
 
     fn parse_selector_block(&mut self, name: Token<'a>) -> Result<SelectorBlock<'a>, Error<'a>> {

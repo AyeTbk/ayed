@@ -1,3 +1,11 @@
+# Features I think could be useful/necessary:
+# - Mixins to facilitate reuse and DRY (or anything else to do the same thing).
+#       Eventually possibility of using mixins across config modules?
+# - "Scripts" as sequence of commands.
+#       Usable in place of commands in keybinds, hooks, etc.
+#       Async "scripts"?
+# - ...?
+
 mode command {
     keybinds {
         <up> move u
@@ -22,15 +30,19 @@ mode command {
 
 mode insert {
     keybinds {
+        <del> delete
+        <backspace> delete-around -p
         <esc> mode-set command
         else insert-char
     }
 }
 
+@override
 panel modeline {
     keybinds {
         <esc> focus-panel editor
         <ret> modeline-exec
+        k quit!
         else insert-char
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use regex::Regex;
 
@@ -81,12 +81,14 @@ impl Config {
             }
         }
 
-        // Merge active mappings, giving priority to the ones with more specific selectors
-        let mut mappings: HashMap<String, HashMap<String, Vec<String>>> = Default::default();
+        // Merge active mappings, giving priority to the ones with more specific selectors.
+        let mut layers_of_mappings: BTreeMap<i32, HashMap<String, HashMap<String, Vec<String>>>> =
+            Default::default();
         for (mapping_name, mut cond_mappings) in active_mappings {
             cond_mappings.sort_by(|a, b| a.selector_specificity_cmp(b));
-            let current_mapping = mappings.entry(mapping_name.clone()).or_default(); // FIXME Unecessary allocation
             for cond_mapping in cond_mappings {
+                let mappings = layers_of_mappings.entry(cond_mapping.layer).or_default();
+                let current_mapping = mappings.entry(mapping_name.clone()).or_default(); // FIXME Unecessary allocation
                 for (key, values) in &cond_mapping.mapping {
                     let existing_values = current_mapping
                         .entry(key.to_string()) // FIXME Unecessary allocations
@@ -107,6 +109,12 @@ impl Config {
                 //         .map(|(k, v)| (k.to_string(), v.to_vec()));
                 // )
             }
+        }
+
+        // Merge mappings, respecting layers
+        let mut mappings: HashMap<String, HashMap<String, Vec<String>>> = Default::default();
+        for (_, layer_mappings) in layers_of_mappings.into_iter() {
+            mappings.extend(layer_mappings);
         }
 
         let syntax = mappings
@@ -138,16 +146,21 @@ impl AppliedConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct ConfigModule {
     // name: String,
     // path: PathBuf,
     mappings: Vec<ConditionalMapping>,
 }
 
+#[derive(Debug)]
 struct ConditionalMapping {
     name: String,
     // All selectors must match for mapping to be active. Vacuous truth.
     selectors: Vec<Selector>,
+    // Active mappings of the same layer merge together, but merged mappings on
+    // higher layers replace those lower layers.
+    layer: i32,
     mapping: HashMap<String, Vec<String>>,
 }
 
@@ -226,9 +239,11 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
         mappings: &mut Vec<ConditionalMapping>,
         block: &ast::Block,
         selector_stack: &[Selector],
+        parent_layer: i32,
     ) {
-        match block {
-            ast::Block::SelectorBlock(ast::SelectorBlock {
+        let layer = if block.is_override { 1 } else { parent_layer };
+        match &block.kind {
+            ast::BlockKind::SelectorBlock(ast::SelectorBlock {
                 state_name,
                 pattern,
                 children,
@@ -237,10 +252,10 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                 selector_stack.push(Selector::new(state_name.slice, pattern.slice).unwrap());
 
                 for child in children {
-                    aux(mappings, child, &selector_stack);
+                    aux(mappings, child, &selector_stack, layer);
                 }
             }
-            ast::Block::MappingBlock(ast::MappingBlock { name, entries }) => {
+            ast::BlockKind::MappingBlock(ast::MappingBlock { name, entries }) => {
                 let mapping = entries
                     .iter()
                     .map(|entry| {
@@ -253,15 +268,17 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                 mappings.push(ConditionalMapping {
                     name: name.to_string(),
                     selectors: selector_stack.to_vec(),
+                    layer,
                     mapping,
                 });
             }
+            bk => unimplemented!("{:?}", bk),
         }
     }
 
     let mut mappings = Vec::new();
     for block in &ast.top_level_blocks {
-        aux(&mut mappings, block, &[])
+        aux(&mut mappings, block, &[], Default::default())
     }
     Ok(ConfigModule { mappings })
 }

@@ -1,37 +1,124 @@
-# this is a comment
+# You could define mixins like this...
+mixin basic-movements {
+    keybinds {
+        <up> move u
+        <down> move d
+        <left> move l
+        <right> move r
+    }
+}
+
+mode command {
+    # ... and then use them like this:
+    use basic-movements
+
+    keybinds {
+        <up> move u
+        <down> move d
+        <left> move l
+        <right> move r
+        <s-up> move u anchored
+        <s-down> move d anchored
+        <s-left> move l anchored
+        <s-right> move r anchored
+        <c-right> move-regex \w+|[^\s\w]+
+
+        # Note the procedure command syntax
+        s $[
+            delete
+            mode-set insert
+            if $state_name pattern $[
+                stuff
+            ]
+            if not $state_name pattern $[
+                other-stuff
+            ]
+        ]
+
+        C dupe d
+        <a-C> dupe u
+        d delete
+        <del> delete
+        <backspace> delete-around -p
+        <a-backspace> delete-around
+        : focus-panel modeline
+        i mode-set insert
+    }
+}
+
+mode insert {
+    use basic-movements
+
+    keybinds {
+        <del> delete
+        <backspace> delete-around -p
+        <esc> mode-set command
+        else insert-char
+    }
+}
+
+# Override: kind of like another, higher priority, layer for merging maps,
+# replacing the regularly merged maps.
+# this block's children will merge as usual, but the result will *replace*
+# the corresponding maps defined elsewhere rather than merge with them.
+@override
+panel modeline {
+    keybinds {
+        <esc> focus-panel editor
+        <ret> modeline-exec
+        else insert-char
+    }
+}
+
+# You could define constants like this.
+# I feel like constants could literally just be states. Would probably be powerfull (and problems will probably arise from it too)
+def KEYWORD-COLOR #4488cf
+
+syntax-style {
+    keyword            $(KEYWORD-COLOR)
+    keyword-statement   #aa77cc
+    builtin             #62b0fb priority:11
+    operator            #ddccdd
+    delimiter           #ccaa11 priority:11
+    macro               #3377cc priority:11
+    type                #55b89b priority:12
+    literal             #aaddcc priority:11
+    string              #bb8866 priority:14
+    function            #b8a4fc priority:13
+    namespace           #55b89b
+    comment             #55887a priority:15
+}
+
+# TODO what's the difference between 'def' and 'set'? If none, maybe just use one?
+def .rs .*\.rs
+
+file $.rs {
+    # This is a recipe for disaster... let's do it
+    set mode insert
+
+    # raw annotation before a block prevents using $bleh expansions within that block so that $ doesnt need to be escaped
+    @raw
+    syntax {
+        keyword \b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move|struct|enum|type)\b
+        keyword-statement \b(if|else|while|for|in|loop|continue|break|match)\b
+        builtin \b(Some|None|Ok|Err)\b
+        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
+        delimiter (->|=>|\{|\}|\[|\]|\(|\)|<|>)
+        macro \b([a-zA-Z0-9_]+\!)
+        type \b([A-Z][a-zA-Z0-9_]*)\b \b((u|i)(8|16|32|64|128)|f32|f64)\b \b(char)\b
+        literal (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) \b(true|false)\b
+        string (r?\"[^\"]*\") (r?'[^']*')
+        function \b([a-z0-9_][a-zA-Z0-9_]*)\(
+        namespace \b([a-zA-Z0-9_]+)::
+        comment (//.*)$
+    }
+}
 
 hooks {
     modify-buffer builtin-syntax-highlight
+    after-insert builtin-auto-indent
 }
 
-theme other-editor {
-    syntax-style {
-        keyword #0000ff bold priority:101
-        operator #ff0000 underline
-    }
-}
-
-file .*\.rs {
-    syntax {
-        keyword \b(let|pub|fn)\b
-        operator =|\+|\-|\*
-    }
-
-    mode text/command {
-        keybinds {
-            f set-combo-mode files
-            q "prompt, insert hi" # wtf is this shit
-        }
-    }
-}
-
-mode text/edit {
-    <esc> set-mode text/command
-    else insert-char
-}
-
-combo files {
-    keybinds {
-        s write-buffer
-    }
+commands {
+    hello $[error bye]
 }

@@ -4,12 +4,20 @@ pub struct Ast<'a> {
 }
 
 #[derive(Debug)]
-pub enum Block<'a> {
-    SelectorBlock(SelectorBlock<'a>),
-    MappingBlock(MappingBlock<'a>),
+pub struct Block<'a> {
+    pub is_override: bool,
+    pub kind: BlockKind<'a>,
 }
 
-impl<'a> Block<'a> {
+#[derive(Debug)]
+pub enum BlockKind<'a> {
+    SelectorBlock(SelectorBlock<'a>),
+    MappingBlock(MappingBlock<'a>),
+    Mixin(MixinBlock<'a>),
+    Use(Span<'a>),
+}
+
+impl<'a> BlockKind<'a> {
     pub fn as_selector_block(&self) -> Option<&SelectorBlock<'a>> {
         match self {
             Self::SelectorBlock(b) => Some(b),
@@ -42,6 +50,12 @@ pub struct MappingBlock<'a> {
 pub struct MappingEntry<'a> {
     pub name: Span<'a>,
     pub value: Span<'a>,
+}
+
+#[derive(Debug)]
+pub struct MixinBlock<'a> {
+    pub name: Span<'a>,
+    pub children: Vec<Block<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
