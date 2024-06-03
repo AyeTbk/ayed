@@ -11,8 +11,8 @@ pub struct Block<'a> {
 
 #[derive(Debug)]
 pub enum BlockKind<'a> {
-    SelectorBlock(SelectorBlock<'a>),
-    MappingBlock(MappingBlock<'a>),
+    Selector(SelectorBlock<'a>),
+    Mapping(MappingBlock<'a>),
     Mixin(MixinBlock<'a>),
     Use(Span<'a>),
 }
@@ -20,14 +20,14 @@ pub enum BlockKind<'a> {
 impl<'a> BlockKind<'a> {
     pub fn as_selector_block(&self) -> Option<&SelectorBlock<'a>> {
         match self {
-            Self::SelectorBlock(b) => Some(b),
+            Self::Selector(b) => Some(b),
             _ => None,
         }
     }
 
     pub fn as_mapping_block(&self) -> Option<&MappingBlock<'a>> {
         match self {
-            Self::MappingBlock(b) => Some(b),
+            Self::Mapping(b) => Some(b),
             _ => None,
         }
     }

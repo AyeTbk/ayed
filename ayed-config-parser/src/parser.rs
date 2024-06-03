@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, SelectorBlock, Span},
+    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
     error::Expected,
     token::{next_entry_value, next_token, Token, TokenKind},
     Error, ErrorKind,
@@ -47,17 +47,27 @@ impl<'a> Parser<'a> {
 
         let name = self.expect(TokenKind::CharSoup)?;
 
-        let lookahead = self.peek_token();
-        let kind = match lookahead.kind {
-            TokenKind::CharSoup => BlockKind::SelectorBlock(self.parse_selector_block(name)?),
-            TokenKind::Delimiter => BlockKind::MappingBlock(self.parse_mapping_block(name)?),
-            token_kind => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected(token_kind.into()),
-                    lookahead.slice,
-                ))
+        let kind = match name.slice {
+            "mixin" => BlockKind::Mixin(self.parse_mixin_block()?),
+            "use" => {
+                let mixin_name = self.expect(TokenKind::CharSoup)?.slice;
+                BlockKind::Use(Span::from(mixin_name))
+            }
+            _ => {
+                let lookahead = self.peek_token();
+                match lookahead.kind {
+                    TokenKind::CharSoup => BlockKind::Selector(self.parse_selector_block(name)?),
+                    TokenKind::Delimiter => BlockKind::Mapping(self.parse_mapping_block(name)?),
+                    token_kind => {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected(token_kind.into()),
+                            lookahead.slice,
+                        ))
+                    }
+                }
             }
         };
+
         Ok(Block { is_override, kind })
     }
 
@@ -100,6 +110,15 @@ impl<'a> Parser<'a> {
         Ok(MappingEntry {
             name: name.slice.into(),
             value: value.slice.into(),
+        })
+    }
+
+    fn parse_mixin_block(&mut self) -> Result<MixinBlock<'a>, Error<'a>> {
+        let name = self.expect(TokenKind::CharSoup)?;
+        let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
+        Ok(MixinBlock {
+            name: name.slice.into(),
+            children,
         })
     }
 

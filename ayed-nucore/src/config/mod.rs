@@ -153,7 +153,7 @@ pub struct ConfigModule {
     mappings: Vec<ConditionalMapping>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConditionalMapping {
     name: String,
     // All selectors must match for mapping to be active. Vacuous truth.
@@ -237,13 +237,15 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
 
     fn aux(
         mappings: &mut Vec<ConditionalMapping>,
+        mixins: &mut HashMap<String, Vec<ConditionalMapping>>,
         block: &ast::Block,
         selector_stack: &[Selector],
         parent_layer: i32,
+        is_top_level: bool,
     ) {
         let layer = if block.is_override { 1 } else { parent_layer };
         match &block.kind {
-            ast::BlockKind::SelectorBlock(ast::SelectorBlock {
+            ast::BlockKind::Selector(ast::SelectorBlock {
                 state_name,
                 pattern,
                 children,
@@ -252,10 +254,10 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                 selector_stack.push(Selector::new(state_name.slice, pattern.slice).unwrap());
 
                 for child in children {
-                    aux(mappings, child, &selector_stack, layer);
+                    aux(mappings, mixins, child, &selector_stack, layer, false);
                 }
             }
-            ast::BlockKind::MappingBlock(ast::MappingBlock { name, entries }) => {
+            ast::BlockKind::Mapping(ast::MappingBlock { name, entries }) => {
                 let mapping = entries
                     .iter()
                     .map(|entry| {
@@ -272,13 +274,47 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                     mapping,
                 });
             }
-            bk => unimplemented!("{:?}", bk),
+            ast::BlockKind::Mixin(ast::MixinBlock { name, children }) => {
+                if !is_top_level {
+                    unimplemented!("non top level mixins not supported yet");
+                }
+
+                let mut mixin_mappings = Vec::new();
+                for child in children {
+                    aux(
+                        &mut mixin_mappings,
+                        mixins,
+                        child,
+                        &selector_stack,
+                        layer,
+                        false,
+                    );
+                }
+                mixins.insert(name.to_string(), mixin_mappings);
+            }
+            ast::BlockKind::Use(mixin_name) => {
+                mappings.extend(mixins.get(mixin_name.slice).unwrap().iter().cloned().map(
+                    |mut mapping| {
+                        mapping.layer += parent_layer;
+                        mapping.selectors.extend(selector_stack.iter().cloned());
+                        mapping
+                    },
+                ));
+            }
         }
     }
 
     let mut mappings = Vec::new();
+    let mut mixins = HashMap::default();
     for block in &ast.top_level_blocks {
-        aux(&mut mappings, block, &[], Default::default())
+        aux(
+            &mut mappings,
+            &mut mixins,
+            block,
+            &[],
+            Default::default(),
+            true,
+        );
     }
     Ok(ConfigModule { mappings })
 }

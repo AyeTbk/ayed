@@ -1,12 +1,10 @@
 # Features I think could be useful/necessary:
-# - Mixins to facilitate reuse and DRY (or anything else to do the same thing).
-#       Eventually possibility of using mixins across config modules?
 # - "Scripts" as sequence of commands.
 #       Usable in place of commands in keybinds, hooks, etc.
 #       Async "scripts"?
 # - ...?
 
-mode command {
+mixin basic-movement {
     keybinds {
         <up> move u
         <down> move d
@@ -17,21 +15,35 @@ mode command {
         <s-left> move l anchored
         <s-right> move r anchored
         <c-right> move-regex \w+|[^\s\w]+
-        C dupe d
-        <a-C> dupe u
-        d delete
+    }
+}
+
+mixin basic-deletion {
+    keybinds {
         <del> delete
         <backspace> delete-around -p
         <a-backspace> delete-around
+    }
+}
+
+mode command {
+    use basic-movement
+    use basic-deletion
+
+    keybinds {
+        C dupe d
+        <a-C> dupe u
+        d delete
         : focus-panel modeline
         i mode-set insert
     }
 }
 
 mode insert {
+    use basic-movement
+    use basic-deletion
+
     keybinds {
-        <del> delete
-        <backspace> delete-around -p
         <esc> mode-set command
         else insert-char
     }
@@ -39,10 +51,12 @@ mode insert {
 
 @override
 panel modeline {
+    use basic-movement
+    use basic-deletion
+
     keybinds {
         <esc> focus-panel editor
         <ret> modeline-exec
-        k quit!
         else insert-char
     }
 }
