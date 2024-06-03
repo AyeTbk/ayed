@@ -336,7 +336,7 @@ impl TextBuffer {
         if pos.row <= row {
             pos
         } else if pos.row == row + 1 {
-            Position::new(pos.column.saturating_add(original_line_char_count + 1), row)
+            Position::new(pos.column.saturating_add(original_line_char_count), row)
         } else {
             pos.offset((0, -1))
         }
