@@ -49,7 +49,7 @@ pub struct MappingBlock<'a> {
 #[derive(Debug)]
 pub struct MappingEntry<'a> {
     pub name: Span<'a>,
-    pub value: Span<'a>,
+    pub values: Vec<Span<'a>>,
 }
 
 #[derive(Debug)]

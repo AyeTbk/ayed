@@ -35,15 +35,24 @@ impl Input {
     }
 
     fn normalized(self) -> Self {
-        if let Key::Char(ch) = self.key {
-            let key = Key::from_char_normalized(ch);
-            let mut modifiers = self.modifiers;
-            if ch.is_uppercase() {
-                modifiers.shift = true;
+        match self.key {
+            Key::Char(ch) => {
+                let key = Key::from_char_normalized(ch);
+                let mut modifiers = self.modifiers;
+                if ch.is_uppercase() {
+                    modifiers.shift = true;
+                }
+                Self { key, modifiers }
             }
-            Self { key, modifiers }
-        } else {
-            self
+            Key::BackTab => {
+                let mut modifiers = self.modifiers;
+                modifiers.shift = false;
+                Self {
+                    key: Key::BackTab,
+                    modifiers,
+                }
+            }
+            _ => self,
         }
     }
 
@@ -133,6 +142,7 @@ impl From<Key> for Input {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Key {
     Char(char),
+    BackTab,
     Backspace,
     Delete,
     Up,
@@ -156,8 +166,9 @@ impl Key {
         // Returns whether the key is serialized as a word (true) or as a singular char (false).
         let s = match self {
             Key::Char(' ') => "space",
-            Key::Char('\t') => "tab",
             Key::Char('\n') => "ret",
+            Key::Char('\t') => "tab",
+            Key::BackTab => "backtab",
             Key::Backspace => "backspace",
             Key::Delete => "del",
             Key::Home => "home",
@@ -183,8 +194,9 @@ impl Key {
     pub fn from_string(src: &str) -> Option<Self> {
         let key = match src {
             "space" => Key::Char(' '),
-            "tab" => Key::Char('\t'),
             "ret" => Key::Char('\n'),
+            "tab" => Key::Char('\t'),
+            "backtab" => Key::BackTab,
             "backspace" => Key::Backspace,
             "del" => Key::Delete,
             "home" => Key::Home,

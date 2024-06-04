@@ -26,7 +26,7 @@ impl Config {
         self.current_config.get(key)
     }
 
-    pub fn state_value(&mut self, state_name: &str) -> Option<&str> {
+    pub fn state_value(&self, state_name: &str) -> Option<&str> {
         self.state.get(state_name)
     }
 
@@ -46,6 +46,7 @@ impl Config {
                 continue;
             };
             if k_input == input {
+                // TODO with the changes introduced with the $[...] syntax, this might be incorrect. Verify
                 return Some(v.join(" "));
             }
         }
@@ -263,7 +264,7 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                     .map(|entry| {
                         (
                             entry.name.to_string(),
-                            entry.value.slice.split(' ').map(str::to_string).collect(),
+                            entry.values.iter().map(|s| s.slice.to_string()).collect(),
                         )
                     })
                     .collect();

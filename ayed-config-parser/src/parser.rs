@@ -107,9 +107,25 @@ impl<'a> Parser<'a> {
         let name = self.expect(TokenKind::CharSoup)?;
         let (i, value) = next_entry_value(&self.src);
         self.src = i;
+
+        let values = if value.slice.starts_with("$[") {
+            if !value.slice.ends_with("]") {
+                todo!("error handling: bad entry value list");
+            }
+            let s = value
+                .slice
+                .strip_prefix("$[")
+                .unwrap()
+                .strip_suffix("]")
+                .unwrap();
+            s.split(';').map(str::trim).map(Span::from).collect()
+        } else {
+            vec![value.slice.into()]
+        };
+
         Ok(MappingEntry {
             name: name.slice.into(),
-            value: value.slice.into(),
+            values,
         })
     }
 

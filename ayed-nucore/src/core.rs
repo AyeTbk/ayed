@@ -60,7 +60,8 @@ impl Core {
         self.state.modeline.clear_content_override();
 
         loop {
-            self.queue.extend_front(self.events.emitted_commands());
+            self.queue
+                .extend_front(self.events.emitted_commands(&self.state.config));
 
             let Some(command) = self.queue.pop() else {
                 break;

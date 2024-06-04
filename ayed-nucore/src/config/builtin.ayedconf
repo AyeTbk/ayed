@@ -26,7 +26,14 @@ mixin basic-deletion {
     }
 }
 
-mode command {
+hooks {
+    editor-started  state-set mode text/command
+
+    buffer-opened  generate-highlights
+    buffer-modified  generate-highlights
+}
+
+mode text/command {
     use basic-movement
     use basic-deletion
 
@@ -35,16 +42,17 @@ mode command {
         <a-C> dupe u
         d delete
         : focus-panel modeline
-        i mode-set insert
+        i state-set mode text/insert
     }
 }
 
-mode insert {
+mode text/insert {
     use basic-movement
     use basic-deletion
 
     keybinds {
-        <esc> mode-set command
+        <backtab> state-set mode text/command
+        <esc> state-set mode text/command
         else insert-char
     }
 }
@@ -64,16 +72,16 @@ panel modeline {
 syntax-style {
     keyword             #4488cf
     keyword-statement   #aa77cc
-    builtin             #62b0fb priority:11
+    builtin             $[ #62b0fb ; priority:11 ]
     operator            #ddccdd
-    delimiter           #ccaa11 priority:11
-    macro               #3377cc priority:11
-    type                #55b89b priority:12
-    literal             #aaddcc priority:11
-    string              #bb8866 priority:14
-    function            #b8a4fc priority:13
+    delimiter           $[ #ccaa11 ; priority:11 ]
+    macro               $[ #3377cc ; priority:11 ]
+    type                $[ #55b89b ; priority:12 ]
+    literal             $[ #aaddcc ; priority:11 ]
+    string              $[ #bb8866 ; priority:14 ]
+    function            $[ #b8a4fc ; priority:13 ]
     namespace           #55b89b
-    comment             #55887a priority:15
+    comment             $[ #55887a ; priority:15 ]
 }
 
 file .*\.rs {
@@ -84,16 +92,11 @@ file .*\.rs {
         operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
         delimiter (->|=>|\{|\}|\[|\]|\(|\)|<|>)
         macro \b([a-zA-Z0-9_]+\!)
-        type \b([A-Z][a-zA-Z0-9_]*)\b \b((u|i)(8|16|32|64|128)|f32|f64)\b \b(char)\b
-        literal (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) \b(true|false)\b
-        string (r?\"[^\"]*\") (r?'[^']*')
+        type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b((u|i)(8|16|32|64|128)|f32|f64)\b ; \b(char)\b ]
+        literal $[ (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) ; \b(true|false)\b ]
+        string $[ (r?\"[^\"]*\") ; (r?'[^']*') ]
         function \b([a-z0-9_][a-zA-Z0-9_]*)\(
         namespace \b([a-zA-Z0-9_]+)::
         comment (//.*)$
     }
-}
-
-hooks {
-    modify-buffer builtin-syntax-highlight
-    after-insert builtin-auto-indent
 }

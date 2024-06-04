@@ -34,7 +34,4 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         ctx.state.highlights.insert(buffer_handle, highlights);
         Ok(())
     });
-    // FIXME this should be hooked in the config file, not hardcoded here
-    ev.on("buffer-opened", "generate-highlights");
-    ev.on("buffer-modified", "generate-highlights");
 }

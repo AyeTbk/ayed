@@ -32,19 +32,20 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
-    cr.register("editor-initialize", |_opt, ctx| {
-        ctx.queue.push("mode-set command");
-        Ok(())
-    });
-    ev.on("editor-started", "editor-initialize");
-
-    cr.register("mode-set", |opt, ctx| {
-        ctx.state.config.set_state("mode", opt);
+    cr.register("state-set", |opt, ctx| {
+        let (mode, rest) = opt
+            .split_once(|ch: char| ch.is_ascii_whitespace())
+            .ok_or_else(|| format!("bad options `{}`", opt))?;
+        ctx.state.config.set_state(mode.trim(), rest.trim());
         Ok(())
     });
 
     cr.register("focus-panel", |opt, ctx| {
-        match opt {
+        let panel_name = opt
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| format!("missing panel name"))?;
+        match panel_name {
             "editor" => {
                 ctx.state.focused_panel = FocusedPanel::Editor;
             }
@@ -69,7 +70,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             _ => return Err(format!("unknown panel '{opt}'")),
         }
 
-        ctx.state.config.set_state("panel", opt);
+        ctx.state.config.set_state("panel", panel_name);
 
         Ok(())
     });

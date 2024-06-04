@@ -25,16 +25,15 @@ mode command {
 
         # Note the procedure command syntax
         s $[
-            delete
-            mode-set insert
+            delete;
+            mode-set insert;
             if $state_name pattern $[
                 stuff
-            ]
+            ];
             if not $state_name pattern $[
                 other-stuff
-            ]
+            ];
         ]
-
         C dupe d
         <a-C> dupe u
         d delete

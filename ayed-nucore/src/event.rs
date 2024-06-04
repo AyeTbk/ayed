@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use crate::config::Config;
+
 // FIXME I feel like events might be "superfluous" in a sense.
 //          There could be a way to register commands to be executed
 //          before/after any other command. With something like that,
 //          events would just be dummy commands that the editor
 //          queues up. (be wary of infinite loop tho)
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct EventRegistry {
     event_commands: HashMap<String, Vec<String>>,
     queued_events: Vec<QueuedEvent>,
@@ -26,20 +28,25 @@ impl EventRegistry {
         });
     }
 
-    pub(super) fn emitted_commands(&mut self) -> Vec<String> {
+    pub(super) fn emitted_commands(&mut self, config: &Config) -> Vec<String> {
         let mut emitted = Vec::new();
         for ev in std::mem::take(&mut self.queued_events) {
-            let Some(commands) = self.event_commands.get(&ev.event) else {
-                continue;
-            };
-            for command in commands {
-                emitted.push(format!("{} {}", command, ev.options));
+            if let Some(commands) = self.event_commands.get(&ev.event) {
+                for command in commands {
+                    emitted.push(format!("{} {}", command, ev.options));
+                }
+            }
+            if let Some(hooks) = config.get("hooks").and_then(|h| h.get(&ev.event)) {
+                for command in hooks {
+                    emitted.push(format!("{} {}", command, ev.options));
+                }
             }
         }
         emitted
     }
 }
 
+#[derive(Debug)]
 pub struct QueuedEvent {
     event: String,
     options: String,

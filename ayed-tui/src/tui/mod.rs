@@ -231,6 +231,7 @@ fn convert_key_code_and_modifiers_to_ayed(
         KeyCode::Right => AyedKey::Right,
         KeyCode::Enter => AyedKey::Char('\n'),
         KeyCode::Tab => AyedKey::Char('\t'),
+        KeyCode::BackTab => AyedKey::BackTab,
         KeyCode::PageUp => AyedKey::PageUp,
         KeyCode::PageDown => AyedKey::PageDown,
         KeyCode::Char(ch) => AyedKey::Char(ch),
