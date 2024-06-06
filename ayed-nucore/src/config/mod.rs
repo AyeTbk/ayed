@@ -30,6 +30,10 @@ impl Config {
         self.state.get(state_name)
     }
 
+    /// DO NOT CALL.
+    /// You probably want CommandQueue::set_state(...).
+    /// Should only be called by the "state-set" command, otherwise
+    /// state-set hooks won't work.
     pub fn set_state(&mut self, state_name: impl Into<String>, value: impl Into<String>) {
         self.state.set(state_name, value);
         // TODO rebuild more efficiently instead of rebuilding completely
@@ -94,11 +98,18 @@ impl Config {
                     let existing_values = current_mapping
                         .entry(key.to_string()) // FIXME Unecessary allocations
                         .or_default();
-                    let mut more_specific_values = values.to_vec();
+                    let more_specific_values = values.to_vec();
 
+                    // TODO Figure out whether or not entry values should merge giving more importance to more specific selector,
+                    // or keep only the more specific selector values.
+
+                    // -- Below merges
                     // Make sure to merge list of values putting more specific values first
-                    std::mem::swap(existing_values, &mut more_specific_values);
-                    existing_values.extend(more_specific_values);
+                    // std::mem::swap(existing_values, &mut more_specific_values);
+                    // existing_values.extend(more_specific_values);
+
+                    // -- Below keeps only the more specific
+                    *existing_values = more_specific_values;
                 }
 
                 // TODO remember that this commented code was for and why it got commented out

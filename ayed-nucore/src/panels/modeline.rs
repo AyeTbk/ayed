@@ -16,6 +16,8 @@ pub const BG_COLOR: Color = theme::colors::ACCENT;
 
 #[derive(Default)]
 pub struct Modeline {
+    // FIXME modeline should probably keep the same view and buffer always,
+    // instead of taking it from FocusedPanel.
     rect: Rect,
 }
 

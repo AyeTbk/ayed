@@ -26,11 +26,24 @@ mixin basic-deletion {
     }
 }
 
-hooks {
-    editor-started  state-set mode text/command
+@override
+panel modeline {
+    use basic-movement
+    use basic-deletion
 
-    buffer-opened  generate-highlights
-    buffer-modified  generate-highlights
+    keybinds {
+        <esc> focus-panel editor
+        <ret> modeline-exec
+        else insert-char
+    }
+}
+
+
+########################
+### Editing keybinds ###
+
+hooks {
+    started  state-set mode text/command
 }
 
 mode text/command {
@@ -57,16 +70,13 @@ mode text/insert {
     }
 }
 
-@override
-panel modeline {
-    use basic-movement
-    use basic-deletion
 
-    keybinds {
-        <esc> focus-panel editor
-        <ret> modeline-exec
-        else insert-char
-    }
+########################
+### Syntax highlight ###
+
+hooks {
+    buffer-opened  generate-highlights
+    buffer-modified  generate-highlights
 }
 
 syntax-style {
@@ -98,5 +108,21 @@ file .*\.rs {
         function \b([a-z0-9_][a-zA-Z0-9_]*)\(
         namespace \b([a-zA-Z0-9_]+)::
         comment (//.*)$
+    }
+}
+
+
+########################
+###  Line wrapping   ###
+
+hooks {
+    state-set:line-wrap vbuf-clear
+}
+line-wrap wrap {
+    hooks {
+        state-set:line-wrap vbuf-line-wrap-rebuild
+        buffer-opened vbuf-line-wrap-rebuild
+        buffer-modified vbuf-line-wrap-rebuild
+        resized vbuf-line-wrap-rebuild
     }
 }

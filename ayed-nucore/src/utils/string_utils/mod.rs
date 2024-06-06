@@ -12,6 +12,16 @@ pub fn char_index_to_byte_index(s: &str, ch_idx: u32) -> Option<usize> {
     }
 }
 
+pub fn char_index_to_byte_index_end(s: &str, ch_idx: u32) -> Option<usize> {
+    s.char_indices()
+        .chain(Some((s.len(), '\n')))
+        .chain(Some((s.len() + 1, '\0')))
+        .skip(ch_idx as _)
+        .skip(1)
+        .map(|(idx, _)| idx)
+        .next()
+}
+
 pub fn byte_index_to_char_index(s: &str, byte_idx: usize) -> Option<u32> {
     if byte_idx == 0 {
         Some(0)

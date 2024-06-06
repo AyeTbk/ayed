@@ -33,10 +33,16 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
     cr.register("state-set", |opt, ctx| {
-        let (mode, rest) = opt
+        let (state, rest) = opt
             .split_once(|ch: char| ch.is_ascii_whitespace())
             .ok_or_else(|| format!("bad options `{}`", opt))?;
-        ctx.state.config.set_state(mode.trim(), rest.trim());
+
+        let state = state.trim();
+        let value = rest.trim();
+
+        ctx.state.config.set_state(state, value);
+        ctx.events.emit(format!("state-set:{state}"), value);
+
         Ok(())
     });
 
@@ -63,6 +69,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
                     top_left: Position::ZERO,
                     buffer,
                     selections,
+                    virtual_buffer: None,
                 });
 
                 ctx.state.focused_panel = FocusedPanel::Modeline(view);
@@ -70,7 +77,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             _ => return Err(format!("unknown panel '{opt}'")),
         }
 
-        ctx.state.config.set_state("panel", panel_name);
+        ctx.queue.set_state("panel", panel_name);
 
         Ok(())
     });
@@ -116,13 +123,14 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
                     top_left: Position::ZERO,
                     buffer: buffer_handle,
                     selections,
+                    virtual_buffer: None,
                 })
             }
         };
 
         ctx.state.active_editor_view = Some(view_handle);
 
-        ctx.state.config.set_state(ConfigState::FILE, path);
+        ctx.queue.set_state(ConfigState::FILE, path);
 
         Ok(())
     });
@@ -168,7 +176,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
         Ok(())
     });
-    ev.on("resize", "look-keep-primary-cursor-in-view");
+    ev.on("resized", "look-keep-primary-cursor-in-view");
 
     cr.register("move", |opt, ctx| {
         let Some(ch) = opt.chars().next() else {
@@ -414,6 +422,30 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
         ctx.queue.push("merge-overlapping-selections");
         ctx.events.emit("buffer-modified", "");
+        Ok(())
+    });
+
+    cr.register("vbuf-clear", |_opt, ctx| {
+        // FIXME I dont believe the vbuffer should be handled directly
+        // by commands like this. Its settings should be set (with
+        // states) and the changes should take effect automatically.
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get_mut(view_handle);
+        view.virtual_buffer = None;
+
+        Ok(())
+    });
+    cr.register("vbuf-line-wrap-rebuild", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get_mut(view_handle);
+        view.rebuild_line_wrap(&ctx.state.buffers, ctx.state.editor_size.column);
+
         Ok(())
     });
 }

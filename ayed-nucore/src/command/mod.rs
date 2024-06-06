@@ -54,6 +54,10 @@ pub struct CommandQueue {
 }
 
 impl CommandQueue {
+    pub fn set_state(&mut self, state: &str, value: &str) {
+        self.push(format!("state-set {state} {value}"));
+    }
+
     pub fn push(&mut self, command: impl Into<String>) {
         let command = command.into();
         if let Some(scope) = self.scope_stack.last_mut() {

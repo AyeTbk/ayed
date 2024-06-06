@@ -66,14 +66,16 @@ impl Editor {
         let mut content: Vec<String> = Vec::new();
         let mut spans: Vec<StyledRegion> = Vec::new();
 
-        let buffer_handle = view.buffer;
-        let buffer = state.buffers.get(buffer_handle);
         let row_from = view.top_left.row;
         let row_to = view.top_left.row.saturating_add(size.row);
+        let mut buf = String::new();
         for (i, row_index) in (row_from..row_to).enumerate() {
-            if let Some(line) = buffer.line(row_index) {
+            if view
+                .render_view_line(i as u32, &mut buf, &state.buffers)
+                .is_some()
+            {
                 content.push(line_clamped_filled(
-                    line,
+                    &buf,
                     view.top_left.column,
                     size.column,
                     ' ',
@@ -112,8 +114,7 @@ impl Editor {
             };
 
             // Cursor style
-            if let (Some(column), Some(row)) = selection.cursor().local_to(view.top_left) {
-                let cursor = Position::new(column, row);
+            if let Some(cursor) = view.map_true_position_to_view_position(selection.cursor()) {
                 spans.push(StyledRegion {
                     from: cursor,
                     to: cursor,
@@ -126,55 +127,57 @@ impl Editor {
                 });
             }
 
+            // FIXME impl this
             // Selection style
-            for split_selection in selection.split_lines() {
-                // FIXME dont produce styled regions outside the viewport plz.
-                let (from_column, from_row) = buffer
-                    .limit_position_to_content(split_selection.start())
-                    .local_to(view.top_left);
-                let (to_column, to_row) = buffer
-                    .limit_position_to_content(split_selection.end())
-                    .local_to(view.top_left);
+            // for split_selection in selection.split_lines() {
+            //     // FIXME dont produce styled regions outside the viewport plz.
+            //     let (from_column, from_row) = buffer
+            //         .limit_position_to_content(split_selection.start())
+            //         .local_to(view.top_left);
+            //     let (to_column, to_row) = buffer
+            //         .limit_position_to_content(split_selection.end())
+            //         .local_to(view.top_left);
 
-                let maybe_from =
-                    (|column, row| Some(Position::new(column?, row?)))(from_column, from_row);
-                let maybe_to =
-                    (|column, row| Some(Position::new(column?, row?)))(to_column, to_row);
+            //     let maybe_from =
+            //         (|column, row| Some(Position::new(column?, row?)))(from_column, from_row);
+            //     let maybe_to =
+            //         (|column, row| Some(Position::new(column?, row?)))(to_column, to_row);
 
-                if maybe_from.is_none() && maybe_to.is_none() {
-                    continue;
-                }
+            //     if maybe_from.is_none() && maybe_to.is_none() {
+            //         continue;
+            //     }
 
-                spans.push(StyledRegion {
-                    from: maybe_from
-                        .unwrap_or(Position::ZERO.with_row(from_row.unwrap_or_default())),
-                    to: maybe_to.unwrap_or(Position::ZERO.with_row(to_row.unwrap_or_default())),
-                    style: Style {
-                        foreground_color: Some(SELECTION_TEXT_COLOR),
-                        background_color: Some(selection_color),
-                        ..Default::default()
-                    },
-                    priority: 254,
-                });
-            }
+            //     spans.push(StyledRegion {
+            //         from: maybe_from
+            //             .unwrap_or(Position::ZERO.with_row(from_row.unwrap_or_default())),
+            //         to: maybe_to.unwrap_or(Position::ZERO.with_row(to_row.unwrap_or_default())),
+            //         style: Style {
+            //             foreground_color: Some(SELECTION_TEXT_COLOR),
+            //             background_color: Some(selection_color),
+            //             ..Default::default()
+            //         },
+            //         priority: 254,
+            //     });
+            // }
         }
 
+        // FIXME impl this
         // Syntax highlight
-        if let Some(highlights) = state.highlights.get(&buffer_handle) {
-            spans.extend(highlights.iter().filter_map(|hl| {
-                if hl.styled_region.from.row >= row_from && hl.styled_region.to.row <= row_to {
-                    let from_row = hl.styled_region.from.row.saturating_sub(row_from);
-                    let to_row = hl.styled_region.to.row.saturating_sub(row_from);
-                    Some(StyledRegion {
-                        from: hl.styled_region.from.with_row(from_row),
-                        to: hl.styled_region.to.with_row(to_row),
-                        ..hl.styled_region
-                    })
-                } else {
-                    None
-                }
-            }));
-        }
+        // if let Some(highlights) = state.highlights.get(&buffer_handle) {
+        //     spans.extend(highlights.iter().filter_map(|hl| {
+        //         if hl.styled_region.from.row >= row_from && hl.styled_region.to.row <= row_to {
+        //             let from_row = hl.styled_region.from.row.saturating_sub(row_from);
+        //             let to_row = hl.styled_region.to.row.saturating_sub(row_from);
+        //             Some(StyledRegion {
+        //                 from: hl.styled_region.from.with_row(from_row),
+        //                 to: hl.styled_region.to.with_row(to_row),
+        //                 ..hl.styled_region
+        //             })
+        //         } else {
+        //             None
+        //         }
+        //     }));
+        // }
 
         UiPanel {
             position: self.rect.top_left(),

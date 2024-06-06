@@ -25,7 +25,7 @@ impl Core {
         config::commands::register_builtin_commands(&mut this.commands, &mut this.events);
         this.state.config = config::make_builtin_config();
 
-        this.events.emit("editor-started", "");
+        this.events.emit("started", "");
         this.tick();
 
         this
@@ -51,7 +51,7 @@ impl Core {
     pub fn set_viewport_size(&mut self, size: Size) {
         self.update_viewport_size(size);
         self.events
-            .emit("resize", format!("{} {}", size.column, size.row));
+            .emit("resized", format!("{} {}", size.column, size.row));
 
         self.tick();
     }
