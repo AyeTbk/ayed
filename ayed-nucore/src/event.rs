@@ -37,11 +37,6 @@ impl EventRegistry {
                 }
             }
 
-            // DEBUG
-            if ev.event.starts_with("state") {
-                dbg!(config.get("hooks"));
-            }
-
             if let Some(hooks) = config.get("hooks").and_then(|h| h.get(&ev.event)) {
                 for command in hooks {
                     emitted.push(format!("{} {}", command, ev.options));
