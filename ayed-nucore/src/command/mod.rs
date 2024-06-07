@@ -47,10 +47,19 @@ pub struct ExecuteCommandContext<'a> {
     pub state: &'a mut State,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CommandQueue {
     queue: VecDeque<String>,
     scope_stack: Vec<Scope>,
+}
+
+impl Default for CommandQueue {
+    fn default() -> Self {
+        Self {
+            queue: VecDeque::default(),
+            scope_stack: vec![Scope::default()],
+        }
+    }
 }
 
 impl CommandQueue {
@@ -60,36 +69,37 @@ impl CommandQueue {
 
     pub fn push(&mut self, command: impl Into<String>) {
         let command = command.into();
-        if let Some(scope) = self.scope_stack.last_mut() {
-            self.queue.insert(scope.remaining_commands as _, command);
-            scope.remaining_commands += 1;
-        } else {
-            self.queue.push_back(command);
-        }
+        self.queue
+            .insert(self.current_scope().remaining_commands as _, command);
+        self.current_scope_mut().remaining_commands += 1;
     }
 
     pub fn pop(&mut self) -> Option<String> {
-        if let Some(scope) = self.scope_stack.last_mut() {
-            if scope.remaining_commands == 0 {
-                loop {
-                    let Some(scope) = self.scope_stack.last() else {
-                        break;
-                    };
-                    if scope.remaining_commands != 0 {
-                        break;
-                    }
-                    self.scope_stack.pop();
+        if self.current_scope().remaining_commands == 0 {
+            loop {
+                let scope = self.current_scope();
+                if scope.remaining_commands > 0 {
+                    break;
                 }
-            } else {
-                scope.remaining_commands = scope.remaining_commands.saturating_sub(1);
+                if self.scope_stack.len() == 1 {
+                    // Don't pop the first scope, at least one should always exist.
+                    break;
+                }
+                self.scope_stack.pop();
             }
         }
-        self.queue.pop_front()
+
+        if let Some(command) = self.queue.pop_front() {
+            self.current_scope_mut().remaining_commands -= 1;
+            Some(command)
+        } else {
+            None
+        }
     }
 
-    pub fn extend_front(&mut self, iter: impl IntoIterator<Item = String>) {
-        for (i, item) in iter.into_iter().enumerate() {
-            self.queue.insert(i, item);
+    pub fn extend(&mut self, iter: impl IntoIterator<Item = String>) {
+        for item in iter.into_iter() {
+            self.push(item)
         }
     }
 
@@ -100,6 +110,18 @@ impl CommandQueue {
 
     pub(crate) fn start_scope(&mut self) {
         self.scope_stack.push(Scope::default());
+    }
+
+    fn current_scope(&self) -> &Scope {
+        self.scope_stack
+            .last()
+            .expect("there should always be a scope")
+    }
+
+    fn current_scope_mut(&mut self) -> &mut Scope {
+        self.scope_stack
+            .last_mut()
+            .expect("there should always be a scope")
     }
 }
 
