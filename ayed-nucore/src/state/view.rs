@@ -31,11 +31,39 @@ impl View {
     }
 
     pub fn map_true_position_to_view_position(&self, position: Position) -> Option<Position> {
-        // TODO this doesnt account for the vbuffer
+        self.map_true_position_to_virtual_position(position)
+            .and_then(|p| self.map_virtual_position_to_view_position(p))
+    }
+
+    pub fn map_virtual_position_to_view_position(&self, position: Position) -> Option<Position> {
         let (Some(column), Some(row)) = position.local_to(self.top_left) else {
             return None;
         };
         Some(Position::new(column, row))
+    }
+
+    pub fn map_true_position_to_virtual_position(&self, position: Position) -> Option<Position> {
+        if let Some(vbuffer) = self.virtual_buffer.as_ref() {
+            // FIXME The position could actually appear mutliple times in the
+            // virtual buffer, if a same excerpt is used multiple times. This
+            // function should return multiple positions.
+            for vline_idx in 0..(vbuffer.lines.len() as u32) {
+                let vline = vbuffer.lines.get(vline_idx as usize).unwrap();
+                if vline.spans.is_empty() {
+                    continue;
+                }
+                let mut column = 0;
+                for vfrag in &vline.spans {
+                    if let Some(column_offset) = vfrag.position_column_offset_within(position) {
+                        return Some(Position::new(column + column_offset, vline_idx));
+                    }
+                    column += vfrag.char_count();
+                }
+            }
+            None
+        } else {
+            Some(position)
+        }
     }
 
     pub fn map_view_line_idx_to_line_number(&self, _idx: u32) -> Option<u32> {
@@ -72,20 +100,34 @@ impl View {
             return None;
         };
 
-        for vspan in &vline.spans {
-            match vspan {
-                VirtualSpan::TrueLineExcerpt { row, from, to } => {
+        for vfrag in &vline.spans {
+            match vfrag {
+                VirtualFragment::TrueLineExcerpt {
+                    row,
+                    from,
+                    to,
+                    ends_line,
+                } => {
                     let buffer = buffers.get(self.buffer);
-                    let Some(excerpt) = buffer
-                        .line(*row)
-                        .and_then(|line| char_index_range_to_slice(line, *from, *to))
-                    else {
-                        render.push_str(&format!("$<bad vspan: {row}:{from}-{to}>"));
+                    let Some(line) = buffer.line(*row) else {
+                        render.push_str(&format!("$<bad vfrag: {row}>"));
                         continue;
                     };
-                    render.push_str(excerpt)
+
+                    if line.is_empty() && *ends_line {
+                        render.push_str(" ");
+                    } else {
+                        let Some(excerpt) = buffer
+                            .line(*row)
+                            .and_then(|line| char_index_range_to_slice(line, *from, *to))
+                        else {
+                            render.push_str(&format!("$<bad vfrag: {row}:{from}-{to}>"));
+                            continue;
+                        };
+                        render.push_str(excerpt)
+                    }
                 }
-                VirtualSpan::Text(text) => {
+                VirtualFragment::Text(text) => {
                     render.push_str(&text);
                 }
             }
@@ -109,10 +151,11 @@ impl View {
             let mut i = 0;
             while let Some(idx) = char_index_to_byte_index(line, wrap_column) {
                 let vline = VirtualLine {
-                    spans: vec![VirtualSpan::TrueLineExcerpt {
+                    spans: vec![VirtualFragment::TrueLineExcerpt {
                         row,
                         from: wrap_column * i,
                         to: (wrap_column * (i + 1)).saturating_sub(1),
+                        ends_line: false,
                     }],
                 };
                 vbuffer.lines.push(vline);
@@ -124,14 +167,28 @@ impl View {
             // Fill in remainder (or full line if it wasn't broken).
             if !line.is_empty() {
                 let from = wrap_column * i;
-                let to = from + char_count(line).saturating_sub(1);
+                let line_end = from + char_count(line);
+                let to = line_end.saturating_sub(1);
                 vbuffer.lines.push(VirtualLine {
-                    spans: vec![VirtualSpan::TrueLineExcerpt { row, from, to }],
+                    spans: vec![VirtualFragment::TrueLineExcerpt {
+                        row,
+                        from,
+                        to,
+                        ends_line: true,
+                    }],
                 });
             } else if i == 0 {
                 // Handle empty lines.
+                let from = wrap_column * i;
+                let line_end = from + char_count(line);
+                let to = line_end.saturating_sub(1);
                 vbuffer.lines.push(VirtualLine {
-                    spans: vec![VirtualSpan::Text(String::new())],
+                    spans: vec![VirtualFragment::TrueLineExcerpt {
+                        row,
+                        from,
+                        to,
+                        ends_line: true,
+                    }],
                 });
             }
         }
@@ -147,13 +204,60 @@ pub struct VirtualBuffer {
 
 #[derive(Debug, Default)]
 pub struct VirtualLine {
-    pub spans: Vec<VirtualSpan>,
+    pub spans: Vec<VirtualFragment>,
 }
 
 #[derive(Debug)]
-pub enum VirtualSpan {
-    TrueLineExcerpt { row: u32, from: u32, to: u32 },
+pub enum VirtualFragment {
+    TrueLineExcerpt {
+        row: u32,
+        from: u32,
+        to: u32,
+        ends_line: bool,
+    },
     Text(String),
+}
+
+impl VirtualFragment {
+    pub fn char_count(&self) -> u32 {
+        match self {
+            Self::TrueLineExcerpt { from, to, .. } => to.saturating_sub(*from),
+            Self::Text(text) => char_count(text),
+        }
+    }
+
+    pub fn contains_position(&self, position: Position) -> bool {
+        match self {
+            Self::TrueLineExcerpt {
+                row,
+                from,
+                to,
+                ends_line,
+            } => {
+                if position.row != *row {
+                    return false;
+                }
+                if *ends_line {
+                    position.column >= *from && position.column <= to.saturating_add(1)
+                } else {
+                    position.column >= *from && position.column <= *to
+                }
+            }
+            Self::Text(_) => false,
+        }
+    }
+
+    pub fn position_column_offset_within(&self, position: Position) -> Option<u32> {
+        match self {
+            Self::TrueLineExcerpt { from, .. } => {
+                if !self.contains_position(position) {
+                    return None;
+                }
+                Some(position.column - from)
+            }
+            Self::Text(_) => None,
+        }
+    }
 }
 
 fn char_index_range_to_slice(s: &str, from: u32, to: u32) -> Option<&str> {

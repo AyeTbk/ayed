@@ -60,6 +60,18 @@ impl Core {
         self.state.modeline.clear_content_override();
 
         loop {
+            // FIXME When a command both emits and event and also pushes commands,
+            // its commands should all happen first (and then their commands and
+            // events and so on), and then its events hooks should happen.
+            // Right now, events always come first and it's already causing
+            // problem when state-set'ing.
+            // Currently visible when trying to get syntax highlight to show on
+            // buffer-opened, doesn't happen 'cause the 'file' state isn't set
+            // before said event hooks are executed.
+            // I recommend giving more structure to the command queue, make it
+            // a real 'stacked queue' with proper and clear structure rather than
+            // whatever you have going right now. It'll make fixing this issue a
+            // lot easier.
             self.queue
                 .extend_front(self.events.emitted_commands(&self.state.config));
 

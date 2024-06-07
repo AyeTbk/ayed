@@ -98,28 +98,32 @@ impl Config {
                     let existing_values = current_mapping
                         .entry(key.to_string()) // FIXME Unecessary allocations
                         .or_default();
-                    let more_specific_values = values.to_vec();
+                    let mut more_specific_values = values.to_vec();
 
-                    // TODO Figure out whether or not entry values should merge giving more importance to more specific selector,
-                    // or keep only the more specific selector values.
+                    enum MergeStrategy {
+                        MergeMoreSpecificFirst,
+                        ReplaceWithMoreSpecific,
+                    }
 
-                    // -- Below merges
-                    // Make sure to merge list of values putting more specific values first
-                    // std::mem::swap(existing_values, &mut more_specific_values);
-                    // existing_values.extend(more_specific_values);
+                    // TODO The "hooks" mapping is special for now, but a way
+                    // to control the strategy of specific mappings should
+                    // probably be exposed in some way in the config.
+                    let strategy = if mapping_name == "hooks" {
+                        MergeStrategy::MergeMoreSpecificFirst
+                    } else {
+                        MergeStrategy::ReplaceWithMoreSpecific
+                    };
 
-                    // -- Below keeps only the more specific
-                    *existing_values = more_specific_values;
+                    match strategy {
+                        MergeStrategy::MergeMoreSpecificFirst => {
+                            std::mem::swap(existing_values, &mut more_specific_values);
+                            existing_values.extend(more_specific_values);
+                        }
+                        MergeStrategy::ReplaceWithMoreSpecific => {
+                            *existing_values = more_specific_values;
+                        }
+                    }
                 }
-
-                // TODO remember that this commented code was for and why it got commented out
-                // NOTE couple months later: i confirm i dont remember
-                // current_mapping.extend(
-                //     cond_mapping
-                //         .mapping
-                //         .iter()
-                //         .map(|(k, v)| (k.to_string(), v.to_vec()));
-                // )
             }
         }
 

@@ -15,7 +15,7 @@ use crate::{
 
 use super::CommandRegistry;
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
     cr.register("quit!", |_opt, ctx| {
         ctx.state.quit_requested = true;
         Ok(())
@@ -43,6 +43,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         ctx.state.config.set_state(state, value);
         ctx.events.emit(format!("state-set:{state}"), value);
 
+        Ok(())
+    });
+    cr.register("ss", |opt, ctx| {
+        ctx.queue.push(format!("state-set {opt}"));
         Ok(())
     });
 
@@ -170,13 +174,15 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             let view_rect = ctx.state.focused_view_rect();
             let view = ctx.state.views.get_mut(view_handle);
             let cursor = view.selections.borrow().primary().cursor();
-            let offset = view_rect.offset_from_position(cursor);
+            let Some(view_cursor) = view.map_true_position_to_virtual_position(cursor) else {
+                return Ok(());
+            };
+            let offset = view_rect.offset_from_position(view_cursor);
             view.top_left = view.top_left.offset(offset);
         }
 
         Ok(())
     });
-    ev.on("resized", "look-keep-primary-cursor-in-view");
 
     cr.register("move", |opt, ctx| {
         let Some(ch) = opt.chars().next() else {
@@ -232,7 +238,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
     });
 
     cr.register("move-regex", |opt, ctx| {
-        // TODO todo
         // move-regex [n|p, n if absent] [anchored] pattern
         let next = true;
         let pattern = opt;

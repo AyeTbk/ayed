@@ -1,3 +1,9 @@
+// FIXME Im starting to think, for simplicity in doing math with positions,
+// that i32 should be used instead of u32. There would be no "real" drawback.
+// Right now, trying to find the difference between two positions always
+// force handling the possibility of the position being unrepresentable.
+// This is a pita when handling view relative positionning for rendering,
+// for example.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub column: u32,

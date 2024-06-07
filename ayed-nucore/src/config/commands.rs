@@ -31,6 +31,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             .get("syntax-style")
             .expect("syntax-style should exist");
         let highlights = regex_syntax_highlight(buffer, syntax, syntax_style);
+
         ctx.state.highlights.insert(buffer_handle, highlights);
         Ok(())
     });

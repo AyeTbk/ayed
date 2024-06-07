@@ -69,7 +69,7 @@ impl Editor {
         let row_from = view.top_left.row;
         let row_to = view.top_left.row.saturating_add(size.row);
         let mut buf = String::new();
-        for (i, row_index) in (row_from..row_to).enumerate() {
+        for i in 0..size.row {
             if view
                 .render_view_line(i as u32, &mut buf, &state.buffers)
                 .is_some()
@@ -161,23 +161,24 @@ impl Editor {
             // }
         }
 
-        // FIXME impl this
         // Syntax highlight
-        // if let Some(highlights) = state.highlights.get(&buffer_handle) {
-        //     spans.extend(highlights.iter().filter_map(|hl| {
-        //         if hl.styled_region.from.row >= row_from && hl.styled_region.to.row <= row_to {
-        //             let from_row = hl.styled_region.from.row.saturating_sub(row_from);
-        //             let to_row = hl.styled_region.to.row.saturating_sub(row_from);
-        //             Some(StyledRegion {
-        //                 from: hl.styled_region.from.with_row(from_row),
-        //                 to: hl.styled_region.to.with_row(to_row),
-        //                 ..hl.styled_region
-        //             })
-        //         } else {
-        //             None
-        //         }
-        //     }));
-        // }
+        if let Some(highlights) = state.highlights.get(&view.buffer) {
+            spans.extend(highlights.iter().filter_map(|hl| {
+                // TODO Get view spans from the hl true span (there can be multiple or none).
+                // As impl detail, compute the intermediate virtual from-to's.
+                if hl.styled_region.from.row >= row_from && hl.styled_region.to.row <= row_to {
+                    let from_row = hl.styled_region.from.row.saturating_sub(row_from);
+                    let to_row = hl.styled_region.to.row.saturating_sub(row_from);
+                    Some(StyledRegion {
+                        from: hl.styled_region.from.with_row(from_row),
+                        to: hl.styled_region.to.with_row(to_row),
+                        ..hl.styled_region
+                    })
+                } else {
+                    None
+                }
+            }));
+        }
 
         UiPanel {
             position: self.rect.top_left(),

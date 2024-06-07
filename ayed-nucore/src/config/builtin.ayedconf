@@ -71,6 +71,15 @@ mode text/insert {
 }
 
 
+###########################
+### General convenience ###
+
+hooks {
+    buffer-modified look-keep-primary-cursor-in-view
+    resized look-keep-primary-cursor-in-view
+}
+
+
 ########################
 ### Syntax highlight ###
 
@@ -116,10 +125,15 @@ file .*\.rs {
 ###  Line wrapping   ###
 
 hooks {
-    # FIXME Hooks probably should merge values, but most other kind of entries
-    # make more sense if we replace less specific values with more specific
-    state-set:line-wrap vbuf-clear
+    started state-set line-wrap none
 }
+
+line-wrap none {
+    hooks {
+        state-set:line-wrap vbuf-clear
+    }
+}
+
 line-wrap wrap {
     hooks {
         state-set:line-wrap vbuf-line-wrap-rebuild

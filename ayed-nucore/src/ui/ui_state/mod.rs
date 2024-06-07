@@ -26,7 +26,6 @@ impl UiPanel {
     }
 
     fn split_spans_over_lines(&mut self) {
-        // NOTE also look at TextBufferEdit::selections_split_by_lines
         let spans = std::mem::take(&mut self.spans);
         self.spans = spans
             .into_iter()
@@ -186,8 +185,6 @@ mod tests {
                 },
             ],
         };
-
-        // TODO test for warpdrive (ex: overlapping at line start)
 
         ui_panel.normalize_spans();
 
