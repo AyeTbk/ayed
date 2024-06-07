@@ -41,7 +41,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let value = rest.trim();
 
         ctx.state.config.set_state(state, value);
-        ctx.events.emit(format!("state-set:{state}"), value);
+        ctx.events.emit(format!("state-modified:{state}"), value);
 
         Ok(())
     });

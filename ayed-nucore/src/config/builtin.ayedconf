@@ -130,13 +130,13 @@ hooks {
 
 line-wrap none {
     hooks {
-        state-set:line-wrap vbuf-clear
+        state-modified:line-wrap vbuf-clear
     }
 }
 
 line-wrap wrap {
     hooks {
-        state-set:line-wrap vbuf-line-wrap-rebuild
+        state-modified:line-wrap vbuf-line-wrap-rebuild
         buffer-opened vbuf-line-wrap-rebuild
         buffer-modified vbuf-line-wrap-rebuild
         resized vbuf-line-wrap-rebuild
