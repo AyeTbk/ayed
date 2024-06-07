@@ -66,8 +66,6 @@ impl Editor {
         let mut content: Vec<String> = Vec::new();
         let mut spans: Vec<StyledRegion> = Vec::new();
 
-        let row_from = view.top_left.row;
-        let row_to = view.top_left.row.saturating_add(size.row);
         let mut buf = String::new();
         for i in 0..size.row {
             if view
@@ -127,51 +125,39 @@ impl Editor {
                 });
             }
 
-            // FIXME impl this
+            // FIXME This doesn't handle selection that span multiple virtual fragments.
+            // This is visible with line-wrap enabled.
             // Selection style
-            // for split_selection in selection.split_lines() {
-            //     // FIXME dont produce styled regions outside the viewport plz.
-            //     let (from_column, from_row) = buffer
-            //         .limit_position_to_content(split_selection.start())
-            //         .local_to(view.top_left);
-            //     let (to_column, to_row) = buffer
-            //         .limit_position_to_content(split_selection.end())
-            //         .local_to(view.top_left);
-
-            //     let maybe_from =
-            //         (|column, row| Some(Position::new(column?, row?)))(from_column, from_row);
-            //     let maybe_to =
-            //         (|column, row| Some(Position::new(column?, row?)))(to_column, to_row);
-
-            //     if maybe_from.is_none() && maybe_to.is_none() {
-            //         continue;
-            //     }
-
-            //     spans.push(StyledRegion {
-            //         from: maybe_from
-            //             .unwrap_or(Position::ZERO.with_row(from_row.unwrap_or_default())),
-            //         to: maybe_to.unwrap_or(Position::ZERO.with_row(to_row.unwrap_or_default())),
-            //         style: Style {
-            //             foreground_color: Some(SELECTION_TEXT_COLOR),
-            //             background_color: Some(selection_color),
-            //             ..Default::default()
-            //         },
-            //         priority: 254,
-            //     });
-            // }
+            for split_selection in selection.split_lines() {
+                let buffer = state.buffers.get(view.buffer);
+                let sel = buffer.limit_selection_to_content(&split_selection);
+                let from = view.map_true_position_to_view_position(sel.start());
+                let to = view.map_true_position_to_view_position(sel.end());
+                if let (Some(from), Some(to)) = (from, to) {
+                    spans.push(StyledRegion {
+                        from,
+                        to,
+                        style: Style {
+                            foreground_color: Some(SELECTION_TEXT_COLOR),
+                            background_color: Some(selection_color),
+                            ..Default::default()
+                        },
+                        priority: 254,
+                    });
+                }
+            }
         }
 
+        // FIXME Same as above, doesnt support highlights that span multiple fragments
         // Syntax highlight
         if let Some(highlights) = state.highlights.get(&view.buffer) {
             spans.extend(highlights.iter().filter_map(|hl| {
-                // TODO Get view spans from the hl true span (there can be multiple or none).
-                // As impl detail, compute the intermediate virtual from-to's.
-                if hl.styled_region.from.row >= row_from && hl.styled_region.to.row <= row_to {
-                    let from_row = hl.styled_region.from.row.saturating_sub(row_from);
-                    let to_row = hl.styled_region.to.row.saturating_sub(row_from);
+                let from = view.map_true_position_to_view_position(hl.styled_region.from);
+                let to = view.map_true_position_to_view_position(hl.styled_region.to);
+                if let (Some(from), Some(to)) = (from, to) {
                     Some(StyledRegion {
-                        from: hl.styled_region.from.with_row(from_row),
-                        to: hl.styled_region.to.with_row(to_row),
+                        from,
+                        to,
                         ..hl.styled_region
                     })
                 } else {
