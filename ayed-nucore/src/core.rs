@@ -101,6 +101,7 @@ impl Core {
     pub fn render(&mut self) -> UiState {
         let panels = vec![
             self.panels.editor.render(&self.state),
+            self.panels.line_numbers.render(&self.state),
             self.panels.modeline.render(&self.state),
         ];
 
@@ -110,13 +111,25 @@ impl Core {
     fn update_viewport_size(&mut self, viewport_size: Size) {
         self.state.viewport_size = viewport_size;
 
+        let line_numbers_width = self.panels.line_numbers.required_width(&self.state);
+        let editor_width = self
+            .state
+            .viewport_size
+            .column
+            .saturating_sub(line_numbers_width);
+        let editor_height = self.state.viewport_size.row.saturating_sub(1);
+
         self.panels.editor.set_rect(Rect::new(
+            line_numbers_width,
             0,
-            0,
-            self.state.viewport_size.column,
-            self.state.viewport_size.row.saturating_sub(1),
+            editor_width,
+            editor_height,
         ));
         self.state.editor_size = self.panels.editor.rect().size();
+
+        self.panels
+            .line_numbers
+            .set_rect(Rect::new(0, 0, line_numbers_width, editor_height));
 
         self.panels.modeline.set_rect(Rect::new(
             0,

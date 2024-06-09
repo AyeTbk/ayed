@@ -49,11 +49,11 @@ impl View {
             // function should return multiple positions.
             for vline_idx in 0..(vbuffer.lines.len() as u32) {
                 let vline = vbuffer.lines.get(vline_idx as usize).unwrap();
-                if vline.spans.is_empty() {
+                if vline.fragments.is_empty() {
                     continue;
                 }
                 let mut column = 0;
-                for vfrag in &vline.spans {
+                for vfrag in &vline.fragments {
                     if let Some(column_offset) = vfrag.position_column_offset_within(position) {
                         return Some(Position::new(column + column_offset, vline_idx));
                     }
@@ -66,9 +66,21 @@ impl View {
         }
     }
 
-    pub fn map_view_line_idx_to_line_number(&self, _idx: u32) -> Option<u32> {
-        // For an eventual line number bar
-        todo!()
+    pub fn map_view_line_idx_to_line_number(&self, idx: u32) -> Option<u32> {
+        let view_line = idx + self.top_left.row;
+
+        let Some(vbuffer) = self.virtual_buffer.as_ref() else {
+            return Some(view_line + 1);
+        };
+
+        let vline = vbuffer.lines.get(view_line as usize)?;
+        for vfragment in &vline.fragments {
+            match vfragment {
+                VirtualFragment::TrueLineExcerpt { row, .. } => return Some(*row + 1),
+                _ => (),
+            }
+        }
+        None
     }
 
     fn render_true_line(
@@ -100,7 +112,7 @@ impl View {
             return None;
         };
 
-        for vfrag in &vline.spans {
+        for vfrag in &vline.fragments {
             match vfrag {
                 VirtualFragment::TrueLineExcerpt {
                     row,
@@ -151,7 +163,7 @@ impl View {
             let mut i = 0;
             while let Some(idx) = char_index_to_byte_index(line, wrap_column) {
                 let vline = VirtualLine {
-                    spans: vec![VirtualFragment::TrueLineExcerpt {
+                    fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
                         from: wrap_column * i,
                         to: (wrap_column * (i + 1)).saturating_sub(1),
@@ -170,7 +182,7 @@ impl View {
                 let line_end = from + char_count(line);
                 let to = line_end.saturating_sub(1);
                 vbuffer.lines.push(VirtualLine {
-                    spans: vec![VirtualFragment::TrueLineExcerpt {
+                    fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
                         from,
                         to,
@@ -183,7 +195,7 @@ impl View {
                 let line_end = from + char_count(line);
                 let to = line_end.saturating_sub(1);
                 vbuffer.lines.push(VirtualLine {
-                    spans: vec![VirtualFragment::TrueLineExcerpt {
+                    fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
                         from,
                         to,
@@ -204,7 +216,7 @@ pub struct VirtualBuffer {
 
 #[derive(Debug, Default)]
 pub struct VirtualLine {
-    pub spans: Vec<VirtualFragment>,
+    pub fragments: Vec<VirtualFragment>,
 }
 
 #[derive(Debug)]
