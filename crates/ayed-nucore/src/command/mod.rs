@@ -105,7 +105,9 @@ impl CommandQueue {
 
     pub fn clear(&mut self) {
         self.queue.clear();
+
         self.scope_stack.clear();
+        self.scope_stack.push(Default::default())
     }
 
     pub(crate) fn start_scope(&mut self) {

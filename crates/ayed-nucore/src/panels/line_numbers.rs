@@ -40,7 +40,7 @@ impl LineNumbers {
             return UiPanel {
                 position: Position::ZERO,
                 size: self.rect.size(),
-                content: vec!["><".into()],
+                content: Vec::new(),
                 spans,
             };
         };

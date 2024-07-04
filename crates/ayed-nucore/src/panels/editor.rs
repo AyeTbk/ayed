@@ -51,8 +51,11 @@ impl Editor {
 
         let Some(view_handle) = self.view.or(state.active_editor_view) else {
             let mut content = vec![" ".repeat(size.column as _); size.row as _];
-            content[0] =
-                String::new() + "[no view]" + &(" ".repeat((size.column.saturating_sub(7)) as _));
+            if size.row > 0 {
+                content[0] = String::new()
+                    + "[no view]"
+                    + &(" ".repeat((size.column.saturating_sub(7)) as _));
+            }
             return UiPanel {
                 position: Position::ZERO,
                 size,
