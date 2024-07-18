@@ -13,7 +13,7 @@ pub struct LineNumbers {
 }
 
 impl LineNumbers {
-    const RIGHT_PAD_LEN: u32 = 1;
+    const RIGHT_PAD_LEN: u32 = 2;
 
     pub fn rect(&self) -> Rect {
         self.rect
@@ -68,7 +68,7 @@ impl LineNumbers {
                 .saturating_sub(s.len())
                 .saturating_sub(Self::RIGHT_PAD_LEN as _);
             s.insert_str(0, &" ".repeat(left_pad_len));
-            s.push(' ');
+            s.push_str(&" ".repeat(Self::RIGHT_PAD_LEN as _));
             content.push(s);
 
             let current_row = { view.selections.borrow().primary().cursor().row };
