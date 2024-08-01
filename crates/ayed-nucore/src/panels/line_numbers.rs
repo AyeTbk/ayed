@@ -28,7 +28,8 @@ impl LineNumbers {
             return 2;
         };
         let max_line = state.buffers.get(buffer_handle).line_count();
-        let width = (max_line as f32).log10().ceil() as u32 + 1 + Self::RIGHT_PAD_LEN;
+        const LEFT_PAD_LEN: u32 = 1;
+        let width = (max_line.ilog10() + 1) + LEFT_PAD_LEN + Self::RIGHT_PAD_LEN;
         width
     }
 

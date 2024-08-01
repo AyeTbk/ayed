@@ -51,9 +51,19 @@ mode text/command {
     use basic-deletion
 
     keybinds {
+        w move u
+        W move u anchored
+        s move d
+        S move d anchored
+        a move l
+        A move l anchored
+        d move r
+        D move r anchored
+        <c-d> move-regex \w+|[^\s\w]+
+    
         C dupe d
         <a-C> dupe u
-        d delete
+        k delete
         : focus-panel modeline
         i state-set mode text/insert
     }
