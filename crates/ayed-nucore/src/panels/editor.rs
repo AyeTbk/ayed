@@ -6,9 +6,8 @@ use crate::{
         ui_state::{StyledRegion, UiPanel},
         Color, Rect, Style,
     },
+    utils::string_utils::line_clamped_filled,
 };
-
-use super::line_clamped_filled;
 
 const PRIMARY_CURSOR_COLOR: Color = Color::WHITE;
 const PRIMARY_SELECTION_COLOR: Color = Color::rgb(18, 72, 150);

@@ -56,7 +56,7 @@ impl State {
 
     pub fn focused_view(&self) -> Option<Handle<View>> {
         match self.focused_panel {
-            FocusedPanel::Editor => self.active_editor_view,
+            FocusedPanel::Editor | FocusedPanel::Warpdrive => self.active_editor_view,
             FocusedPanel::Modeline(view) => Some(view),
         }
     }

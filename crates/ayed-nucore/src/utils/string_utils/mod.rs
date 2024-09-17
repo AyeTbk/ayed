@@ -1,5 +1,19 @@
 pub mod line_builder;
 
+pub fn line_clamped_filled(line: &str, start: u32, char_count: u32, fill: char) -> String {
+    let mut s = String::new();
+    let mut char_taken_count = 0;
+    for ch in line.chars().skip(start as _).take(char_count as _) {
+        s.push(ch);
+        char_taken_count += 1;
+    }
+    let missing_char_count = char_count.saturating_sub(char_taken_count);
+    for _ in 0..missing_char_count {
+        s.push(fill);
+    }
+    s
+}
+
 pub fn char_index_to_byte_index(s: &str, ch_idx: u32) -> Option<usize> {
     if ch_idx == 0 {
         Some(0)
