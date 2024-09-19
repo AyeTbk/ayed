@@ -13,9 +13,11 @@ mixin basic-movement {
         <s-up> move u anchored
         <s-down> move d anchored
         <s-left> move l anchored
-        <c-left> move-regex p \w+|[^\s\w]+
+        <c-left> move-regex --reversed \w+|[^\s\w]+
+        <cs-left> move-regex --reversed --anchored \w+|[^\s\w]+
         <s-right> move r anchored
-        <c-right> move-regex n \w+|[^\s\w]+
+        <c-right> move-regex \w+|[^\s\w]+
+        <cs-right> move-regex --anchored \w+|[^\s\w]+
     }
 }
 
@@ -58,14 +60,18 @@ mode text/command {
         S move d anchored
         a move l
         A move l anchored
-        <c-a> move-regex p \w+|[^\s\w]+
+        <c-a> move-regex --reversed \w+|[^\s\w]+
         d move r
         D move r anchored
-        <c-d> move-regex n \w+|[^\s\w]+
+        <c-d> move-regex \w+|[^\s\w]+
     
         C dupe d
         <a-C> dupe u
+        ; selection-shrink
+        <a-;> selection-flip
+
         k delete
+
         : focus-panel modeline
         i state-set mode text/insert
     }

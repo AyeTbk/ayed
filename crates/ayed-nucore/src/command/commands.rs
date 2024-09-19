@@ -13,7 +13,7 @@ use crate::{
     Ref,
 };
 
-use super::CommandRegistry;
+use super::{options::Options, CommandRegistry};
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
     cr.register("quit!", |_opt, ctx| {
@@ -238,11 +238,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
     });
 
     cr.register("move-regex", |opt, ctx| {
-        // move-regex (n|p) pattern
-        let mut args = opt.split_whitespace();
-        let n_or_p = args.next().ok_or_else(|| "missing n|p".to_string())?;
-        let next = n_or_p.starts_with('n');
-        let pattern = args.next().ok_or_else(|| "missing pattern".to_string())?;
+        let opts = Options::new()
+            .flag("reversed")
+            .flag("anchored")
+            .parse(opt)?;
+        let next = !opts.contains("reversed");
+        let anchored = opts.contains("anchored");
+        let pattern = opts.remainder();
 
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -256,8 +258,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         for selection in selections.iter_mut() {
             let mut begin_column = selection.cursor().column;
             let mut row = selection.cursor().row;
-            // TODO implement searching backwards
-            // TODO implement anchored
             // TODO implement cycling through the whole file.
             while let Some(line) = buffer.line(row) {
                 let start_index = if next {
@@ -312,14 +312,17 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     let end_column =
                         byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap();
                     *selection = if next {
-                        selection
-                            .with_anchor(Position::new(start_column, row))
-                            .with_cursor(Position::new(end_column, row))
+                        selection.with_cursor(Position::new(end_column, row))
                     } else {
-                        selection
-                            .with_anchor(Position::new(end_column, row))
-                            .with_cursor(Position::new(start_column, row))
+                        selection.with_cursor(Position::new(start_column, row))
                     };
+                    if !anchored {
+                        *selection = if next {
+                            selection.with_anchor(Position::new(start_column, row))
+                        } else {
+                            selection.with_anchor(Position::new(end_column, row))
+                        };
+                    }
                     break;
                 }
 
@@ -473,6 +476,30 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
 
         ctx.queue.push("merge-overlapping-selections");
         ctx.events.emit("buffer-modified", "");
+        Ok(())
+    });
+
+    cr.register("selection-shrink", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        for selection in view.selections.borrow_mut().iter_mut() {
+            *selection = selection.shrunk_to_cursor();
+        }
+
+        Ok(())
+    });
+
+    cr.register("selection-flip", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        for selection in view.selections.borrow_mut().iter_mut() {
+            *selection = selection.flipped();
+        }
+
         Ok(())
     });
 

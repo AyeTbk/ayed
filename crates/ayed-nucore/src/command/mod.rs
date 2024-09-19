@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::{event::EventRegistry, state::State};
 
 pub mod commands;
+pub mod options;
 
 struct Command {
     func: Box<dyn Fn(&str, ExecuteCommandContext) -> Result<(), String>>,
