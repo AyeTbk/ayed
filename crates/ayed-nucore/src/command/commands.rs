@@ -238,9 +238,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
     });
 
     cr.register("move-regex", |opt, ctx| {
-        // move-regex [n|p, n if absent] [anchored] pattern
-        let next = true;
-        let pattern = opt;
+        // move-regex (n|p) pattern
+        let mut args = opt.split_whitespace();
+        let n_or_p = args.next().ok_or_else(|| "missing n|p".to_string())?;
+        let next = n_or_p.starts_with('n');
+        let pattern = args.next().ok_or_else(|| "missing pattern".to_string())?;
 
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -258,14 +260,50 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             // TODO implement anchored
             // TODO implement cycling through the whole file.
             while let Some(line) = buffer.line(row) {
-                let start_index = char_index_to_byte_index(line, begin_column).unwrap();
-                let maybe_match = regex
-                    .find_iter(line)
-                    .skip_while(|m| {
-                        if start_index == 0 {
-                            m.start() < start_index
+                let start_index = if next {
+                    char_index_to_byte_index(line, begin_column).unwrap()
+                } else {
+                    if let Some(index) = char_index_to_byte_index(line, begin_column) {
+                        index
+                    } else {
+                        if line.is_empty() {
+                            if row == 0 {
+                                break;
+                            }
+                            row = row - 1;
+                            continue;
                         } else {
-                            m.start() <= start_index
+                            line.len() - 1
+                        }
+                    }
+                };
+
+                let mut matches = regex.find_iter(line).collect::<Vec<_>>();
+                if !next {
+                    matches.reverse();
+                }
+                let maybe_match = matches
+                    .into_iter()
+                    .skip_while(|m| {
+                        // NOTE: this stinks, if positions allowed negative rows/columns, this could be simpler.
+
+                        if next {
+                            let cursor_at_line_start_fix =
+                                !(row == selection.cursor().row && selection.cursor().column == 0);
+                            if start_index == 0 && cursor_at_line_start_fix {
+                                m.start() < start_index
+                            } else {
+                                m.start() <= start_index
+                            }
+                        } else {
+                            let line_end = line.len() - 1;
+                            let cursor_at_line_end_fix = !(row == selection.cursor().row
+                                && selection.cursor().column as usize == line_end);
+                            if start_index == line_end && cursor_at_line_end_fix {
+                                m.start() > start_index
+                            } else {
+                                m.end() > start_index
+                            }
                         }
                     })
                     .next();
@@ -273,9 +311,15 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     let start_column = byte_index_to_char_index(line, matsh.start()).unwrap();
                     let end_column =
                         byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap();
-                    *selection = selection
-                        .with_anchor(Position::new(start_column, row))
-                        .with_cursor(Position::new(end_column, row));
+                    *selection = if next {
+                        selection
+                            .with_anchor(Position::new(start_column, row))
+                            .with_cursor(Position::new(end_column, row))
+                    } else {
+                        selection
+                            .with_anchor(Position::new(end_column, row))
+                            .with_cursor(Position::new(start_column, row))
+                    };
                     break;
                 }
 
@@ -286,7 +330,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     if row == 0 {
                         break;
                     }
-                    row = row.saturating_sub(1);
+                    row = row - 1;
+                    begin_column = u32::MAX;
                 }
             }
         }
@@ -298,6 +343,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
+    // FIXME rename this command to duplicate-selection or something
     cr.register("dupe", |opt, ctx| {
         let row_offset = match opt.chars().next() {
             Some('u') => -1,
