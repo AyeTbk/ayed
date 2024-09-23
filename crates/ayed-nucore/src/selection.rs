@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use crate::position::Position;
 
 #[derive(Debug, Clone)]
@@ -18,6 +20,19 @@ impl Selections {
         Self {
             primary_selection: primary,
             extra_selections: extra.to_owned(),
+        }
+    }
+
+    pub fn parse(src: &str) -> Result<Self, String> {
+        let mut selections = Vec::new();
+        for selection_src in src.split_whitespace() {
+            selections.push(Selection::parse(selection_src)?);
+        }
+        if selections.len() > 0 {
+            let primary = selections.remove(0);
+            Ok(Self::new_with(primary, &selections))
+        } else {
+            Err(format!("couldn't parse selections: empty source"))
         }
     }
 
@@ -107,6 +122,18 @@ impl Selections {
     }
 }
 
+impl std::fmt::Display for Selections {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, selection) in self.iter().enumerate() {
+            if i != 0 {
+                f.write_char(' ')?;
+            }
+            f.write_fmt(format_args!("{selection}"))?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Selection {
     cursor: Position,
@@ -123,6 +150,19 @@ impl Selection {
             desired_cursor_column_index: 0,
             desired_anchor_column_index: 0,
         }
+    }
+
+    pub fn parse(src: &str) -> Result<Self, String> {
+        let mut parts = src.trim().split('-');
+        let (start_src, end_src) = (|| {
+            let start = parts.next()?;
+            let end = parts.next()?;
+            Some((start, end))
+        })()
+        .ok_or_else(|| format!("invalid selection format: {src}"))?;
+        let start = Position::parse(start_src)?;
+        let end = Position::parse(end_src)?;
+        Ok(Self::new().with_anchor(start).with_cursor(end))
     }
 
     pub fn with_position(position: Position) -> Self {
@@ -325,6 +365,12 @@ impl Selection {
 
     fn cursor_is_at_start(&self) -> bool {
         self.cursor <= self.anchor
+    }
+}
+
+impl std::fmt::Display for Selection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}-{}", self.start(), self.end()))
     }
 }
 

@@ -30,9 +30,16 @@ impl View {
         }
     }
 
+    // TODO Maybe these different "position spaces" could have separate types/type aliases to make it clearer what
+    // space a position is expressed in.
     pub fn map_true_position_to_view_position(&self, position: Position) -> Option<Position> {
         self.map_true_position_to_virtual_position(position)
             .and_then(|p| self.map_virtual_position_to_view_position(p))
+    }
+
+    pub fn map_view_position_to_true_position(&self, position: Position) -> Option<Position> {
+        let vpos = self.map_view_position_to_virtual_position(position);
+        self.map_virtual_position_to_true_position(vpos)
     }
 
     pub fn map_virtual_position_to_view_position(&self, position: Position) -> Option<Position> {
@@ -42,7 +49,13 @@ impl View {
         Some(Position::new(column, row))
     }
 
+    pub fn map_view_position_to_virtual_position(&self, position: Position) -> Position {
+        position.offset(self.top_left.to_offset())
+    }
+
     pub fn map_true_position_to_virtual_position(&self, position: Position) -> Option<Position> {
+        // FIXME PERF This is quite slow, can position ranges be cached somehow, instead of having to go through this
+        // whole vbuffer every time?
         if let Some(vbuffer) = self.virtual_buffer.as_ref() {
             // FIXME The position could actually appear mutliple times in the
             // virtual buffer, if a same excerpt is used multiple times. This
@@ -59,6 +72,33 @@ impl View {
                     }
                     column += vfrag.char_count();
                 }
+            }
+            None
+        } else {
+            Some(position)
+        }
+    }
+
+    pub fn map_virtual_position_to_true_position(&self, position: Position) -> Option<Position> {
+        if let Some(vbuffer) = self.virtual_buffer.as_ref() {
+            let vline = vbuffer.lines.get(position.row as usize).unwrap();
+
+            let mut column = 0;
+            for vfrag in &vline.fragments {
+                let after_vfrag_column = column + vfrag.char_count();
+
+                match vfrag {
+                    VirtualFragment::TrueLineExcerpt { row, from, .. } => {
+                        if column <= position.column && position.column <= after_vfrag_column {
+                            let true_row = *row;
+                            let true_column = from + position.column - column;
+                            return Some(Position::new(true_column, true_row));
+                        }
+                    }
+                    _ => {}
+                }
+
+                column = after_vfrag_column;
             }
             None
         } else {

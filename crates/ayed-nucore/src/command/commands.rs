@@ -50,11 +50,19 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("focus-panel", |opt, ctx| {
+    cr.register("panel-focus", |opt, ctx| {
         let panel_name = opt
             .split_whitespace()
             .next()
             .ok_or_else(|| format!("missing panel name"))?;
+
+        match ctx.state.focused_panel {
+            FocusedPanel::Warpdrive => {
+                ctx.panels.warpdrive.clear_state();
+            }
+            _ => (),
+        }
+
         match panel_name {
             "editor" => {
                 ctx.state.focused_panel = FocusedPanel::Editor;
@@ -76,7 +84,12 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     virtual_buffer: None,
                 });
 
+                // TODO the modeline view and buffer handles could just be stored in the panel maybe?
+                // It would avoid having to cleanup and recreate them (but would still need to clear the buffer).
                 ctx.state.focused_panel = FocusedPanel::Modeline(view);
+            }
+            "warpdrive" => {
+                ctx.state.focused_panel = FocusedPanel::Warpdrive;
             }
             _ => return Err(format!("unknown panel '{opt}'")),
         }
@@ -94,7 +107,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let buffer_handle = ctx.state.views.get(view_handle).buffer;
         let line = ctx.state.buffers.get(buffer_handle).first_line();
 
-        ctx.queue.push("focus-panel editor");
+        ctx.queue.push("panel-focus editor");
         if !line.is_empty() {
             ctx.queue.push(line);
         }
@@ -139,12 +152,24 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("merge-overlapping-selections", |_opt, ctx| {
+    cr.register("selections-merge-overlapping", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
             let view = ctx.state.views.get_mut(view_handle);
             let mut selections = view.selections.borrow_mut();
             *selections = selections.overlapping_selections_merged()
         }
+
+        Ok(())
+    });
+
+    cr.register("selections-set", |opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get_mut(view_handle);
+        let mut selections = view.selections.borrow_mut();
+        *selections = Selections::parse(&opt)?;
 
         Ok(())
     });
@@ -231,7 +256,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         }
 
         *view.selections.borrow_mut() = selections;
-        ctx.queue.push("merge-overlapping-selections");
+
+        // FIXME these are being done often in this file, they probably should be hooked
+        // to some events, like buffer-modified and selections-modified.
+        ctx.queue.push("selections-merge-overlapping");
         ctx.queue.push("look-keep-primary-cursor-in-view");
 
         Ok(())
@@ -341,7 +369,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
 
         *view.selections.borrow_mut() = selections;
 
-        ctx.queue.push("merge-overlapping-selections");
+        ctx.queue.push("selections-merge-overlapping");
         ctx.queue.push("look-keep-primary-cursor-in-view");
         Ok(())
     });
@@ -376,7 +404,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         }
 
         *view.selections.borrow_mut() = selections;
-        ctx.queue.push("merge-overlapping-selections");
+        ctx.queue.push("selections-merge-overlapping");
 
         Ok(())
     });
@@ -428,7 +456,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             buffer.delete_selection(&sel)?;
         }
 
-        ctx.queue.push("merge-overlapping-selections");
+        ctx.queue.push("selections-merge-overlapping");
         ctx.events.emit("buffer-modified", "");
         Ok(())
     });
@@ -474,7 +502,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             }
         }
 
-        ctx.queue.push("merge-overlapping-selections");
+        ctx.queue.push("selections-merge-overlapping");
         ctx.events.emit("buffer-modified", "");
         Ok(())
     });

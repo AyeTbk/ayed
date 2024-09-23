@@ -17,6 +17,23 @@ impl Position {
         Self { column, row }
     }
 
+    pub fn parse(src: &str) -> Result<Self, String> {
+        let mut parts = src.trim().split(':');
+        let (row_src, column_src) = (|| {
+            let start = parts.next()?;
+            let end = parts.next()?;
+            Some((start, end))
+        })()
+        .ok_or_else(|| format!("invalid position format: {src}"))?;
+        let row = row_src
+            .parse::<u32>()
+            .map_err(|_| format!("invalid row: {row_src}"))?;
+        let column = column_src
+            .parse::<u32>()
+            .map_err(|_| format!("invalid column: {column_src}"))?;
+        Ok(Self::new(column, row))
+    }
+
     pub fn offset(&self, offset: impl Into<Offset>) -> Self {
         let offset = offset.into();
         let column = self.column.saturating_add_signed(offset.column);
@@ -86,6 +103,12 @@ impl From<(u32, u32)> for Position {
             column: value.0,
             row: value.1,
         }
+    }
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}:{}", self.row, self.column))
     }
 }
 

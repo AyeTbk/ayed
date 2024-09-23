@@ -154,17 +154,13 @@ impl Editor {
         // Syntax highlight
         if let Some(highlights) = state.highlights.get(&view.buffer) {
             spans.extend(highlights.iter().filter_map(|hl| {
-                let from = view.map_true_position_to_view_position(hl.styled_region.from);
-                let to = view.map_true_position_to_view_position(hl.styled_region.to);
-                if let (Some(from), Some(to)) = (from, to) {
-                    Some(StyledRegion {
-                        from,
-                        to,
-                        ..hl.styled_region
-                    })
-                } else {
-                    None
-                }
+                let from = view.map_true_position_to_view_position(hl.styled_region.from)?;
+                let to = view.map_true_position_to_view_position(hl.styled_region.to)?;
+                Some(StyledRegion {
+                    from,
+                    to,
+                    ..hl.styled_region
+                })
             }));
         }
 

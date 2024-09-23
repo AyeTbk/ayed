@@ -61,8 +61,9 @@ impl Config {
         &self.current_config.syntax
     }
 
-    pub fn get_keybind_else_insert_char(&self) -> bool {
-        (|| Some(self.get("keybinds")?.get("else")?.get(0)? == "insert-char"))().unwrap_or(false)
+    pub fn get_keybind_else(&self) -> Option<&[String]> {
+        let else_value = self.get("keybinds")?.get("else")?;
+        Some(else_value.as_slice())
     }
 
     fn rebuild_current_config(&mut self) {

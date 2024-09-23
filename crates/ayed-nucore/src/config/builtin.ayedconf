@@ -35,9 +35,17 @@ panel modeline {
     use basic-deletion
 
     keybinds {
-        <esc> focus-panel editor
+        <esc> panel-focus editor
         <ret> modeline-exec
         else insert-char
+    }
+}
+
+@override
+panel warpdrive {
+    keybinds {
+        <esc> panel-focus editor
+        else warpdrive-input
     }
 }
 
@@ -72,8 +80,10 @@ mode text/command {
 
         k delete
 
-        : focus-panel modeline
+        : panel-focus modeline
         i state-set mode text/insert
+
+        g warpdrive
     }
 }
 

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::{event::EventRegistry, state::State};
+use crate::{event::EventRegistry, panels::Panels, state::State};
 
 pub mod commands;
 pub mod options;
@@ -46,6 +46,7 @@ pub struct ExecuteCommandContext<'a> {
     pub events: &'a mut EventRegistry,
     pub queue: &'a mut CommandQueue,
     pub state: &'a mut State,
+    pub panels: &'a mut Panels,
 }
 
 #[derive(Debug)]

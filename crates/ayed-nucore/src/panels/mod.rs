@@ -10,7 +10,7 @@ pub use self::line_numbers::LineNumbers;
 pub mod modeline;
 pub use self::modeline::Modeline;
 
-mod warpdrive;
+pub mod warpdrive;
 pub use self::warpdrive::Warpdrive;
 
 #[derive(Default)]

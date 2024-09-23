@@ -8,9 +8,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
         if let Some(command) = ctx.state.config.get_keybind(input) {
             ctx.queue.push(command);
-        } else if ctx.state.config.get_keybind_else_insert_char() {
-            if let Some(ch) = input.char() {
-                ctx.queue.push(format!("insert-char {ch}"));
+        } else if let Some(cmd) = ctx.state.config.get_keybind_else() {
+            if cmd.len() == 1 {
+                let ch = input.char().unwrap_or_default();
+                let cmd = cmd.first().expect("len is 1");
+                ctx.queue.push(format!("{cmd} {ch}"));
+            } else {
+                ctx.queue.push(cmd.join(" "));
             }
         }
 

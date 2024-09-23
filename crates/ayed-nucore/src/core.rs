@@ -3,7 +3,7 @@ use crate::{
     config,
     event::EventRegistry,
     input::Input,
-    panels::Panels,
+    panels::{self, Panels},
     state::State,
     ui::{ui_state::UiState, Rect, Size},
 };
@@ -24,6 +24,11 @@ impl Core {
 
         config::commands::register_builtin_commands(&mut this.commands, &mut this.events);
         this.state.config = config::make_builtin_config();
+
+        panels::warpdrive::commands::register_warpdrive_commands(
+            &mut this.commands,
+            &mut this.events,
+        );
 
         this.events.emit("started", "");
         this.tick();
@@ -75,6 +80,7 @@ impl Core {
                     events: &mut self.events,
                     queue: &mut self.queue,
                     state: &mut self.state,
+                    panels: &mut self.panels,
                 },
             );
 
@@ -99,11 +105,15 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
-        let panels = vec![
+        let mut panels = vec![
             self.panels.editor.render(&self.state),
             self.panels.line_numbers.render(&self.state),
             self.panels.modeline.render(&self.state),
         ];
+
+        if let Some(ui_panel) = self.panels.warpdrive.render(&self.state) {
+            panels.push(ui_panel);
+        }
 
         UiState { panels }
     }
@@ -126,6 +136,8 @@ impl Core {
             editor_height,
         ));
         self.state.editor_size = self.panels.editor.rect().size();
+
+        self.panels.warpdrive.set_rect(self.panels.editor.rect());
 
         self.panels
             .line_numbers
