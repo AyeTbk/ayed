@@ -43,11 +43,11 @@ pub fn byte_index_to_char_index(s: &str, byte_idx: usize) -> Option<u32> {
         let mut ch_idx = 0;
         let mut found_it = false;
         for (i, (idx, _)) in s.char_indices().chain(Some((s.len(), '\n'))).enumerate() {
-            if idx > byte_idx {
+            ch_idx = i as u32;
+            if idx >= byte_idx {
                 found_it = true;
                 break;
             }
-            ch_idx = i as u32;
         }
         found_it.then_some(ch_idx)
     }

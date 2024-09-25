@@ -10,9 +10,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
             ctx.queue.push(command);
         } else if let Some(cmd) = ctx.state.config.get_keybind_else() {
             if cmd.len() == 1 {
-                let ch = input.char().unwrap_or_default();
-                let cmd = cmd.first().expect("len is 1");
-                ctx.queue.push(format!("{cmd} {ch}"));
+                if let Some(ch) = input.char() {
+                    let cmd = cmd.first().expect("len is 1");
+                    ctx.queue.push(format!("{cmd} {ch}"));
+                }
             } else {
                 ctx.queue.push(cmd.join(" "));
             }

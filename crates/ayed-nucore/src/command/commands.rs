@@ -30,6 +30,22 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
+    cr.register("buffer-write", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        buffer.write_atomic()?;
+
+        Ok(())
+    });
+    cr.register("w", |opt, ctx| {
+        ctx.queue.push(format!("buffer-write {opt}"));
+        Ok(())
+    });
+
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
     cr.register("state-set", |opt, ctx| {
@@ -228,6 +244,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
 
         let view = ctx.state.views.get(view_handle);
         let buffer = ctx.state.buffers.get_mut(view.buffer);
+
         let mut selections = view.selections.borrow().clone();
 
         for selection in selections.iter_mut() {
@@ -336,9 +353,14 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     })
                     .next();
                 if let Some(matsh) = maybe_match {
+                    dbg!(line.len());
+                    dbg!(matsh.start());
                     let start_column = byte_index_to_char_index(line, matsh.start()).unwrap();
-                    let end_column =
-                        byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap();
+                    let end_column = if matsh.is_empty() {
+                        start_column
+                    } else {
+                        byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap()
+                    };
                     *selection = if next {
                         selection.with_cursor(Position::new(end_column, row))
                     } else {

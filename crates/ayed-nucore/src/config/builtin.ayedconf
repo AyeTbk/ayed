@@ -62,28 +62,28 @@ mode text/command {
     use basic-deletion
 
     keybinds {
-        w move u
-        W move u anchored
-        s move d
-        S move d anchored
-        a move l
-        A move l anchored
-        <c-a> move-regex --reversed \w+|[^\s\w]+
-        d move r
-        D move r anchored
-        <c-d> move-regex \w+|[^\s\w]+
+        i move u
+        I move u anchored
+        k move d
+        K move d anchored
+        j move l
+        J move l anchored
+        <c-j> move-regex --reversed \w+|[^\s\w]+
+        l move r
+        L move r anchored
+        <c-l> move-regex \w+|[^\s\w]+
     
         C dupe d
         <a-C> dupe u
         ; selection-shrink
         <a-;> selection-flip
 
-        k delete
+        d delete
 
         : panel-focus modeline
-        i state-set mode text/insert
+        q state-set mode text/insert
 
-        g warpdrive
+        w warpdrive
     }
 }
 

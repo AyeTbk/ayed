@@ -39,6 +39,45 @@ impl TextBuffer {
         })
     }
 
+    pub fn write_atomic(&self) -> Result<(), String> {
+        let path = self
+            .path
+            .as_ref()
+            .ok_or_else(|| "missing path".to_string())?;
+        self.write_to_atomic(path)
+    }
+
+    pub fn write_to_atomic(&self, path: &str) -> Result<(), String> {
+        // Find unique name for tmp file.
+        // Write to new tmp file with unique name.
+        // Rename tmp file to intended name.
+
+        let tmp_path = format!("{path}.ayed-tmp");
+        let tmp_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+            .map_err(map_io_err)?;
+
+        let mut buf_tmp_file = std::io::BufWriter::new(tmp_file);
+        self.write_content(&mut buf_tmp_file).map_err(map_io_err)?;
+
+        std::fs::rename(tmp_path, path).map_err(map_io_err)?;
+
+        Ok(())
+    }
+
+    fn write_content<W: std::io::Write>(&self, w: &mut W) -> Result<(), std::io::Error> {
+        for (i, line) in self.lines.iter().enumerate() {
+            if i != 0 {
+                w.write_all(&[b'\n'])?;
+            }
+            dbg!(line.as_bytes());
+            w.write_all(line.as_bytes())?;
+        }
+        Ok(())
+    }
+
     pub fn add_selections(&mut self, selections: &Ref<Selections>) {
         self.selections.push(Ref::downgrade(selections));
     }
@@ -341,4 +380,8 @@ impl TextBuffer {
             pos.offset((0, -1))
         }
     }
+}
+
+fn map_io_err(err: std::io::Error) -> String {
+    err.to_string()
 }

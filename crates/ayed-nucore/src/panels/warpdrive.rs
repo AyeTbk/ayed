@@ -86,6 +86,8 @@ static REGEX_JUMP_POINT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").u
 
 impl WarpdriveState {
     pub fn new(ctx: &ExecuteCommandContext, view_handle: Handle<View>) -> WarpdriveState {
+        // TODO allow providing the regex for jump points
+
         let view = ctx.state.views.get(view_handle);
         let mut content = ctx.panels.editor.render(&ctx.state).content;
 
@@ -144,7 +146,8 @@ impl WarpdriveState {
                 }
             }
         }
-        assign_codes_recursive(&mut jump_points, &[], 'a'..='z');
+        let alphabet = 'a'..='z';
+        assign_codes_recursive(&mut jump_points, &[], alphabet);
 
         // Insert codes in content
         for (jump_point, indices) in jump_points.iter().zip(jump_points_indices.iter()) {
