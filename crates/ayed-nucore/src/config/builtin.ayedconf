@@ -18,6 +18,9 @@ mixin basic-movement {
         <s-right> move r anchored
         <c-right> move-regex \w+|[^\s\w]+
         <cs-right> move-regex --anchored \w+|[^\s\w]+
+
+        <home> move-regex --reversed --keepline ^
+        <end> move-regex --keepline $
     }
 }
 
@@ -77,6 +80,9 @@ mode text/command {
         <a-C> dupe u
         ; selection-shrink
         <a-;> selection-flip
+
+        o $[ move-regex --keepline $$ ; insert-char \n ; state-set mode text/insert ]
+        <s-o> $[ move-regex --reversed --keepline ^ ; insert-char \n ; move u ; state-set mode text/insert ]
 
         d delete
 

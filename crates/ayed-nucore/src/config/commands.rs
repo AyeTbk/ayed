@@ -6,16 +6,20 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
     cr.register("map-input", |opt, ctx| {
         let input = Input::parse(&opt).map_err(|_| format!("invalid input: {opt}"))?;
 
-        if let Some(command) = ctx.state.config.get_keybind(input) {
-            ctx.queue.push(command);
-        } else if let Some(cmd) = ctx.state.config.get_keybind_else() {
-            if cmd.len() == 1 {
+        if let Some(cmds) = ctx.state.config.get_keybind(input) {
+            for cmd in cmds {
+                ctx.queue.push(cmd);
+            }
+        } else if let Some(cmds) = ctx.state.config.get_keybind_else() {
+            if cmds.len() == 1 {
                 if let Some(ch) = input.char() {
-                    let cmd = cmd.first().expect("len is 1");
+                    let cmd = cmds.first().expect("len is 1");
                     ctx.queue.push(format!("{cmd} {ch}"));
                 }
             } else {
-                ctx.queue.push(cmd.join(" "));
+                for cmd in cmds {
+                    ctx.queue.push(cmd);
+                }
             }
         }
 

@@ -40,7 +40,7 @@ impl Config {
         self.rebuild_current_config();
     }
 
-    pub fn get_keybind(&self, input: Input) -> Option<String> {
+    pub fn get_keybind(&self, input: Input) -> Option<&[String]> {
         // TODO have a map of actual inputs in the Applied config instead of this.
         for (k, v) in self.get("keybinds")? {
             let Some(k_input) = Input::parse(&k).ok() else {
@@ -50,8 +50,7 @@ impl Config {
                 continue;
             };
             if k_input == input {
-                // TODO with the changes introduced with the $[...] syntax, this might be incorrect. Verify
-                return Some(v.join(" "));
+                return Some(v);
             }
         }
         None
@@ -63,7 +62,7 @@ impl Config {
 
     pub fn get_keybind_else(&self) -> Option<&[String]> {
         let else_value = self.get("keybinds")?.get("else")?;
-        Some(else_value.as_slice())
+        Some(&else_value)
     }
 
     fn rebuild_current_config(&mut self) {

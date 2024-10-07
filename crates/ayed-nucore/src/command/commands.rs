@@ -286,9 +286,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let opts = Options::new()
             .flag("reversed")
             .flag("anchored")
+            .flag("keepline")
             .parse(opt)?;
         let next = !opts.contains("reversed");
         let anchored = opts.contains("anchored");
+        let keepline = opts.contains("keepline");
         let pattern = opts.remainder();
 
         let Some(view_handle) = ctx.state.focused_view() else {
@@ -312,6 +314,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                         index
                     } else {
                         if line.is_empty() {
+                            if keepline {
+                                break;
+                            }
                             if row == 0 {
                                 break;
                             }
@@ -341,7 +346,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                                 m.start() <= start_index
                             }
                         } else {
-                            let line_end = line.len() - 1;
+                            let line_end = line.len().saturating_sub(1);
                             let cursor_at_line_end_fix = !(row == selection.cursor().row
                                 && selection.cursor().column as usize == line_end);
                             if start_index == line_end && cursor_at_line_end_fix {
@@ -353,8 +358,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     })
                     .next();
                 if let Some(matsh) = maybe_match {
-                    dbg!(line.len());
-                    dbg!(matsh.start());
                     let start_column = byte_index_to_char_index(line, matsh.start()).unwrap();
                     let end_column = if matsh.is_empty() {
                         start_column
@@ -376,6 +379,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     break;
                 }
 
+                if keepline {
+                    break;
+                }
                 if next {
                     row += 1;
                     begin_column = 0;
@@ -436,10 +442,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             return Ok(());
         };
 
-        let the_char = opt
-            .chars()
-            .next()
-            .ok_or_else(|| format!("not a char: {opt}"))?;
+        let the_char = if opt == r"\n" {
+            '\n'
+        } else {
+            opt.chars()
+                .next()
+                .ok_or_else(|| format!("not a char: {opt}"))?
+        };
 
         let view = ctx.state.views.get(view_handle);
         let buffer = ctx.state.buffers.get_mut(view.buffer);
