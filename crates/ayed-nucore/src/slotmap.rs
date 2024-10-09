@@ -106,7 +106,7 @@ impl<V, K> SlotMap<V, K> {
         let slot = self
             .slots
             .get_mut(k.id as usize)
-            .filter(|slot| slot.generation == k.id)
+            .filter(|slot| slot.generation == k.generation)
             .ok_or(StaleHandleError)
             .unwrap();
         let maybe_value = slot.element.take().ok_or(StaleHandleError);

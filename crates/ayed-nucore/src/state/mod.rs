@@ -40,6 +40,20 @@ impl State {
         Ok(self.buffers.insert(TextBuffer::new_from_path(path)?))
     }
 
+    pub fn open_scratch(&mut self) -> Handle<TextBuffer> {
+        self.buffers.insert(TextBuffer::new_empty())
+    }
+
+    pub fn open_file_or_scratch(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
+        if let Ok(true) = std::fs::exists(path) {
+            self.open_file(path)
+        } else {
+            let mut buffer = TextBuffer::new_empty();
+            buffer.set_path(path);
+            Ok(self.buffers.insert(buffer))
+        }
+    }
+
     pub fn buffer_with_path(&self, path: &str) -> Option<Handle<TextBuffer>> {
         self.buffers
             .iter()
@@ -97,15 +111,22 @@ impl State {
             align: Align::Right,
         };
 
-        let path_info = ModelineInfo {
-            text: self
-                .active_editor_buffer_path()
-                .unwrap_or("<no path>")
-                .to_string(),
-            style: Style::default(),
-            align: Align::Right,
-        };
+        let mut infos = vec![mode_info, input_info];
 
-        self.modeline.infos = vec![mode_info, input_info, path_info]
+        if let Some(active_editor_buffer_handle) = self.active_editor_buffer() {
+            let buffer = self.buffers.get(active_editor_buffer_handle);
+            let mut path_text = buffer.path().unwrap_or("<scratch>").to_string();
+            if buffer.is_dirty() {
+                path_text.push_str("*");
+            }
+            let path_info = ModelineInfo {
+                text: path_text,
+                style: Style::default(),
+                align: Align::Right,
+            };
+            infos.push(path_info);
+        }
+
+        self.modeline.infos = infos;
     }
 }

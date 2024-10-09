@@ -16,26 +16,41 @@ use crate::{
 use super::{options::Options, CommandRegistry};
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
+    cr.register("quit", |_opt, ctx| {
+        for (_, view) in ctx.state.views.iter() {
+            let buffer = ctx.state.buffers.get(view.buffer);
+            if buffer.is_dirty() {
+                return Err(format!("there are unsaved changes"));
+            }
+        }
+        ctx.state.quit_requested = true;
+        Ok(())
+    });
     cr.register("quit!", |_opt, ctx| {
         ctx.state.quit_requested = true;
+        Ok(())
+    });
+    cr.register("q", |_opt, ctx| {
+        ctx.queue.push("quit");
         Ok(())
     });
     cr.register("q!", |_opt, ctx| {
         ctx.queue.push("quit!");
         Ok(())
     });
-    // FIXME remove or add check if there are unsaved changes
-    cr.register("q", |_opt, ctx| {
-        ctx.queue.push("quit!");
-        Ok(())
-    });
 
-    cr.register("buffer-write", |_opt, ctx| {
+    cr.register("buffer-write", |opt, ctx| {
+        let path = if opt.is_empty() { None } else { Some(opt) };
+
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
         let view = ctx.state.views.get(view_handle);
         let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        if let Some(path) = path {
+            buffer.set_path(path);
+        }
 
         buffer.write_atomic()?;
 
@@ -72,9 +87,15 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             .next()
             .ok_or_else(|| format!("missing panel name"))?;
 
+        // Cleanup if needed
         match ctx.state.focused_panel {
             FocusedPanel::Warpdrive => {
                 ctx.panels.warpdrive.clear_state();
+            }
+            FocusedPanel::Modeline(view_handle) => {
+                let buffer_handle = ctx.state.views.get(view_handle).buffer;
+                ctx.state.views.remove(view_handle);
+                ctx.state.buffers.remove(buffer_handle);
             }
             _ => (),
         }
@@ -84,7 +105,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                 ctx.state.focused_panel = FocusedPanel::Editor;
             }
             "modeline" => {
-                // FIXME cleanup old view and buffer
                 let selections = Ref::new(RefCell::new(Selections::new()));
 
                 let buffer = ctx.state.buffers.insert(TextBuffer::new_empty());
@@ -132,15 +152,23 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
     });
 
     cr.register("edit", |opt, ctx| {
-        let path = opt;
-        let buffer_handle = match ctx.state.buffer_with_path(path) {
-            Some(handle) => handle,
-            None => {
-                let handle = ctx.state.open_file(path)?;
-                ctx.events.emit("buffer-opened", path);
-                handle
+        let opts = Options::new().flag("scratch").parse(opt)?;
+        let scratch = opts.contains("scratch");
+        let path = opts.remainder();
+
+        let buffer_handle;
+        if path.is_empty() && scratch {
+            buffer_handle = ctx.state.open_scratch();
+            ctx.events.emit("buffer-opened", "");
+        } else {
+            match ctx.state.buffer_with_path(path) {
+                Some(handle) => buffer_handle = handle,
+                None => {
+                    buffer_handle = ctx.state.open_file_or_scratch(path)?;
+                    ctx.events.emit("buffer-opened", path);
+                }
             }
-        };
+        }
 
         let view_handle = match ctx.state.view_with_buffer(buffer_handle) {
             Some(handle) => handle,

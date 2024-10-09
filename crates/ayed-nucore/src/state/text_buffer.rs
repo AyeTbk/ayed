@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use crate::{
     position::{Offset, Position},
     selection::{Selection, Selections},
@@ -17,6 +19,7 @@ pub struct TextBuffer {
     lines: Vec<String>,
     selections: Vec<WeakRef<Selections>>,
     path: Option<String>,
+    dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
 }
 
 impl TextBuffer {
@@ -25,6 +28,7 @@ impl TextBuffer {
             lines: vec![String::new()], // Uphold #1.
             selections: vec![],
             path: None,
+            dirty: Default::default(),
         }
     }
 
@@ -36,6 +40,7 @@ impl TextBuffer {
             lines,
             selections: Vec::new(),
             path: Some(path.to_string()),
+            dirty: Default::default(),
         })
     }
 
@@ -64,6 +69,8 @@ impl TextBuffer {
 
         std::fs::rename(tmp_path, path).map_err(map_io_err)?;
 
+        self.dirty.set(false);
+
         Ok(())
     }
 
@@ -72,10 +79,17 @@ impl TextBuffer {
             if i != 0 {
                 w.write_all(&[b'\n'])?;
             }
-            dbg!(line.as_bytes());
             w.write_all(line.as_bytes())?;
         }
         Ok(())
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty.get()
+    }
+
+    fn mark_dirty(&self) {
+        self.dirty.set(true);
     }
 
     pub fn add_selections(&mut self, selections: &Ref<Selections>) {
@@ -84,6 +98,10 @@ impl TextBuffer {
 
     pub fn path(&self) -> Option<&str> {
         self.path.as_ref().map(String::as_str)
+    }
+
+    pub fn set_path<P: Into<String>>(&mut self, path: impl Into<Option<P>>) {
+        self.path = path.into().map(Into::into);
     }
 
     pub fn line(&self, row_index: u32) -> Option<&str> {
@@ -194,6 +212,8 @@ impl TextBuffer {
             self.adjust_selections_after_insert_char(at);
         }
 
+        self.mark_dirty();
+
         Ok(())
     }
 
@@ -209,6 +229,8 @@ impl TextBuffer {
         self.lines.insert(at.row.saturating_add(1) as _, rest);
 
         self.adjust_selections_after_split_line(at);
+
+        self.mark_dirty();
 
         Ok(())
     }
@@ -229,6 +251,8 @@ impl TextBuffer {
             self.adjust_selections_after_delete_at(at);
         }
 
+        self.mark_dirty();
+
         Ok(())
     }
 
@@ -236,6 +260,9 @@ impl TextBuffer {
         for _ in 0..self.selection_char_count(selection) {
             self.delete_at(selection.start())?;
         }
+
+        self.mark_dirty();
+
         Ok(())
     }
 
@@ -255,6 +282,8 @@ impl TextBuffer {
         line.push_str(&next_line);
 
         self.adjust_selections_after_join_line_with_next(row, original_line_char_count);
+
+        self.mark_dirty();
 
         Ok(())
     }
