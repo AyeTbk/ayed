@@ -20,7 +20,9 @@ mixin basic-movement {
         <cs-right> move-regex --anchored \w+|[^\s\w]+
 
         <home> move-regex --reversed --keepline ^
+        <s-home> move-regex --reversed --anchored --keepline ^
         <end> move-regex --keepline $
+        <s-end> move-regex --anchored --keepline $
     }
 }
 
@@ -65,10 +67,10 @@ mode text/command {
     use basic-deletion
 
     keybinds {
-        i move u
-        I move u anchored
-        k move d
-        K move d anchored
+        k move u
+        K move u anchored
+        h move d
+        H move d anchored
         j move l
         J move l anchored
         <c-j> move-regex --reversed \w+|[^\s\w]+
@@ -84,10 +86,15 @@ mode text/command {
         o $[ move-regex --keepline $$ ; insert-char \n ; state-set mode text/insert ]
         <s-o> $[ move-regex --reversed --keepline ^ ; insert-char \n ; move u ; state-set mode text/insert ]
 
+        x $[ map-input <home> ; map-input <s-end> ]
+
         d delete
 
         : panel-focus modeline
-        q state-set mode text/insert
+
+        <backtab> state-set mode text/insert
+        i state-set mode text/insert
+        <s-i> $[ map-input <home> ; state-set mode text/insert ]
 
         w warpdrive
     }
@@ -97,8 +104,13 @@ mode text/insert {
     use basic-movement
     use basic-deletion
 
+    hooks {
+        state-modified:mode selection-flip --backward
+    }
+
     keybinds {
         <backtab> state-set mode text/command
+        <a-l> state-set mode text/command
         <esc> state-set mode text/command
         else insert-char
     }

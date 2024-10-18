@@ -578,13 +578,23 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("selection-flip", |_opt, ctx| {
+    cr.register("selection-flip", |opt, ctx| {
+        let opts = Options::new().flag("forward").flag("backward").parse(opt)?;
+        let forward = opts.contains("forward");
+        let backward = opts.contains("backward");
+
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
         let view = ctx.state.views.get(view_handle);
         for selection in view.selections.borrow_mut().iter_mut() {
-            *selection = selection.flipped();
+            *selection = if forward {
+                selection.flipped_forward()
+            } else if backward {
+                selection.flipped_forward().flipped()
+            } else {
+                selection.flipped()
+            };
         }
 
         Ok(())

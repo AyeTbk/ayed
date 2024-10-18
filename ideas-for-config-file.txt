@@ -69,6 +69,8 @@ panel modeline {
     }
 }
 
+def enter-insert-mode $[ a ; b ]
+
 # You could define constants like this.
 # I feel like constants could literally just be states. Would probably be powerfull (and problems will probably arise from it too)
 def KEYWORD-COLOR #4488cf
@@ -92,9 +94,6 @@ syntax-style {
 def .rs .*\.rs
 
 file $.rs {
-    # This is a recipe for disaster... let's do it
-    set mode insert
-
     # raw annotation before a block prevents using $bleh expansions within that block so that $ doesnt need to be escaped
     @raw
     syntax {
