@@ -1,4 +1,8 @@
+use super::char_index_to_byte_index;
+
 const ELLIPSIS: &'static str = " …";
+
+// TODO rewrite/fix this to be better aware of char boundaries.
 
 pub struct LineBuilder<'a, Data> {
     line_length: usize,
@@ -52,10 +56,10 @@ impl<'a, Data> LineBuilder<'a, Data> {
                 None
             };
 
-        buf.replace_range(
-            ..left_aligned_space,
-            &left_aligned_content[..left_aligned_space],
-        );
+        // NOTE this is a crappy fix
+        let lasb = char_index_to_byte_index(&left_aligned_content, left_aligned_space as u32)
+            .unwrap_or_default();
+        buf.replace_range(..left_aligned_space, &left_aligned_content[..lasb]);
         buf.replace_range(
             right_aligned_buf_start_idx..,
             &right_aligned_content[right_aligned_slice_start_idx..],
