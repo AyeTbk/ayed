@@ -102,6 +102,11 @@ impl Core {
         }
 
         self.state.fill_modeline_infos();
+
+        // Update the viewport is needed here since the size of some panels
+        // (ex: line numbers) depends on the contents, which might have been
+        // modified.
+        self.update_viewport_size(self.state.viewport_size);
     }
 
     pub fn render(&mut self) -> UiState {
