@@ -1,75 +1,98 @@
 use crate::{
-    ui_state::{Color, Span, Style, UiPanel},
-    utils::{Position, Rect},
+    position::Position,
+    state::State,
+    ui::{
+        ui_state::{StyledRegion, UiPanel},
+        Color, Rect, Style,
+    },
 };
 
+#[derive(Default)]
 pub struct LineNumbers {
     rect: Rect,
-    total_line_count: u32,
-    start_line: u32,
 }
 
 impl LineNumbers {
-    pub fn new() -> Self {
-        Self {
-            rect: Rect::new(0, 0, 2, 2),
-            start_line: 0,
-            total_line_count: 1,
-        }
-    }
+    const RIGHT_PAD_LEN: u32 = 2;
 
-    pub fn set_line_data(&mut self, total_line_count: u32, start_line: u32) {
-        self.total_line_count = total_line_count;
-        self.start_line = start_line;
+    pub fn rect(&self) -> Rect {
+        self.rect
     }
 
     pub fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
     }
 
-    pub fn needed_width(&self) -> u32 {
-        self.numbers_width() + self.right_padding_width()
+    pub fn required_width(&self, state: &State) -> u32 {
+        let Some(buffer_handle) = state.active_editor_buffer() else {
+            return 2;
+        };
+        let max_line = state.buffers.get(buffer_handle).line_count();
+        const LEFT_PAD_LEN: u32 = 1;
+        let width = (max_line.ilog10() + 1) + LEFT_PAD_LEN + Self::RIGHT_PAD_LEN;
+        width
     }
 
-    pub fn numbers_width(&self) -> u32 {
-        let line_count_log = (self.total_line_count as f32).log10() as u32;
-        line_count_log + 1
-    }
-
-    pub fn right_padding_width(&self) -> u32 {
-        2
-    }
-
-    pub fn render(&self) -> UiPanel {
+    pub fn render(&self, state: &State) -> UiPanel {
         let mut content = Vec::new();
         let mut spans = Vec::new();
 
-        for i in 0..self.rect.height {
-            let line_no = i + self.start_line + 1;
-            let content_line = if line_no <= self.total_line_count {
-                let line_no_str = line_no.to_string();
-                let padding_len = (self.numbers_width() as usize).saturating_sub(line_no_str.len());
-                let padding_str = " ".repeat(padding_len);
-                let right_padding = " ".repeat(self.right_padding_width() as usize);
-                format!("{padding_str}{line_no_str}{right_padding}")
-            } else {
-                " ".repeat(self.needed_width() as usize)
+        let Some(view) = state.active_editor_view.map(|h| state.views.get(h)) else {
+            return UiPanel {
+                position: Position::ZERO,
+                size: self.rect.size(),
+                content: Vec::new(),
+                spans,
             };
-            spans.push(Span {
+        };
+
+        let buffer = state.buffers.get(view.buffer);
+
+        let width = self.rect.width;
+        let mut previous_number = 0;
+        for i in 0..state.focused_view_rect().height {
+            let Some(line_number) = view.map_view_line_idx_to_line_number(i) else {
+                content.push(" ".repeat(width as usize));
+                continue;
+            };
+
+            let should_be_blank =
+                (line_number == previous_number) || (line_number > buffer.line_count());
+            previous_number = line_number;
+            if should_be_blank {
+                content.push(" ".repeat(width as usize));
+                continue;
+            }
+
+            let mut s = line_number.to_string();
+            let left_pad_len = (width as usize)
+                .saturating_sub(s.len())
+                .saturating_sub(Self::RIGHT_PAD_LEN as _);
+            s.insert_str(0, &" ".repeat(left_pad_len));
+            s.push_str(&" ".repeat(Self::RIGHT_PAD_LEN as _));
+            content.push(s);
+
+            let current_row = { view.selections.borrow().primary().cursor().row };
+            let color = if current_row + 1 == line_number {
+                Color::rgb(230, 230, 230)
+            } else if line_number == buffer.line_count() {
+                Color::rgb(81, 81, 81)
+            } else {
+                Color::rgb(140, 140, 140)
+            };
+            spans.push(StyledRegion {
                 from: Position::new(0, i),
-                to: Position::new(content_line.len() as u32, i),
+                to: Position::new(width, i),
                 style: Style {
-                    foreground_color: Some(Color::rgb(127, 127, 127)),
-                    background_color: None,
+                    foreground_color: Some(color),
                     ..Default::default()
                 },
                 ..Default::default()
-            });
-            content.push(content_line);
+            })
         }
 
         UiPanel {
-            position: self.rect.top_left(),
+            position: Position::ZERO,
             size: self.rect.size(),
             content,
             spans,

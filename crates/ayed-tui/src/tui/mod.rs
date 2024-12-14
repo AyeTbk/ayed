@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use ayed_nucore::{
+use ayed_core::{
     core::Core,
     input::{self, Input},
     ui::{ui_state::StyledRegion, Color, Size},

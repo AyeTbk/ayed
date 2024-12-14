@@ -1,4 +1,4 @@
-use ayed_nucore::core::Core;
+use ayed_core::core::Core;
 
 mod tui;
 

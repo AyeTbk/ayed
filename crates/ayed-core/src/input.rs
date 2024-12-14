@@ -8,40 +8,51 @@ pub struct Input {
 
 impl Input {
     pub fn new(key: Key, modifiers: Modifiers) -> Self {
-        Self { key, modifiers }
+        Self { key, modifiers }.normalized()
     }
 
     pub fn from_char_mods(ch: char, mut modifiers: Modifiers) -> Self {
-        if ch.is_uppercase() {
+        if ch.is_ascii_uppercase() {
             modifiers.shift = true;
         }
-        Self {
-            key: Key::Char(ch),
-            modifiers,
-        }
+        Self::new(Key::Char(ch), modifiers)
     }
 
     pub fn from_char(ch: char) -> Self {
         Self::from_char_mods(ch, Default::default())
     }
 
-    pub fn normalized(self) -> Self {
-        if let Key::Char(ch) = self.key {
-            let key = Key::from_char_normalized(ch);
-            let mut modifiers = self.modifiers;
-            if ch.is_uppercase() {
-                modifiers.shift = true;
-            }
-            Self { key, modifiers }
+    pub fn char(&self) -> Option<char> {
+        let Key::Char(ch) = self.key else {
+            return None;
+        };
+
+        if self.modifiers.shift() {
+            Some(ch.to_ascii_uppercase())
         } else {
-            self
+            Some(ch)
         }
     }
 
-    pub fn char(&self) -> Option<char> {
+    fn normalized(self) -> Self {
         match self.key {
-            Key::Char(ch) => Some(ch),
-            _ => None,
+            Key::Char(ch) => {
+                let key = Key::from_char_normalized(ch);
+                let mut modifiers = self.modifiers;
+                if ch.is_uppercase() {
+                    modifiers.shift = true;
+                }
+                Self { key, modifiers }
+            }
+            Key::BackTab => {
+                let mut modifiers = self.modifiers;
+                modifiers.shift = false;
+                Self {
+                    key: Key::BackTab,
+                    modifiers,
+                }
+            }
+            _ => self,
         }
     }
 
@@ -70,32 +81,29 @@ impl Input {
             // Parse stuff like <ca-k> => ctrl+alt+k
             let modifiers = mod_group_to_modifiers(&captures.get(1).ok_or(())?.as_str())?;
             let key = char_group_to_key(&captures.get(2).ok_or(())?.as_str())?;
-            let input = Self { key, modifiers }.normalized();
-            input
+            Self::new(key, modifiers)
         } else if let Some(captures) = re_key.captures(s) {
             // Parse stuff like <space> => space duh
             let key = char_group_to_key(&captures.get(1).ok_or(())?.as_str())?;
-            Self {
-                key,
-                modifiers: Default::default(),
-            }
+            Self::new(key, Default::default())
         } else if s.len() == 1 {
             // Parse basic keys without explicit modifiers
             let ch = s.chars().next().ok_or(())?;
-            Input::from_char(ch)
+            Self::from_char(ch)
         } else {
             return Err(());
         };
-        Ok(input.normalized())
+        Ok(input)
     }
 
     pub fn serialize(&self, buf: &mut String) {
+        // FIXME make it so it prefers serializing inputs like '<s-a>' to 'A' (only for shift + letter)
         buf.clear();
         if self.key == Key::Char('\0') {
             return;
         }
         if self.modifiers.any() {
-            self.modifiers.serialize(buf);
+            buf.push_str(self.modifiers.as_str());
             buf.push_str("-");
         }
         let is_word = self.key.serialize(buf);
@@ -134,6 +142,7 @@ impl From<Key> for Input {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Key {
     Char(char),
+    BackTab,
     Backspace,
     Delete,
     Up,
@@ -157,8 +166,9 @@ impl Key {
         // Returns whether the key is serialized as a word (true) or as a singular char (false).
         let s = match self {
             Key::Char(' ') => "space",
-            Key::Char('\t') => "tab",
             Key::Char('\n') => "ret",
+            Key::Char('\t') => "tab",
+            Key::BackTab => "backtab",
             Key::Backspace => "backspace",
             Key::Delete => "del",
             Key::Home => "home",
@@ -184,8 +194,9 @@ impl Key {
     pub fn from_string(src: &str) -> Option<Self> {
         let key = match src {
             "space" => Key::Char(' '),
-            "tab" => Key::Char('\t'),
             "ret" => Key::Char('\n'),
+            "tab" => Key::Char('\t'),
+            "backtab" => Key::BackTab,
             "backspace" => Key::Backspace,
             "del" => Key::Delete,
             "home" => Key::Home,
@@ -250,16 +261,25 @@ impl Modifiers {
         self.ctrl || self.shift || self.alt
     }
 
-    pub fn serialize(&self, buf: &mut String) {
-        if self.ctrl {
-            buf.push('c');
+    pub fn as_str(&self) -> &'static str {
+        match (self.ctrl, self.shift, self.alt) {
+            (false, false, false) => "",
+            (true, false, false) => "c",
+            (false, true, false) => "s",
+            (false, false, true) => "a",
+            (true, true, false) => "cs",
+            (true, false, true) => "ca",
+            (false, true, true) => "sa",
+            (true, true, true) => "csa",
         }
-        if self.shift {
-            buf.push('s');
-        }
-        if self.alt {
-            buf.push('a');
-        }
+    }
+}
+
+impl std::fmt::Display for Input {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut buf = String::new();
+        self.serialize(&mut buf);
+        f.write_str(&buf)
     }
 }
 
