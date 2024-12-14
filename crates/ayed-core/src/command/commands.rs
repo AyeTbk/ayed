@@ -15,7 +15,7 @@ use crate::{
 
 use super::{options::Options, CommandRegistry};
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistry) {
     cr.register("quit", |_opt, ctx| {
         for (_, view) in ctx.state.views.iter() {
             let buffer = ctx.state.buffers.get(view.buffer);
@@ -64,6 +64,21 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
     cr.register("state-set", |opt, ctx| {
+        let (state, rest) = opt
+            .split_once(|ch: char| ch.is_ascii_whitespace())
+            .ok_or_else(|| format!("bad options `{}`", opt))?;
+
+        let state = state.trim();
+        let value = rest.trim();
+
+        ctx.events
+            .emit(format!("state-before-modified:{state}"), value);
+
+        ctx.queue.push(format!("state-set__part2 {opt}"));
+
+        Ok(())
+    });
+    cr.register("state-set__part2", |opt, ctx| {
         let (state, rest) = opt
             .split_once(|ch: char| ch.is_ascii_whitespace())
             .ok_or_else(|| format!("bad options `{}`", opt))?;

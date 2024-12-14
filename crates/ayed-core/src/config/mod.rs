@@ -274,15 +274,13 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                 }
             }
             ast::BlockKind::Mapping(ast::MappingBlock { name, entries }) => {
-                let mapping = entries
-                    .iter()
-                    .map(|entry| {
-                        (
-                            entry.name.to_string(),
-                            entry.values.iter().map(|s| s.slice.to_string()).collect(),
-                        )
-                    })
-                    .collect();
+                let mut mapping: HashMap<String, Vec<String>> = Default::default();
+                for entry in entries {
+                    mapping
+                        .entry(entry.name.to_string()) // FIXME unecessary allocation
+                        .or_default()
+                        .extend(entry.values.iter().map(|s| s.slice.to_string()));
+                }
                 mappings.push(ConditionalMapping {
                     name: name.to_string(),
                     selectors: selector_stack.to_vec(),

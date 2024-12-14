@@ -59,7 +59,7 @@ panel warpdrive {
 ### Editing keybinds ###
 
 hooks {
-    started  state-set mode text/command
+    started state-set mode text/command
 }
 
 mode text/command {
@@ -95,24 +95,39 @@ mode text/command {
         <backtab> state-set mode text/insert
         i state-set mode text/insert
         <s-i> $[ map-input <home> ; state-set mode text/insert ]
+        
+        a state-set mode text/append
 
         w warpdrive
     }
 }
 
-mode text/insert {
+mixin mode-insert-append-common {
     use basic-movement
     use basic-deletion
-
-    hooks {
-        state-modified:mode selection-flip --backward
-    }
 
     keybinds {
         <backtab> state-set mode text/command
         <a-l> state-set mode text/command
         <esc> state-set mode text/command
         else insert-char
+    }
+}
+
+mode text/insert {
+    use mode-insert-append-common
+
+    hooks {
+        state-modified:mode selection-flip --backward
+    }
+}
+
+mode text/append {
+    use mode-insert-append-common
+
+    hooks {
+        state-modified:mode $[ selection-flip --forward ; move r anchored ]
+        state-before-modified:mode move l anchored
     }
 }
 
