@@ -44,6 +44,7 @@ impl TextBuffer {
         })
     }
 
+    // FIXME there's no need to specify it's an atomic operation in the name. Just document it.
     pub fn write_atomic(&self) -> Result<(), String> {
         let path = self
             .path

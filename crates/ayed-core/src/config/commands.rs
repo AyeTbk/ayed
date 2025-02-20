@@ -4,6 +4,16 @@ use crate::{
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistry) {
     cr.register("map-input", |opt, ctx| {
+        // hackish support for combo modes
+        let is_combo = ctx
+            .state
+            .config
+            .state_value("mode")
+            .is_some_and(|m| m.starts_with("combo-"));
+        if is_combo {
+            ctx.queue.set_state("mode", "normal");
+        }
+
         let input = Input::parse(&opt).map_err(|_| format!("invalid input: {opt}"))?;
 
         if let Some(cmds) = ctx.state.config.get_keybind(input) {

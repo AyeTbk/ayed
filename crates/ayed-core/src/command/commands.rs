@@ -15,7 +15,7 @@ use crate::{
 
 use super::{options::Options, CommandRegistry};
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
     cr.register("quit", |_opt, ctx| {
         for (_, view) in ctx.state.views.iter() {
             let buffer = ctx.state.buffers.get(view.buffer);
@@ -30,6 +30,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
         ctx.state.quit_requested = true;
         Ok(())
     });
+    // TODO add alias capabilities to command registry
     cr.register("q", |_opt, ctx| {
         ctx.queue.push("quit");
         Ok(())

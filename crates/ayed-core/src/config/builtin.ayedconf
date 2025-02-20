@@ -59,10 +59,10 @@ panel warpdrive {
 ### Editing keybinds ###
 
 hooks {
-    started state-set mode text/command
+    started state-set mode normal
 }
 
-mode text/command {
+mode normal {
     use basic-movement
     use basic-deletion
 
@@ -83,8 +83,8 @@ mode text/command {
         ; selection-shrink
         <a-;> selection-flip
 
-        o $[ move-regex --keepline $$ ; insert-char \n ; state-set mode text/insert ]
-        <s-o> $[ move-regex --reversed --keepline ^ ; insert-char \n ; move u ; state-set mode text/insert ]
+        o $[ move-regex --keepline $$ ; insert-char \n ; state-set mode insert ]
+        <s-o> $[ move-regex --reversed --keepline ^ ; insert-char \n ; move u ; state-set mode insert ]
 
         x $[ map-input <home> ; map-input <s-end> ]
 
@@ -92,11 +92,13 @@ mode text/command {
 
         : panel-focus modeline
 
-        <backtab> state-set mode text/insert
-        i state-set mode text/insert
-        <s-i> $[ map-input <home> ; state-set mode text/insert ]
+        <backtab> state-set mode insert
+        i state-set mode insert
+        <s-i> $[ map-input <home> ; state-set mode insert ]
         
-        a state-set mode text/append
+        a state-set mode append
+
+        <space> state-set mode combo-user
 
         w warpdrive
     }
@@ -107,14 +109,14 @@ mixin mode-insert-append-common {
     use basic-deletion
 
     keybinds {
-        <backtab> state-set mode text/command
-        <a-l> state-set mode text/command
-        <esc> state-set mode text/command
+        <backtab> state-set mode normal
+        <a-l> state-set mode normal
+        <esc> state-set mode normal
         else insert-char
     }
 }
 
-mode text/insert {
+mode insert {
     use mode-insert-append-common
 
     hooks {
@@ -122,7 +124,7 @@ mode text/insert {
     }
 }
 
-mode text/append {
+mode append {
     use mode-insert-append-common
 
     hooks {
@@ -203,3 +205,29 @@ line-wrap wrap {
         resized vbuf-line-wrap-rebuild
     }
 }
+
+
+#############
+### Combo ###
+
+@override
+mode combo-.* {
+    mode combo-user {
+        keybinds {
+            f state-set mode combo-file
+        }
+        keybinds-doc {
+            f File management
+        }
+    }
+
+    mode combo-file {
+        keybinds {
+            s buffer-write
+        }
+        keybinds-doc {
+            s Save file
+        }
+    }
+}
+

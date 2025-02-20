@@ -39,7 +39,11 @@ impl EventRegistry {
 
             if let Some(hooks) = config.get("hooks").and_then(|h| h.get(&ev.event)) {
                 for command in hooks {
-                    emitted.push(format!("{} {}", command, ev.options));
+                    if command.contains(' ') {
+                        emitted.push(format!("{}", command));
+                    } else {
+                        emitted.push(format!("{} {}", command, ev.options));
+                    }
                 }
             }
         }

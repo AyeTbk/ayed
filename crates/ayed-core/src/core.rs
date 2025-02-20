@@ -3,7 +3,7 @@ use crate::{
     config,
     event::EventRegistry,
     input::Input,
-    panels::{self, Panels},
+    panels::{self, FocusedPanel, Panels},
     state::State,
     ui::{ui_state::UiState, Rect, Size},
 };
@@ -101,9 +101,11 @@ impl Core {
             }
         }
 
+        eprintln!("{}", self.queue.take_debug_log());
+
         self.state.fill_modeline_infos();
 
-        // Update the viewport is needed here since the size of some panels
+        // Updating the viewport is needed here since the size of some panels
         // (ex: line numbers) depends on the contents, which might have been
         // modified.
         self.update_viewport_size(self.state.viewport_size);
@@ -118,6 +120,12 @@ impl Core {
 
         if let Some(ui_panel) = self.panels.warpdrive.render(&self.state) {
             panels.push(ui_panel);
+        }
+
+        let mode = self.state.config.state_value("mode");
+        let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
+        if show_combo {
+            panels.push(self.panels.combo.render(&self.state));
         }
 
         UiState { panels }
@@ -143,6 +151,7 @@ impl Core {
         self.state.editor_size = self.panels.editor.rect().size();
 
         self.panels.warpdrive.set_rect(self.panels.editor.rect());
+        self.panels.combo.set_rect(self.panels.editor.rect());
 
         self.panels
             .line_numbers

@@ -1,3 +1,4 @@
+pub mod grid_string_builder;
 pub mod line_builder;
 
 pub fn line_clamped_filled(line: &str, start: u32, char_count: u32, fill: char) -> String {
