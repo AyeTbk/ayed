@@ -512,7 +512,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("delete", |_opt, ctx| {
+    cr.register("delete", |opt, ctx| {
+        let contains_cursor = opt.contains("-c");
+
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
@@ -525,9 +527,12 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             view.selections.borrow().count()
         };
         for sel_idx in (0..sel_count).rev() {
-            let Some(sel) = view.selections.borrow().get(sel_idx) else {
+            let Some(mut sel) = view.selections.borrow().get(sel_idx) else {
                 continue;
             };
+            if contains_cursor {
+                sel = sel.shrunk_to_cursor();
+            }
             buffer.delete_selection(&sel)?;
         }
 
@@ -541,6 +546,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             return Ok(());
         };
 
+        let contains_cursor = opt.contains("-c");
         let contains_previous = opt.contains("-p");
         let contains_next = opt.contains("-n");
         let (delete_before, delete_after) = if !contains_next && !contains_previous {
@@ -557,9 +563,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             view.selections.borrow().count()
         };
         for sel_idx in (0..sel_count).rev() {
-            let Some(sel) = view.selections.borrow().get(sel_idx) else {
+            let Some(mut sel) = view.selections.borrow().get(sel_idx) else {
                 continue;
             };
+
+            if contains_cursor {
+                sel = sel.shrunk_to_cursor();
+            }
 
             if delete_after {
                 let from = sel.end();

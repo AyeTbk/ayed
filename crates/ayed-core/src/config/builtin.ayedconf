@@ -28,8 +28,8 @@ mixin basic-movement {
 
 mixin basic-deletion {
     keybinds {
-        <del> delete
-        <backspace> delete-around -p
+        <del> delete -c
+        <backspace> delete-around -c -p
         <a-backspace> delete-around
     }
 }
@@ -64,20 +64,22 @@ hooks {
 
 mode normal {
     use basic-movement
-    use basic-deletion
 
     keybinds {
+        <del> delete
+        <a-backspace> delete-around
+
         k move u
         K move u anchored
-        h move d
-        H move d anchored
-        j move l
-        J move l anchored
-        <c-j> move-regex --reversed \w+|[^\s\w]+
+        j move d
+        J move d anchored
+        h move l
+        H move l anchored
+        <c-h> move-regex --reversed \w+|[^\s\w]+
         l move r
         L move r anchored
         <c-l> move-regex \w+|[^\s\w]+
-    
+
         C dupe d
         <a-C> dupe u
         ; selection-shrink
@@ -95,8 +97,8 @@ mode normal {
         <backtab> state-set mode insert
         i state-set mode insert
         <s-i> $[ map-input <home> ; state-set mode insert ]
-        
-        a state-set mode append
+
+        a state-set mode insert-append
 
         <space> state-set mode combo-user
 
@@ -109,8 +111,7 @@ mixin mode-insert-append-common {
     use basic-deletion
 
     keybinds {
-        <backtab> state-set mode normal
-        <a-l> state-set mode normal
+        <c-space> state-set mode normal
         <esc> state-set mode normal
         else insert-char
     }
@@ -124,7 +125,7 @@ mode insert {
     }
 }
 
-mode append {
+mode insert-append {
     use mode-insert-append-common
 
     hooks {
@@ -210,7 +211,6 @@ line-wrap wrap {
 #############
 ### Combo ###
 
-@override
 mode combo-.* {
     mode combo-user {
         keybinds {

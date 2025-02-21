@@ -98,8 +98,10 @@ impl Editor {
         for (i, selection) in view.selections.borrow().iter().enumerate() {
             let is_primary = i == 0;
             // FIXME dont hardcode insert/append here, make this configurable in the config somehow
-            let use_alt_style =
-                matches!(state.config.state_value("mode"), Some("insert" | "append"));
+            let use_alt_style = matches!(
+                state.config.state_value("mode"),
+                Some("insert" | "insert-append")
+            );
 
             let cursor_color = match (is_primary, use_alt_style) {
                 (true, false) => PRIMARY_CURSOR_COLOR,
