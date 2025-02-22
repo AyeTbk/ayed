@@ -3,7 +3,7 @@ use crate::{
     config,
     event::EventRegistry,
     input::Input,
-    panels::{self, FocusedPanel, Panels},
+    panels::{self, Panels},
     state::State,
     ui::{ui_state::UiState, Rect, Size},
 };
@@ -101,7 +101,7 @@ impl Core {
             }
         }
 
-        eprintln!("{}", self.queue.take_debug_log());
+        // eprintln!("{}", self.queue.take_debug_log()); // DEBUG
 
         self.state.fill_modeline_infos();
 
