@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::position::Position;
+use crate::position::{Column, Position, Row};
 
-use super::{layout::Size, Style};
+use super::{Style, layout::Size};
 
 pub struct UiState {
     pub panels: Vec<UiPanel>,
@@ -39,7 +39,7 @@ impl UiPanel {
                     let to_column = if row == span.to.row {
                         span.to.column
                     } else {
-                        u32::MAX
+                        Column::MAX
                     };
 
                     StyledRegion {
@@ -139,7 +139,7 @@ impl UiPanel {
         self.spans = nonoverlapping_spans;
     }
 
-    pub fn spans_on_line(&self, line_index: u32) -> impl Iterator<Item = &StyledRegion> {
+    pub fn spans_on_line(&self, line_index: Row) -> impl Iterator<Item = &StyledRegion> {
         self.spans.iter().filter(move |span| {
             let is_before = span.from.row < line_index;
             let is_after = span.to.row > line_index;

@@ -3,8 +3,8 @@ use crate::{
     slotmap::Handle,
     state::{State, View},
     ui::{
-        ui_state::{StyledRegion, UiPanel},
         Color, Rect, Style,
+        ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::line_clamped_filled,
 };
@@ -69,22 +69,20 @@ impl Editor {
         let mut spans: Vec<StyledRegion> = Vec::new();
 
         let mut buf = String::new();
-        for i in 0..size.row {
-            if view
-                .render_view_line(i as u32, &mut buf, &state.buffers)
-                .is_some()
-            {
+        let line_count = size.row.try_into().unwrap();
+        for i in 0..line_count {
+            if view.render_view_line(i, &mut buf, &state.buffers).is_some() {
                 content.push(line_clamped_filled(
                     &buf,
-                    view.top_left.column,
-                    size.column,
+                    view.top_left.column as usize,
+                    size.column as usize,
                     ' ',
                 ));
             } else {
                 let nil_line = String::from("~") + &" ".repeat(size.column.saturating_sub(1) as _);
                 spans.push(StyledRegion {
-                    from: Position::new(0, i as u32),
-                    to: Position::new(0, i as u32),
+                    from: Position::new(0, i),
+                    to: Position::new(0, i),
                     style: Style {
                         foreground_color: Some(NIL_LINE_COLOR),
                         ..Default::default()

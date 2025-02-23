@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use regex::Regex;
 
 use crate::{
-    position::Position,
+    position::{Column, Position},
     ui::{
-        style::{priority_from_str, DEFAULT_PRIORITY},
-        ui_state::StyledRegion,
         Color, Style,
+        style::{DEFAULT_PRIORITY, priority_from_str},
+        ui_state::StyledRegion,
     },
 };
 
@@ -58,12 +58,12 @@ pub fn regex_syntax_highlight(
                     let match_chars_start = line
                         .char_indices()
                         .take_while(|(idx, _)| *idx != matchh.start())
-                        .count() as u32;
+                        .count() as Column;
                     let match_chars_count = line
                         .char_indices()
                         .skip_while(|(idx, _)| *idx != matchh.start())
                         .take_while(|(idx, _)| *idx != matchh.end())
-                        .count() as u32;
+                        .count() as Column;
                     let match_chars_end = (match_chars_start + match_chars_count).saturating_sub(1);
 
                     highlights.push(Highlight {

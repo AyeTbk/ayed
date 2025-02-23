@@ -3,17 +3,17 @@ use std::cell::RefCell;
 use regex::Regex;
 
 use crate::{
+    Ref,
     config::ConfigState,
     event::EventRegistry,
     panels::FocusedPanel,
-    position::{Offset, Position},
+    position::{Column, Offset, Position},
     selection::Selections,
     state::{TextBuffer, View},
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
-    Ref,
 };
 
-use super::{options::Options, CommandRegistry};
+use super::{CommandRegistry, options::Options};
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
     cr.register("quit", |_opt, ctx| {
@@ -352,9 +352,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             // TODO implement cycling through the whole file.
             while let Some(line) = buffer.line(row) {
                 let start_index = if next {
-                    char_index_to_byte_index(line, begin_column).unwrap()
+                    char_index_to_byte_index(line, begin_column.try_into().unwrap()).unwrap()
                 } else {
-                    if let Some(index) = char_index_to_byte_index(line, begin_column) {
+                    if let Some(index) =
+                        char_index_to_byte_index(line, begin_column.try_into().unwrap())
+                    {
                         index
                     } else {
                         if line.is_empty() {
@@ -408,6 +410,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                     } else {
                         byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap()
                     };
+                    let start_column = start_column.try_into().unwrap();
+                    let end_column = end_column.try_into().unwrap();
                     *selection = if next {
                         selection.with_cursor(Position::new(end_column, row))
                     } else {
@@ -434,7 +438,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                         break;
                     }
                     row = row - 1;
-                    begin_column = u32::MAX;
+                    begin_column = Column::MAX;
                 }
             }
         }
@@ -645,7 +649,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         };
 
         let view = ctx.state.views.get_mut(view_handle);
-        view.rebuild_line_wrap(&ctx.state.buffers, ctx.state.editor_size.column);
+        view.rebuild_line_wrap(
+            &ctx.state.buffers,
+            ctx.state.editor_size.column.try_into().unwrap(),
+        );
 
         Ok(())
     });

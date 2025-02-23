@@ -1,9 +1,9 @@
 use crate::{
-    position::Position,
+    position::{Column, Position},
     state::State,
     ui::{
-        ui_state::{StyledRegion, UiPanel},
         Rect, Size, Style,
+        ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::grid_string_builder::{Cell, GridStringBuilder},
 };
@@ -50,8 +50,20 @@ impl Combo {
 
         let (size, content) = grid.build();
         let size: Size = size.into();
-        let column = self.rect.size().column.saturating_sub(size.column);
-        let line = self.rect.size().row.saturating_sub(size.row);
+        let column = self
+            .rect
+            .size()
+            .column
+            .saturating_sub(size.column)
+            .try_into()
+            .unwrap();
+        let line = self
+            .rect
+            .size()
+            .row
+            .saturating_sub(size.row)
+            .try_into()
+            .unwrap();
         let position = (column, line).into();
 
         let border_style = Style {
@@ -62,13 +74,14 @@ impl Combo {
 
         let mut spans = vec![StyledRegion {
             from: Position::ZERO,
-            to: Position::new(size.column, 0),
+            to: Position::new(size.column.try_into().unwrap(), 0),
             priority: 1,
             style: border_style,
         }];
 
-        for row in 1..=size.row {
-            let right_column = size.column.saturating_sub(1);
+        for row in 1..=size.row.try_into().unwrap() {
+            let size_column: Column = size.column.try_into().unwrap();
+            let right_column = size_column - 1;
             spans.extend([
                 StyledRegion {
                     from: Position::new(0, row),

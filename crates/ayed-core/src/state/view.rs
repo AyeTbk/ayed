@@ -1,9 +1,9 @@
 use crate::{
-    position::Position,
+    Ref,
+    position::{Column, Position, Row},
     selection::Selections,
     slotmap::{Handle, SlotMap},
     utils::string_utils::{char_count, char_index_to_byte_index, char_index_to_byte_index_end},
-    Ref,
 };
 
 use super::text_buffer::TextBuffer;
@@ -18,11 +18,11 @@ pub struct View {
 impl View {
     pub fn render_view_line(
         &self,
-        idx: u32,
+        idx: Row,
         render: &mut String,
         buffers: &SlotMap<TextBuffer>,
     ) -> Option<()> {
-        let idx = self.top_left.row.saturating_add(idx);
+        let idx = self.top_left.row + idx;
         if self.virtual_buffer.is_some() {
             self.render_virtual_line(idx, render, buffers)
         } else {
@@ -60,7 +60,7 @@ impl View {
             // FIXME The position could actually appear mutliple times in the
             // virtual buffer, if a same excerpt is used multiple times. This
             // function should return multiple positions.
-            for vline_idx in 0..(vbuffer.lines.len() as u32) {
+            for vline_idx in 0..(vbuffer.lines.len() as Row) {
                 let vline = vbuffer.lines.get(vline_idx as usize).unwrap();
                 if vline.fragments.is_empty() {
                     continue;
@@ -106,7 +106,7 @@ impl View {
         }
     }
 
-    pub fn map_view_line_idx_to_line_number(&self, idx: u32) -> Option<u32> {
+    pub fn map_view_line_idx_to_line_number(&self, idx: Row) -> Option<Row> {
         let view_line = idx + self.top_left.row;
 
         let Some(vbuffer) = self.virtual_buffer.as_ref() else {
@@ -125,7 +125,7 @@ impl View {
 
     fn render_true_line(
         &self,
-        row: u32,
+        row: Row,
         render: &mut String,
         buffers: &SlotMap<TextBuffer>,
     ) -> Option<()> {
@@ -141,7 +141,7 @@ impl View {
 
     fn render_virtual_line(
         &self,
-        idx: u32,
+        idx: Row,
         render: &mut String,
         buffers: &SlotMap<TextBuffer>,
     ) -> Option<()> {
@@ -187,7 +187,7 @@ impl View {
         Some(())
     }
 
-    pub fn rebuild_line_wrap(&mut self, buffers: &SlotMap<TextBuffer>, wrap_column: u32) {
+    pub fn rebuild_line_wrap(&mut self, buffers: &SlotMap<TextBuffer>, wrap_column: Column) {
         if wrap_column == 0 {
             // Nonsense request
             return;
@@ -201,7 +201,7 @@ impl View {
 
             // Break line as long as you can.
             let mut i = 0;
-            while let Some(idx) = char_index_to_byte_index(line, wrap_column) {
+            while let Some(idx) = char_index_to_byte_index(line, wrap_column.try_into().unwrap()) {
                 let vline = VirtualLine {
                     fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
@@ -219,8 +219,9 @@ impl View {
             // Fill in remainder (or full line if it wasn't broken).
             if !line.is_empty() {
                 let from = wrap_column * i;
-                let line_end = from + char_count(line);
-                let to = line_end.saturating_sub(1);
+                let line_char_count: Column = char_count(line).try_into().unwrap();
+                let line_end = from + line_char_count;
+                let to = line_end - 1;
                 vbuffer.lines.push(VirtualLine {
                     fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
@@ -232,8 +233,9 @@ impl View {
             } else if i == 0 {
                 // Handle empty lines.
                 let from = wrap_column * i;
-                let line_end = from + char_count(line);
-                let to = line_end.saturating_sub(1);
+                let line_char_count: Column = char_count(line).try_into().unwrap();
+                let line_end = from + line_char_count;
+                let to = line_end - 1;
                 vbuffer.lines.push(VirtualLine {
                     fragments: vec![VirtualFragment::TrueLineExcerpt {
                         row,
@@ -262,19 +264,19 @@ pub struct VirtualLine {
 #[derive(Debug)]
 pub enum VirtualFragment {
     TrueLineExcerpt {
-        row: u32,
-        from: u32,
-        to: u32,
+        row: Row,
+        from: Column,
+        to: Column,
         ends_line: bool,
     },
     Text(String),
 }
 
 impl VirtualFragment {
-    pub fn char_count(&self) -> u32 {
+    pub fn char_count(&self) -> Column {
         match self {
-            Self::TrueLineExcerpt { from, to, .. } => to.saturating_sub(*from),
-            Self::Text(text) => char_count(text),
+            Self::TrueLineExcerpt { from, to, .. } => to - *from,
+            Self::Text(text) => char_count(text).try_into().unwrap(),
         }
     }
 
@@ -299,7 +301,7 @@ impl VirtualFragment {
         }
     }
 
-    pub fn position_column_offset_within(&self, position: Position) -> Option<u32> {
+    pub fn position_column_offset_within(&self, position: Position) -> Option<Column> {
         match self {
             Self::TrueLineExcerpt { from, .. } => {
                 if !self.contains_position(position) {
@@ -312,8 +314,8 @@ impl VirtualFragment {
     }
 }
 
-fn char_index_range_to_slice(s: &str, from: u32, to: u32) -> Option<&str> {
-    let start = char_index_to_byte_index(s, from)?;
-    let end = char_index_to_byte_index_end(s, to)?;
+fn char_index_range_to_slice(s: &str, from: Column, to: Column) -> Option<&str> {
+    let start = char_index_to_byte_index(s, from.try_into().unwrap())?;
+    let end = char_index_to_byte_index_end(s, to.try_into().unwrap())?;
     s.get(start as usize..end as usize)
 }

@@ -4,12 +4,12 @@ use regex::Regex;
 
 use crate::{
     command::ExecuteCommandContext,
-    position::Position,
+    position::{Column, Position, Row},
     slotmap::Handle,
     state::{State, View},
     ui::{
-        ui_state::{StyledRegion, UiPanel},
         Color, Rect, Style,
+        ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::char_count,
 };
@@ -95,10 +95,11 @@ impl WarpdriveState {
         let mut jump_points = Vec::new();
         let mut jump_points_indices = Vec::new();
         for (i, line) in content.iter().enumerate() {
-            let row = i as u32;
+            let row: Row = i.try_into().unwrap();
             for matsh in REGEX_JUMP_POINT.find_iter(&line) {
-                let start_column = char_count(&line[..matsh.start()]);
-                let end_column = char_count(&line[..matsh.end()]).saturating_sub(1);
+                let start_column: Column = char_count(&line[..matsh.start()]).try_into().unwrap();
+                let match_end: Column = char_count(&line[..matsh.end()]).try_into().unwrap();
+                let end_column = match_end - 1;
                 let start_in_view = Position::new(start_column, row);
                 let end_in_view = Position::new(end_column, row);
                 let Some(start) = view.map_view_position_to_true_position(start_in_view) else {
@@ -152,12 +153,12 @@ impl WarpdriveState {
         // Insert codes in content
         for (jump_point, indices) in jump_points.iter().zip(jump_points_indices.iter()) {
             let line = &mut content[indices.0];
-            let replace_bytes_size: usize = line[indices.1 .0..]
+            let replace_bytes_size: usize = line[indices.1.0..]
                 .chars()
                 .take(jump_point.code.len())
                 .map(char::len_utf8)
                 .sum();
-            let replace_range = (indices.1 .0)..((indices.1 .0) + replace_bytes_size);
+            let replace_range = (indices.1.0)..((indices.1.0) + replace_bytes_size);
             line.replace_range(replace_range, &jump_point.code);
         }
 

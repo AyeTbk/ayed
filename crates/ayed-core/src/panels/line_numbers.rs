@@ -1,9 +1,9 @@
 use crate::{
-    position::Position,
+    position::{Column, Position, Row},
     state::State,
     ui::{
-        ui_state::{StyledRegion, UiPanel},
         Color, Rect, Style,
+        ui_state::{StyledRegion, UiPanel},
     },
 };
 
@@ -48,9 +48,10 @@ impl LineNumbers {
 
         let buffer = state.buffers.get(view.buffer);
 
-        let width = self.rect.width;
+        let width: Column = self.rect.width.try_into().unwrap();
         let mut previous_number = 0;
-        for i in 0..state.focused_view_rect().height {
+        let line_count: Row = state.focused_view_rect().height.try_into().unwrap();
+        for i in 0..line_count {
             let Some(line_number) = view.map_view_line_idx_to_line_number(i) else {
                 content.push(" ".repeat(width as usize));
                 continue;

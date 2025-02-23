@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use crate::position::Position;
+use crate::position::{Column, Position, Row};
 
 #[derive(Debug, Clone)]
 pub struct Selections {
@@ -138,8 +138,8 @@ impl std::fmt::Display for Selections {
 pub struct Selection {
     cursor: Position,
     anchor: Position,
-    desired_cursor_column_index: u32,
-    desired_anchor_column_index: u32,
+    desired_cursor_column_index: Column,
+    desired_anchor_column_index: Column,
 }
 
 impl Selection {
@@ -186,7 +186,7 @@ impl Selection {
         Self { cursor, ..*self }
     }
 
-    pub fn with_desired_cursor_column_index(&self, desired_cursor_column_index: u32) -> Self {
+    pub fn with_desired_cursor_column_index(&self, desired_cursor_column_index: Column) -> Self {
         Self {
             desired_cursor_column_index,
             ..*self
@@ -347,7 +347,7 @@ impl Selection {
             let end_column = if i == line_count - 1 {
                 self_end.column
             } else {
-                u32::MAX
+                Column::MAX
             };
             let line = self_start.row + i;
             i += 1;
@@ -358,7 +358,7 @@ impl Selection {
         })
     }
 
-    pub fn line_span(&self) -> u32 {
+    pub fn line_span(&self) -> Row {
         let (start, end) = self.start_end();
         end.row.saturating_sub(start.row).saturating_add(1)
     }

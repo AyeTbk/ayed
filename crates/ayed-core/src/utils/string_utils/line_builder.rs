@@ -57,8 +57,8 @@ impl<'a, Data> LineBuilder<'a, Data> {
             };
 
         // NOTE this is a crappy fix
-        let lasb = char_index_to_byte_index(&left_aligned_content, left_aligned_space as u32)
-            .unwrap_or_default();
+        let lasb =
+            char_index_to_byte_index(&left_aligned_content, left_aligned_space).unwrap_or_default();
         buf.replace_range(..left_aligned_space, &left_aligned_content[..lasb]);
         buf.replace_range(
             right_aligned_buf_start_idx..,
@@ -140,8 +140,8 @@ mod tests {
     }
 
     #[test]
-    fn build__when_left_aligned_is_ellipsized_and_completely_overlaps_right_aligned__dont_crash_plz(
-    ) {
+    fn build__when_left_aligned_is_ellipsized_and_completely_overlaps_right_aligned__dont_crash_plz()
+     {
         let lcontent = "bienvenu";
         let rcontent = "allo";
         let expected = "bi …";
@@ -154,8 +154,8 @@ mod tests {
     }
 
     #[test]
-    fn build__when_left_aligned_has_just_enough_space_but_right_aligned_is_ellipsized_so_the_last_character_needs_to_be_ellipsis__dont_crash_plz(
-    ) {
+    fn build__when_left_aligned_has_just_enough_space_but_right_aligned_is_ellipsized_so_the_last_character_needs_to_be_ellipsis__dont_crash_plz()
+     {
         let expected = ":edit the file plz tyvm rlly appreciated like i mean it dud …";
         let (result, _payload) = LineBuilder::new_with_length(61)
             .add_left_aligned(":", ())

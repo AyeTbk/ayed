@@ -1,10 +1,10 @@
 use std::cell::Cell;
 
 use crate::{
-    position::{Offset, Position},
+    Ref, WeakRef,
+    position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
     utils::string_utils::{char_count, char_index_to_byte_index},
-    Ref, WeakRef,
 };
 
 // #1. There should always be at least one line. A line is a String in the lines vector.
@@ -105,11 +105,11 @@ impl TextBuffer {
         self.path = path.into().map(Into::into);
     }
 
-    pub fn line(&self, row_index: u32) -> Option<&str> {
+    pub fn line(&self, row_index: Row) -> Option<&str> {
         self.lines.get(row_index as usize).map(String::as_str)
     }
 
-    pub fn line_mut(&mut self, row_index: u32) -> Option<&mut String> {
+    pub fn line_mut(&mut self, row_index: Row) -> Option<&mut String> {
         self.lines.get_mut(row_index as usize)
     }
 
@@ -117,19 +117,20 @@ impl TextBuffer {
         self.lines.get(0).expect("TextBuffer invariant #1")
     }
 
-    pub fn last_row(&self) -> u32 {
+    pub fn last_row(&self) -> Row {
         self.line_count().saturating_sub(1)
     }
 
-    pub fn line_count(&self) -> u32 {
+    pub fn line_count(&self) -> Row {
         self.lines.len().try_into().unwrap()
     }
 
-    pub fn line_char_count(&self, row: u32) -> Option<u32> {
-        self.line(row).map(|line| char_count(line))
+    pub fn line_char_count(&self, row: Row) -> Option<Row> {
+        self.line(row)
+            .map(|line| char_count(line).try_into().unwrap())
     }
 
-    pub fn selection_char_count(&self, selection: &Selection) -> u32 {
+    pub fn selection_char_count(&self, selection: &Selection) -> usize {
         let start_row = selection.start().row;
         let start_column = selection.start().column;
         let end_row = selection.end().row;
@@ -145,7 +146,8 @@ impl TextBuffer {
             }
             .checked_add(1)
             .unwrap();
-            char_count += stop_column.saturating_sub(begin_column);
+            let row_char_count: usize = (stop_column - begin_column).try_into().unwrap();
+            char_count += row_char_count;
         }
         char_count
     }
@@ -205,7 +207,7 @@ impl TextBuffer {
                 .lines
                 .get_mut(at.row as usize)
                 .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
-            let at_idx = char_index_to_byte_index(&line, at.column)
+            let at_idx = char_index_to_byte_index(&line, at.column.try_into().unwrap())
                 .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
 
             line.insert(at_idx, ch);
@@ -223,7 +225,7 @@ impl TextBuffer {
             .lines
             .get_mut(at.row as usize)
             .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
-        let at_idx = char_index_to_byte_index(&line, at.column)
+        let at_idx = char_index_to_byte_index(&line, at.column.try_into().unwrap())
             .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
 
         let rest = line.split_off(at_idx);
@@ -267,7 +269,7 @@ impl TextBuffer {
         Ok(())
     }
 
-    pub fn join_line_with_next(&mut self, row: u32) -> Result<(), String> {
+    pub fn join_line_with_next(&mut self, row: Row) -> Result<(), String> {
         if row > self.last_row() {
             return Err(String::from("bad row"));
         }
@@ -323,8 +325,8 @@ impl TextBuffer {
 
     fn adjust_selections_after_join_line_with_next(
         &mut self,
-        row: u32,
-        original_line_char_count: u32,
+        row: Row,
+        original_line_char_count: usize,
     ) {
         for selections in self.selections() {
             for selection in selections.borrow_mut().iter_mut() {
@@ -399,13 +401,14 @@ impl TextBuffer {
 
     fn adjust_position_after_join_line_with_next(
         pos: Position,
-        row: u32,
-        original_line_char_count: u32,
+        row: Row,
+        original_line_char_count: usize,
     ) -> Position {
         if pos.row <= row {
             pos
         } else if pos.row == row + 1 {
-            Position::new(pos.column.saturating_add(original_line_char_count), row)
+            let char_count: Column = original_line_char_count.try_into().unwrap();
+            Position::new(pos.column + char_count, row)
         } else {
             pos.offset((0, -1))
         }

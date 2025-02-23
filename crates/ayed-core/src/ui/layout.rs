@@ -26,25 +26,25 @@ impl Rect {
 
     pub fn with_position_and_size(position: Position, size: Size) -> Self {
         Self {
-            x: position.column,
-            y: position.row,
+            x: position.column.try_into().unwrap(),
+            y: position.row.try_into().unwrap(),
             width: size.column,
             height: size.row,
         }
     }
 
     pub fn from_positions(a: Position, b: Position) -> Self {
-        let top = u32::min(a.row, b.row);
-        let bottom = u32::max(a.row, b.row);
-        let left = u32::min(a.column, b.column);
-        let right = u32::max(a.column, b.column);
+        let top = i32::min(a.row, b.row);
+        let bottom = i32::max(a.row, b.row);
+        let left = i32::min(a.column, b.column);
+        let right = i32::max(a.column, b.column);
 
-        let width = right - left + 1;
-        let height = bottom - top + 1;
+        let width = (right - left + 1).try_into().unwrap();
+        let height = (bottom - top + 1).try_into().unwrap();
 
         Self {
-            x: left,
-            y: top,
+            x: left.try_into().unwrap(),
+            y: top.try_into().unwrap(),
             width,
             height,
         }
@@ -67,11 +67,11 @@ impl Rect {
     }
 
     pub fn top_left(&self) -> Position {
-        (self.x, self.y).into()
+        (self.x as _, self.y as _).into()
     }
 
     pub fn bottom_right(&self) -> Position {
-        (self.right(), self.bottom()).into()
+        (self.right() as _, self.bottom() as _).into()
     }
 
     pub fn size(&self) -> Size {
@@ -96,22 +96,22 @@ impl Rect {
     }
 
     pub fn offset_from_position(&self, position: Position) -> Offset {
-        let column_offset: i32 = if position.column < self.left() {
+        let column_offset: i32 = if (position.column as u32) < self.left() {
             (position.column as i64 - self.left() as i64)
                 .try_into()
                 .unwrap()
-        } else if position.column > self.right() {
+        } else if (position.column as u32) > self.right() {
             (position.column as i64 - self.right() as i64)
                 .try_into()
                 .unwrap()
         } else {
             0
         };
-        let row_offset: i32 = if position.row < self.top() {
+        let row_offset: i32 = if (position.row as u32) < self.top() {
             (position.row as i64 - self.top() as i64)
                 .try_into()
                 .unwrap()
-        } else if position.row > self.bottom() {
+        } else if (position.row as u32) > self.bottom() {
             (position.row as i64 - self.bottom() as i64)
                 .try_into()
                 .unwrap()

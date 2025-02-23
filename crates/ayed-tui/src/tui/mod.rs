@@ -1,20 +1,20 @@
 use std::{
-    io::{self, stdout, Stdout, Write},
+    io::{self, Stdout, Write, stdout},
     time::Duration,
 };
 
 use ayed_core::{
     core::Core,
     input::{self, Input},
-    ui::{ui_state::StyledRegion, Color, Size},
+    ui::{Color, Size, ui_state::StyledRegion},
 };
 
 use crossterm::{
+    ExecutableCommand,
     cursor::MoveTo,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
     style::{SetBackgroundColor, SetForegroundColor},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 
 pub struct Tui {
@@ -113,9 +113,9 @@ impl Tui {
             panel.normalize_spans();
 
             let start_y = panel.position.row;
-            let after_end_y = start_y + panel.size.row;
+            let after_end_y = start_y + panel.size.row as i32;
             let start_x = panel.position.column;
-            let after_end_x = start_x + panel.size.column;
+            let after_end_x = start_x + panel.size.column as i32;
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
                 self.screen.execute(MoveTo((start_x) as _, (y) as _))?;

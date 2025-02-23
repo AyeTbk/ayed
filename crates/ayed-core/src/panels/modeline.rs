@@ -2,9 +2,8 @@ use crate::{
     position::Position,
     state::State,
     ui::{
-        theme,
+        Color, Rect, Style, theme,
         ui_state::{StyledRegion, UiPanel},
-        Color, Rect, Style,
     },
     utils::string_utils::line_builder::LineBuilder,
 };
@@ -112,7 +111,8 @@ impl Modeline {
                 content: vec![content],
                 spans: vec![StyledRegion {
                     from: Position::ZERO,
-                    to: Position::ZERO.with_column(size.column.saturating_sub(1)),
+                    to: Position::ZERO
+                        .with_column(size.column.saturating_sub(1).try_into().unwrap()),
                     style,
                     ..Default::default()
                 }],

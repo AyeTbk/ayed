@@ -1,19 +1,16 @@
-// FIXME Im starting to think, for simplicity in doing math with positions,
-// that i32 should be used instead of u32. There would be no "real" drawback.
-// Right now, trying to find the difference between two positions always
-// force handling the possibility of the position being unrepresentable.
-// This is a pita when handling view relative positionning for rendering,
-// for example.
+pub type Column = i32;
+pub type Row = i32;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
-    pub column: u32,
-    pub row: u32,
+    pub column: Column,
+    pub row: Row,
 }
 
 impl Position {
     pub const ZERO: Self = Self { column: 0, row: 0 };
 
-    pub fn new(column: u32, row: u32) -> Self {
+    pub fn new(column: Column, row: Row) -> Self {
         Self { column, row }
     }
 
@@ -26,29 +23,29 @@ impl Position {
         })()
         .ok_or_else(|| format!("invalid position format: {src}"))?;
         let row = row_src
-            .parse::<u32>()
+            .parse::<Column>()
             .map_err(|_| format!("invalid row: {row_src}"))?;
         let column = column_src
-            .parse::<u32>()
+            .parse::<Row>()
             .map_err(|_| format!("invalid column: {column_src}"))?;
         Ok(Self::new(column, row))
     }
 
     pub fn offset(&self, offset: impl Into<Offset>) -> Self {
         let offset = offset.into();
-        let column = self.column.saturating_add_signed(offset.column);
-        let row = self.row.saturating_add_signed(offset.row);
+        let column = self.column + offset.column;
+        let row = self.row + offset.row;
         Self { column, row }
     }
 
-    pub fn with_row(&self, row: u32) -> Self {
+    pub fn with_row(&self, row: Row) -> Self {
         Self {
             column: self.column,
             row,
         }
     }
 
-    pub fn with_column(&self, column: u32) -> Self {
+    pub fn with_column(&self, column: Column) -> Self {
         Self {
             column,
             row: self.row,
@@ -66,9 +63,11 @@ impl Position {
         }
     }
 
-    pub fn local_to(&self, other: Self) -> (Option<u32>, Option<u32>) {
-        let column = self.column.checked_sub(other.column);
-        let row = self.row.checked_sub(other.row);
+    pub fn local_to(&self, other: Self) -> (Option<i32>, Option<i32>) {
+        let column = self.column - other.column;
+        let column = (column >= 0).then_some(column);
+        let row = self.row - other.row;
+        let row = (row >= 0).then_some(row);
         (column, row)
     }
 }
@@ -91,14 +90,14 @@ impl std::ops::Sub for Position {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            column: self.column.saturating_sub(rhs.column),
-            row: self.row.saturating_sub(rhs.row),
+            column: self.column - rhs.column,
+            row: self.row - rhs.row,
         }
     }
 }
 
-impl From<(u32, u32)> for Position {
-    fn from(value: (u32, u32)) -> Self {
+impl From<(i32, i32)> for Position {
+    fn from(value: (i32, i32)) -> Self {
         Self {
             column: value.0,
             row: value.1,
@@ -112,6 +111,7 @@ impl std::fmt::Display for Position {
     }
 }
 
+// TODO maybe this is superfluous now that positions are using i32. Remove this?
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Offset {
     pub column: i32,
