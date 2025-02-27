@@ -83,12 +83,11 @@ impl Input {
             let key = char_group_to_key(&captures.get(2).ok_or(())?.as_str())?;
             Self::new(key, modifiers)
         } else if let Some(captures) = re_key.captures(s) {
-            // Parse stuff like <space> => space duh
+            // Parse stuff like <space> => space
             let key = char_group_to_key(&captures.get(1).ok_or(())?.as_str())?;
             Self::new(key, Default::default())
-        } else if s.len() == 1 {
+        } else if let Some(ch) = s.chars().next() {
             // Parse basic keys without explicit modifiers
-            let ch = s.chars().next().ok_or(())?;
             Self::from_char(ch)
         } else {
             return Err(());
@@ -211,10 +210,10 @@ impl Key {
             "lt" => Key::Char('<'),
             "gt" => Key::Char('>'),
             s => {
-                if s.len() != 1 {
+                let ch = s.chars().next()?;
+                if s.len() != ch.len_utf8() {
                     return None;
                 }
-                let ch = s.chars().next()?;
                 Key::Char(ch)
             }
         };
