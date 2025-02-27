@@ -86,11 +86,18 @@ impl Input {
             // Parse stuff like <space> => space
             let key = char_group_to_key(&captures.get(1).ok_or(())?.as_str())?;
             Self::new(key, Default::default())
-        } else if let Some(ch) = s.chars().next() {
-            // Parse basic keys without explicit modifiers
-            Self::from_char(ch)
         } else {
-            return Err(());
+            // TODO when "if let chains" are stable, rewrite this whole else
+            // clause into an else if {} else {}
+            let Some(ch) = s.chars().next() else {
+                return Err(());
+            };
+            if s.len() == ch.len_utf8() {
+                // Parse basic keys without explicit modifiers
+                Self::from_char(ch)
+            } else {
+                return Err(());
+            }
         };
         Ok(input)
     }
