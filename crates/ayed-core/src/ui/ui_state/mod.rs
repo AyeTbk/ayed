@@ -25,6 +25,17 @@ impl UiPanel {
         self.make_spans_nonoverlapping();
     }
 
+    pub fn fixup_weird_chars(&mut self) {
+        for line in &mut self.content {
+            // Tabs render in a special way in terminals, which doesn't match
+            // what the editor wants to show. Proper tab support will have to
+            // be added so that the editor emits an amount of spaces equal to
+            // the intended tab width. Until then, this fix will do, because
+            // I don't use tabs often. TODO remove this once tabs are supported
+            *line = line.replace('\t', "�");
+        }
+    }
+
     fn split_spans_over_lines(&mut self) {
         let spans = std::mem::take(&mut self.spans);
         self.spans = spans

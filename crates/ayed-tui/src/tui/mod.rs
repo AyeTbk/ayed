@@ -111,6 +111,7 @@ impl Tui {
 
         for mut panel in ui_state.panels.into_iter() {
             panel.normalize_spans();
+            panel.fixup_weird_chars();
 
             let start_y = panel.position.row;
             let after_end_y = start_y + panel.size.row as i32;
