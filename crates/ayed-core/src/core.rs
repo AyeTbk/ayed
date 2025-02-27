@@ -1,11 +1,11 @@
 use crate::{
-    command::{self, parse_command, CommandQueue, CommandRegistry, ExecuteCommandContext},
+    command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     config,
     event::EventRegistry,
     input::Input,
     panels::{self, Panels},
     state::State,
-    ui::{ui_state::UiState, Rect, Size},
+    ui::{Rect, Size, ui_state::UiState},
 };
 
 #[derive(Default)]

@@ -4,8 +4,8 @@ use crate::{
     config::Config,
     input::Input,
     panels::{
-        modeline::{Align, ModelineInfo, ModelineState},
         FocusedPanel,
+        modeline::{Align, ModelineInfo, ModelineState},
     },
     slotmap::{Handle, SlotMap},
     ui::{Rect, Size, Style},
@@ -18,7 +18,7 @@ mod view;
 pub use view::View;
 
 mod highlight;
-pub use highlight::{regex_syntax_highlight, Highlight};
+pub use highlight::{Highlight, regex_syntax_highlight};
 
 #[derive(Default)]
 pub struct State {

@@ -1,8 +1,8 @@
 use crate::{
+    Error, ErrorKind,
     ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
     error::Expected,
-    token::{next_entry_value, next_token, Token, TokenKind},
-    Error, ErrorKind,
+    token::{Token, TokenKind, next_entry_value, next_token},
 };
 
 pub struct Parser<'a> {
@@ -62,7 +62,7 @@ impl<'a> Parser<'a> {
                         return Err(Error::new(
                             ErrorKind::Unexpected(token_kind.into()),
                             lookahead.slice,
-                        ))
+                        ));
                     }
                 }
             }
