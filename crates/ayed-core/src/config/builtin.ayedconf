@@ -13,16 +13,16 @@ mixin basic-movement {
         <s-up> move u anchored
         <s-down> move d anchored
         <s-left> move l anchored
-        <c-left> move-regex --reversed \w+|[^\s\w]+
-        <cs-left> move-regex --reversed --anchored \w+|[^\s\w]+
+        <c-left> move-regex --reversed \w+\b|[^\s\w]+
+        <cs-left> move-regex --reversed --anchored \w+\b|[^\s\w]+
         <s-right> move r anchored
-        <c-right> move-regex \w+|[^\s\w]+
-        <cs-right> move-regex --anchored \w+|[^\s\w]+
+        <c-right> move-regex \w+\b|[^\s\w]+
+        <cs-right> move-regex --anchored \w+\b|[^\s\w]+
 
-        <home> move-regex --reversed --keepline ^
-        <s-home> move-regex --reversed --anchored --keepline ^
-        <end> move-regex --keepline $
-        <s-end> move-regex --anchored --keepline $
+        <home> move-regex --reversed --line ^
+        <s-home> move-regex --reversed --anchored --line ^
+        <end> move-regex --line $$
+        <s-end> move-regex --anchored --line $$
     }
 }
 
@@ -80,13 +80,20 @@ mode normal {
         L move r anchored
         <c-l> move-regex \w+|[^\s\w]+
 
+        e move-regex \w\b|[^\s\w]
+        <s-e> move-regex --anchored \w\b|[^\s\w]
+        w move-regex \b\w|[^\s\w]
+        <s-w> move-regex --anchored \b\w|[^\s\w]
+        b move-regex --reversed \b\w|[^\s\w]
+        <s-b> move-regex --reversed --anchored \b\w|[^\s\w]
+
         C dupe d
         <a-C> dupe u
         ; selection-shrink
         <a-;> selection-flip
 
-        o $[ move-regex --keepline $$ ; insert-char \n ; state-set mode insert ]
-        <s-o> $[ move-regex --reversed --keepline ^ ; insert-char \n ; move u ; state-set mode insert ]
+        o $[ move-regex --line $$ ; insert-char \n ; state-set mode insert ]
+        <s-o> $[ move-regex --reversed --line ^ ; insert-char \n ; move u ; state-set mode insert ]
 
         x $[ map-input <home> ; map-input <s-end> ]
 

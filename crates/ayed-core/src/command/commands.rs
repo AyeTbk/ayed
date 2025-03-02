@@ -330,115 +330,91 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let opts = Options::new()
             .flag("reversed")
             .flag("anchored")
-            .flag("keepline")
+            .flag("line")
             .parse(opt)?;
-        let next = !opts.contains("reversed");
+        let reversed = opts.contains("reversed");
         let anchored = opts.contains("anchored");
-        let keepline = opts.contains("keepline");
+        let stay_within_line = opts.contains("line");
         let pattern = opts.remainder();
 
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
 
-        let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
         let view = ctx.state.views.get(view_handle);
         let buffer = ctx.state.buffers.get_mut(view.buffer);
         let mut selections = view.selections.borrow().clone();
+        let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
 
         for selection in selections.iter_mut() {
-            let mut begin_column = selection.cursor().column;
-            let mut row = selection.cursor().row;
-            // TODO implement cycling through the whole file.
-            while let Some(line) = buffer.line(row) {
-                let start_index = if next {
-                    char_index_to_byte_index(line, begin_column.try_into().unwrap()).unwrap()
-                } else {
-                    if let Some(index) =
-                        char_index_to_byte_index(line, begin_column.try_into().unwrap())
-                    {
-                        index
-                    } else {
-                        if line.is_empty() {
-                            if keepline {
-                                break;
-                            }
-                            if row == 0 {
-                                break;
-                            }
-                            row = row - 1;
-                            continue;
-                        } else {
-                            line.len() - 1
-                        }
-                    }
-                };
+            let cursor = selection.cursor();
+            let mut row = cursor.row;
+            let mut search_start_column = cursor.column;
 
+            'line: loop {
+                let Some(line) = buffer.line(row) else { break 'line };
                 let mut matches = regex.find_iter(line).collect::<Vec<_>>();
-                if !next {
+                if reversed {
                     matches.reverse();
                 }
-                let maybe_match = matches
-                    .into_iter()
-                    .skip_while(|m| {
-                        // NOTE: this stinks, if positions allowed negative rows/columns, this could be simpler.
+                let mut needle: Option<(Column, Column)> = None;
+                for matsh in matches {
+                    // The following `unwrap`s can't fail since the match was found in `line`.
+                    let start = byte_index_to_char_index(line, matsh.start()).unwrap();
+                    let one_past_end = byte_index_to_char_index(line, matsh.end()).unwrap();
+                    // The following `unwrap`s may fail under extreme circumstances.
+                    let start: Column = start.try_into().unwrap();
+                    let one_past_end: Column = one_past_end.try_into().unwrap();
+                    let end = if start == one_past_end {
+                        // Don't adjust end if the match is zero width, like for the regex $
+                        one_past_end
+                    } else {
+                        one_past_end - 1
+                    };
 
-                        if next {
-                            let cursor_at_line_start_fix =
-                                !(row == selection.cursor().row && selection.cursor().column == 0);
-                            if start_index == 0 && cursor_at_line_start_fix {
-                                m.start() < start_index
-                            } else {
-                                m.start() <= start_index
-                            }
-                        } else {
-                            let line_end = line.len().saturating_sub(1);
-                            let cursor_at_line_end_fix = !(row == selection.cursor().row
-                                && selection.cursor().column as usize == line_end);
-                            if start_index == line_end && cursor_at_line_end_fix {
-                                m.start() > start_index
-                            } else {
-                                m.end() > start_index
-                            }
-                        }
-                    })
-                    .next();
-                if let Some(matsh) = maybe_match {
-                    let start_column = byte_index_to_char_index(line, matsh.start()).unwrap();
-                    let end_column = if matsh.is_empty() {
-                        start_column
+                    let (new_anchor_column, new_cursor_column) =
+                        if reversed { (end, start) } else { (start, end) };
+
+                    let match_happens_too_early = if reversed {
+                        search_start_column <= start
                     } else {
-                        byte_index_to_char_index(line, matsh.end().saturating_sub(1)).unwrap()
+                        search_start_column >= end
                     };
-                    let start_column = start_column.try_into().unwrap();
-                    let end_column = end_column.try_into().unwrap();
-                    *selection = if next {
-                        selection.with_cursor(Position::new(end_column, row))
-                    } else {
-                        selection.with_cursor(Position::new(start_column, row))
-                    };
+                    if match_happens_too_early {
+                        continue;
+                    }
+
+                    needle = Some((new_anchor_column, new_cursor_column));
+                    break;
+                }
+
+                if let Some((new_anchor_column, new_cursor_column)) = needle {
                     if !anchored {
-                        *selection = if next {
-                            selection.with_anchor(Position::new(start_column, row))
-                        } else {
-                            selection.with_anchor(Position::new(end_column, row))
-                        };
+                        *selection = selection.with_anchor(Position::new(new_anchor_column, row));
                     }
-                    break;
-                }
+                    *selection = selection.with_cursor(Position::new(new_cursor_column, row));
 
-                if keepline {
-                    break;
-                }
-                if next {
-                    row += 1;
-                    begin_column = 0;
+                    // Found the match for this selection, onto the next!
+                    break 'line;
+                } else if stay_within_line {
+                    // Couldn't find a match on this line for this selection, skip.
+                    break 'line;
                 } else {
-                    if row == 0 {
-                        break;
+                    // Couldn't find a match on this line for this selection, go
+                    // to next line and try again.
+                    let row_is_out_of_bounds;
+                    if reversed {
+                        row -= 1;
+                        search_start_column = Column::MAX;
+                        row_is_out_of_bounds = row < 0;
+                    } else {
+                        row += 1;
+                        search_start_column = -1;
+                        row_is_out_of_bounds = row >= buffer.line_count();
+                    };
+                    if row_is_out_of_bounds {
+                        break 'line;
                     }
-                    row = row - 1;
-                    begin_column = Column::MAX;
                 }
             }
         }
@@ -447,6 +423,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
 
         ctx.queue.push("selections-merge-overlapping");
         ctx.queue.push("look-keep-primary-cursor-in-view");
+
         Ok(())
     });
 
