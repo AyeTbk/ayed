@@ -1,5 +1,5 @@
 use crate::{
-    position::Position,
+    position::{Column, Position},
     slotmap::Handle,
     state::{State, View},
     ui::{
@@ -22,6 +22,11 @@ const SECONDARY_SELECTION_ALT_COLOR: Color = Color::rgb(80, 26, 76);
 const SELECTION_TEXT_COLOR: Color = Color::rgb(200, 200, 200);
 
 const NIL_LINE_COLOR: Color = Color::rgb(155, 100, 200);
+
+const PRIMARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(155, 100, 200);
+const SECONDARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(110, 70, 150);
+const PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(200, 100, 150);
+const SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(140, 70, 120);
 
 #[derive(Default)]
 pub struct Editor {
@@ -112,6 +117,23 @@ impl Editor {
                 (true, true) => PRIMARY_SELECTION_ALT_COLOR,
                 (false, false) => SECONDARY_SELECTION_COLOR,
                 (false, true) => SECONDARY_SELECTION_ALT_COLOR,
+            };
+
+            let is_end_of_line = {
+                let buffer = state.buffers.get(view.buffer);
+                buffer
+                    .line(selection.cursor().row)
+                    .is_some_and(|line| line.len() as Column == selection.cursor().column)
+            };
+            let cursor_color = if is_end_of_line {
+                match (is_primary, use_alt_style) {
+                    (true, false) => PRIMARY_CURSOR_END_OF_LINE_COLOR,
+                    (true, true) => PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR,
+                    (false, false) => SECONDARY_CURSOR_END_OF_LINE_COLOR,
+                    (false, true) => SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR,
+                }
+            } else {
+                cursor_color
             };
 
             // Cursor style
