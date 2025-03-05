@@ -91,11 +91,14 @@ mode normal {
         <a-C> dupe u
         ; selection-shrink
         <a-;> selection-flip
+        , selections-dismiss-extras
 
         o $[ move-regex --line $$ ; insert-char \n ; state-set mode insert ]
         <s-o> $[ move-regex --reversed --line ^ ; insert-char \n ; move u ; state-set mode insert ]
 
-        x $[ map-input <home> ; map-input <s-end> ]
+        x $[ selection-flip --backward ; map-input <s-home> ; selection-flip --forward ; map-input <s-end> ]
+
+        c $[ delete ; state-set mode insert ]
 
         d delete
 

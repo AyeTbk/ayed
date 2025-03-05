@@ -50,7 +50,7 @@ impl Selections {
         );
     }
 
-    pub fn clear_extras(&mut self) {
+    pub fn dismiss_extras(&mut self) {
         self.extra_selections.clear();
     }
 

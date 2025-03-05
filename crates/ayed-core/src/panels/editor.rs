@@ -14,9 +14,9 @@ const PRIMARY_SELECTION_COLOR: Color = Color::rgb(18, 72, 150);
 const SECONDARY_CURSOR_COLOR: Color = Color::rgb(180, 180, 180);
 const SECONDARY_SELECTION_COLOR: Color = Color::rgb(12, 52, 100);
 
-const PRIMARY_CURSOR_ALT_COLOR: Color = Color::RED;
+const PRIMARY_CURSOR_ALT_COLOR: Color = Color::rgb(230, 30, 30);
 const PRIMARY_SELECTION_ALT_COLOR: Color = Color::rgb(100, 32, 96);
-const SECONDARY_CURSOR_ALT_COLOR: Color = Color::rgb(170, 10, 10);
+const SECONDARY_CURSOR_ALT_COLOR: Color = Color::rgb(160, 15, 15);
 const SECONDARY_SELECTION_ALT_COLOR: Color = Color::rgb(80, 26, 76);
 
 const SELECTION_TEXT_COLOR: Color = Color::rgb(200, 200, 200);
@@ -25,8 +25,8 @@ const NIL_LINE_COLOR: Color = Color::rgb(155, 100, 200);
 
 const PRIMARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(155, 100, 200);
 const SECONDARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(110, 70, 150);
-const PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(200, 100, 150);
-const SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(140, 70, 120);
+const PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(220, 90, 120);
+const SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(160, 60, 90);
 
 #[derive(Default)]
 pub struct Editor {

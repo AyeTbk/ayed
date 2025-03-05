@@ -10,7 +10,7 @@ use crate::{
     position::{Column, Offset, Position},
     selection::Selections,
     state::{TextBuffer, View},
-    utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
+    utils::string_utils::byte_index_to_char_index,
 };
 
 use super::{CommandRegistry, options::Options};
@@ -212,28 +212,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    cr.register("selections-merge-overlapping", |_opt, ctx| {
-        if let Some(view_handle) = ctx.state.focused_view() {
-            let view = ctx.state.views.get_mut(view_handle);
-            let mut selections = view.selections.borrow_mut();
-            *selections = selections.overlapping_selections_merged()
-        }
-
-        Ok(())
-    });
-
-    cr.register("selections-set", |opt, ctx| {
-        let Some(view_handle) = ctx.state.focused_view() else {
-            return Ok(());
-        };
-
-        let view = ctx.state.views.get_mut(view_handle);
-        let mut selections = view.selections.borrow_mut();
-        *selections = Selections::parse(&opt)?;
-
-        Ok(())
-    });
-
     cr.register("look", |opt, ctx| {
         let mut offset = Offset::new(0, 0);
         for ch in opt.chars() {
@@ -427,41 +405,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
-    // FIXME rename this command to duplicate-selection or something
-    cr.register("dupe", |opt, ctx| {
-        let row_offset = match opt.chars().next() {
-            Some('u') => -1,
-            Some('d') => 1,
-            _ => return Err(format!("invalid option: {opt}")),
-        };
-        let offset = Offset::new(0, row_offset);
-
-        let Some(view_handle) = ctx.state.focused_view() else {
-            return Ok(());
-        };
-
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get(view.buffer);
-        let mut selections = view.selections.borrow().clone();
-        let dupes = selections
-            .iter()
-            .map(|sel| {
-                buffer.limit_selection_to_content(
-                    &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
-                        .with_provisional_cursor(sel.desired_cursor().offset(offset)),
-                )
-            })
-            .collect::<Vec<_>>();
-        for dupe in dupes {
-            selections.add(dupe);
-        }
-
-        *view.selections.borrow_mut() = selections;
-        ctx.queue.push("selections-merge-overlapping");
-
-        Ok(())
-    });
-
     cr.register("insert-char", |opt, ctx| {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -573,6 +516,38 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         Ok(())
     });
 
+    cr.register("selections-merge-overlapping", |_opt, ctx| {
+        if let Some(view_handle) = ctx.state.focused_view() {
+            let view = ctx.state.views.get_mut(view_handle);
+            let mut selections = view.selections.borrow_mut();
+            *selections = selections.overlapping_selections_merged()
+        }
+
+        Ok(())
+    });
+
+    cr.register("selections-dismiss-extras", |_opt, ctx| {
+        if let Some(view_handle) = ctx.state.focused_view() {
+            let view = ctx.state.views.get_mut(view_handle);
+            let mut selections = view.selections.borrow_mut();
+            selections.dismiss_extras();
+        }
+
+        Ok(())
+    });
+
+    cr.register("selections-set", |opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get_mut(view_handle);
+        let mut selections = view.selections.borrow_mut();
+        *selections = Selections::parse(&opt)?;
+
+        Ok(())
+    });
+
     cr.register("selection-shrink", |_opt, ctx| {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -603,6 +578,42 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
                 selection.flipped()
             };
         }
+
+        Ok(())
+    });
+
+    // FIXME rename this command to duplicate-selection or something
+    cr.register("dupe", |opt, ctx| {
+        // FIXME the primary selection should become the newly created selection
+        let row_offset = match opt.chars().next() {
+            Some('u') => -1,
+            Some('d') => 1,
+            _ => return Err(format!("invalid option: {opt}")),
+        };
+        let offset = Offset::new(0, row_offset);
+
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get(view.buffer);
+        let mut selections = view.selections.borrow().clone();
+        let dupes = selections
+            .iter()
+            .map(|sel| {
+                buffer.limit_selection_to_content(
+                    &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
+                        .with_provisional_cursor(sel.desired_cursor().offset(offset)),
+                )
+            })
+            .collect::<Vec<_>>();
+        for dupe in dupes {
+            selections.add(dupe);
+        }
+
+        *view.selections.borrow_mut() = selections;
+        ctx.queue.push("selections-merge-overlapping");
 
         Ok(())
     });
