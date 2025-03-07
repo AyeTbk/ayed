@@ -52,7 +52,12 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             buffer.set_path(path);
         }
 
-        buffer.write_atomic()?;
+        buffer.write()?;
+
+        ctx.queue.push(format!(
+            "message written to {}",
+            buffer.path().unwrap_or_default()
+        ));
 
         Ok(())
     });
@@ -62,6 +67,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
+
+    cr.register("message", |opt, ctx| {
+        ctx.state.modeline.set_message(opt.to_string());
+        Ok(())
+    });
 
     cr.register("state-set", |opt, ctx| {
         let (state, rest) = opt

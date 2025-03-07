@@ -44,16 +44,21 @@ impl TextBuffer {
         })
     }
 
-    // FIXME there's no need to specify it's an atomic operation in the name. Just document it.
-    pub fn write_atomic(&self) -> Result<(), String> {
+    /// Write the content of this buffer to its path.
+    /// Returns an error if no path is set, or if an error happens while
+    /// writing.
+    /// The write operation is performed atomically.
+    pub fn write(&self) -> Result<(), String> {
         let path = self
             .path
             .as_ref()
             .ok_or_else(|| "missing path".to_string())?;
-        self.write_to_atomic(path)
+        self.write_to(path)
     }
 
-    pub fn write_to_atomic(&self, path: &str) -> Result<(), String> {
+    /// Write the content of this buffer to the given path.
+    /// The write operation is performed atomically.
+    pub fn write_to(&self, path: &str) -> Result<(), String> {
         // Find unique name for tmp file.
         // Write to new tmp file with unique name.
         // Rename tmp file to intended name.
