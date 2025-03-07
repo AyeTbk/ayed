@@ -204,13 +204,12 @@ struct JumpPoint {
 pub mod commands {
     use crate::{
         command::CommandRegistry,
-        event::EventRegistry,
         selection::{Selection, Selections},
     };
 
     use super::{WarpdriveInputResult, WarpdriveState};
 
-    pub fn register_warpdrive_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
+    pub fn register_warpdrive_commands(cr: &mut CommandRegistry) {
         cr.register("warpdrive", |_opt, ctx| {
             let Some(view_handle) = ctx.state.focused_view() else {
                 return Ok(());

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::{event::EventRegistry, panels::Panels, state::State};
+use crate::{panels::Panels, state::State};
 
 pub mod commands;
 pub mod options;
@@ -28,22 +28,37 @@ impl CommandRegistry {
         );
     }
 
+    pub fn register_event(&mut self, name: impl Into<String>) {
+        self.register(name, |_, _| Ok(()));
+    }
+
     pub fn execute_command(
         &self,
         command: &str,
         ctx: ExecuteCommandContext,
     ) -> Result<Result<(), String>, String> {
         let (name, options) = parse_command(command);
-        let command = self
-            .commands
-            .get(name)
-            .ok_or_else(|| format!("unknown command '{name}'"))?;
+        let command = if let Some(command) = self.commands.get(name) {
+            command
+        } else {
+            if self.is_hardcoded_event(command) {
+                return Ok(Ok(()));
+            } else {
+                return Err(format!("unknown command '{name}'"));
+            }
+        };
         Ok((command.func)(options, ctx))
+    }
+
+    fn is_hardcoded_event(&self, command: &str) -> bool {
+        let (name, _) = parse_command(command);
+        name.starts_with("state-modified:")
+            || name.starts_with("state-before-modified:")
+            || name.starts_with("state-after-modified:")
     }
 }
 
 pub struct ExecuteCommandContext<'a> {
-    pub events: &'a mut EventRegistry,
     pub queue: &'a mut CommandQueue,
     pub state: &'a mut State,
     pub panels: &'a mut Panels,
@@ -82,6 +97,14 @@ impl CommandQueue {
         self.queue
             .insert(self.current_scope().remaining_commands as _, command);
         self.current_scope_mut().remaining_commands += 1;
+    }
+
+    // TODO remove this? I added it mostly to easy the removal of the EventRegistry.
+    pub fn emit(&mut self, command: impl Into<String>, also_concat_this: &str) {
+        let mut cmd = command.into();
+        cmd.push(' ');
+        cmd.push_str(also_concat_this);
+        self.push(cmd);
     }
 
     pub fn pop(&mut self) -> Option<String> {

@@ -5,7 +5,6 @@ use regex::Regex;
 use crate::{
     Ref,
     config::ConfigState,
-    event::EventRegistry,
     panels::FocusedPanel,
     position::{Column, Offset, Position},
     selection::Selections,
@@ -15,7 +14,7 @@ use crate::{
 
 use super::{CommandRegistry, options::Options};
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     cr.register("quit", |_opt, ctx| {
         for (_, view) in ctx.state.views.iter() {
             let buffer = ctx.state.buffers.get(view.buffer);
@@ -72,7 +71,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let state = state.trim();
         let value = rest.trim();
 
-        ctx.events
+        ctx.queue
             .emit(format!("state-before-modified:{state}"), value);
 
         ctx.queue.push(format!("state-set__part2 {opt}"));
@@ -88,7 +87,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let value = rest.trim();
 
         ctx.state.config.set_state(state, value);
-        ctx.events.emit(format!("state-modified:{state}"), value);
+        ctx.queue.emit(format!("state-modified:{state}"), value);
 
         Ok(())
     });
@@ -175,13 +174,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         let buffer_handle;
         if path.is_empty() && scratch {
             buffer_handle = ctx.state.open_scratch();
-            ctx.events.emit("buffer-opened", "");
+            ctx.queue.emit("buffer-opened", "");
         } else {
             match ctx.state.buffer_with_path(path) {
                 Some(handle) => buffer_handle = handle,
                 None => {
                     buffer_handle = ctx.state.open_file_or_scratch(path)?;
-                    ctx.events.emit("buffer-opened", path);
+                    ctx.queue.emit("buffer-opened", path);
                 }
             }
         }
@@ -432,7 +431,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
             buffer.insert_char_at(sel.cursor(), the_char)?;
         }
 
-        ctx.events.emit("buffer-modified", "");
+        ctx.queue.emit("buffer-modified", "");
         Ok(())
     });
 
@@ -461,7 +460,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         }
 
         ctx.queue.push("selections-merge-overlapping");
-        ctx.events.emit("buffer-modified", "");
+        ctx.queue.emit("buffer-modified", "");
         Ok(())
     });
 
@@ -512,7 +511,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, _ev: &mut EventRegist
         }
 
         ctx.queue.push("selections-merge-overlapping");
-        ctx.events.emit("buffer-modified", "");
+        ctx.queue.emit("buffer-modified", "");
         Ok(())
     });
 

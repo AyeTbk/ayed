@@ -1,7 +1,6 @@
 mod command;
 mod config;
 pub mod core;
-mod event;
 pub mod input;
 mod panels;
 mod position;

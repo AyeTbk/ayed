@@ -1,7 +1,6 @@
 use crate::{
     command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     config,
-    event::EventRegistry,
     input::Input,
     panels::{self, Panels},
     state::State,
@@ -10,7 +9,6 @@ use crate::{
 
 #[derive(Default)]
 pub struct Core {
-    pub events: EventRegistry,
     pub commands: CommandRegistry,
     pub queue: CommandQueue,
     pub state: State,
@@ -20,17 +18,17 @@ pub struct Core {
 impl Core {
     pub fn with_builtins() -> Self {
         let mut this = Self::default();
-        command::commands::register_builtin_commands(&mut this.commands, &mut this.events);
 
-        config::commands::register_builtin_commands(&mut this.commands, &mut this.events);
+        this.register_builtin_events();
+
+        command::commands::register_builtin_commands(&mut this.commands);
+
+        config::commands::register_builtin_commands(&mut this.commands);
         this.state.config = config::make_builtin_config();
 
-        panels::warpdrive::commands::register_warpdrive_commands(
-            &mut this.commands,
-            &mut this.events,
-        );
+        panels::warpdrive::commands::register_warpdrive_commands(&mut this.commands);
 
-        this.events.emit("started", "");
+        this.queue_command("started".to_string());
         this.tick();
 
         this
@@ -42,7 +40,7 @@ impl Core {
 
     pub fn emit_input_event(&mut self, input: Input) {
         self.state.last_input = Some(input);
-        self.events.emit("input", input.to_string());
+        self.queue_command(format!("input {input}"));
     }
 
     pub fn quit_requested(&self) -> bool {
@@ -55,8 +53,7 @@ impl Core {
 
     pub fn set_viewport_size(&mut self, size: Size) {
         self.update_viewport_size(size);
-        self.events
-            .emit("resized", format!("{} {}", size.column, size.row));
+        self.queue_command(format!("resized {} {}", size.column, size.row));
 
         self.tick();
     }
@@ -65,9 +62,6 @@ impl Core {
         self.state.modeline.clear_content_override();
 
         loop {
-            self.queue
-                .extend(self.events.emitted_commands(&self.state.config));
-
             let Some(command) = self.queue.pop() else {
                 break;
             };
@@ -77,12 +71,18 @@ impl Core {
             let res = self.commands.execute_command(
                 &command,
                 ExecuteCommandContext {
-                    events: &mut self.events,
                     queue: &mut self.queue,
                     state: &mut self.state,
                     panels: &mut self.panels,
                 },
             );
+
+            let hooks = self.hooks_of_command(&command);
+            // If the command isn't registered, but it has hooks, it is likely
+            // an event and not and error.
+            if !res.is_err() {
+                self.queue.extend(hooks);
+            }
 
             match res {
                 Ok(Err(cmd_err)) => {
@@ -100,8 +100,6 @@ impl Core {
                 _ => (),
             }
         }
-
-        // eprintln!("{}", self.queue.take_debug_log()); // DEBUG
 
         self.state.fill_modeline_infos();
 
@@ -129,6 +127,31 @@ impl Core {
         }
 
         UiState { panels }
+    }
+
+    fn register_builtin_events(&mut self) {
+        self.commands.register_event("started");
+        self.commands.register_event("resized");
+        self.commands.register_event("input");
+        self.commands.register_event("buffer-opened");
+        self.commands.register_event("buffer-modified");
+    }
+
+    fn hooks_of_command(&mut self, command: &str) -> Vec<String> {
+        let mut acc = Vec::new();
+        let (command_name, command_options) = parse_command(&command);
+        let hooks_map = self.state.config.get("hooks");
+        let hooks = hooks_map.and_then(|h| h.get(command_name));
+        if let Some(hooks) = hooks {
+            for command in hooks {
+                if command.contains(' ') {
+                    acc.push(format!("{}", command));
+                } else {
+                    acc.push(format!("{} {}", command, command_options));
+                }
+            }
+        }
+        acc
     }
 
     fn update_viewport_size(&mut self, viewport_size: Size) {
@@ -165,41 +188,3 @@ impl Core {
         ));
     }
 }
-
-// todo undo/redo
-// rearch???
-
-// event driven, command queue
-// pure data (buffers, selections, undoredo states, ...)?
-// command queue that can be pushed to by commands,
-//   prepopulated every tick by registered tick commands?
-
-// input event issued
-// -> input mapping, according to active buffer config state
-//    command event issued (scoped to active buffer view?)
-//    ->
-// .
-
-// UI: still a collection of panels.
-//     One panel has focus at a time.
-//     Having focus determines active view.
-//     Keymap per panel kind, per control kind, per mode
-//     Keymap maps an Input to a command.
-// Modeline:
-//     On insert \n, queue buffer content as command.
-//     ...
-// How panels are rendered:
-//     Just have hardcoded panel types aggregate named State::panels
-//     and do as old core does?
-
-// [global]
-//     [panel (or control?) focus]
-
-// [event] input a
-// -> [hook] insert a  # implicitly acts on active view
-//     -> [queue] insert-at-sel -sel=0 a  # idem
-//         -> [queue] fix-sels -span=(0:0,1:0) insert
-//     -> [queue] insert-at-sel -sel=1 a
-//         -> [queue] fix-sels -span=(0:0,1:0) insert
-//     -> [queue] insert-at-sel -sel=2 a
-//         -> [queue] fix-sels -span=(0:0,1:0) insert

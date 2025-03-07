@@ -4,6 +4,11 @@
 #       Async "scripts"?
 # - ...?
 
+# This one kinda essential...
+hooks {
+    input map-input
+}
+
 mixin basic-movement {
     keybinds {
         <up> move u

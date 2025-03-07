@@ -1,8 +1,6 @@
-use crate::{
-    command::CommandRegistry, event::EventRegistry, input::Input, state::regex_syntax_highlight,
-};
+use crate::{command::CommandRegistry, input::Input, state::regex_syntax_highlight};
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistry) {
+pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     cr.register("map-input", |opt, ctx| {
         // hackish support for combo modes
         let is_combo = ctx
@@ -35,7 +33,6 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry, ev: &mut EventRegistr
 
         Ok(())
     });
-    ev.on("input", "map-input");
 
     cr.register("generate-highlights", |_opt, ctx| {
         let Some(buffer_handle) = ctx.state.active_editor_buffer() else {
