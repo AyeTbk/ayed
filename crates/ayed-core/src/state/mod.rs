@@ -11,6 +11,9 @@ use crate::{
     ui::{Rect, Size, Style},
 };
 
+mod text_buffer_history;
+pub use text_buffer_history::TextBufferHistory;
+
 mod text_buffer;
 pub use text_buffer::TextBuffer;
 
@@ -26,6 +29,7 @@ pub struct State {
     pub active_editor_view: Option<Handle<View>>,
     pub buffers: SlotMap<TextBuffer>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
+    pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
     pub config: Config,
     pub modeline: ModelineState,
     pub focused_panel: FocusedPanel,

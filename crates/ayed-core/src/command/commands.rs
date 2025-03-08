@@ -5,7 +5,7 @@ use crate::{
     panels::FocusedPanel,
     position::{Column, Offset, Position},
     selection::Selections,
-    state::{TextBuffer, View},
+    state::{TextBuffer, TextBufferHistory, View},
     utils::string_utils::byte_index_to_char_index,
 };
 
@@ -635,6 +635,49 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         *buffer.view_selections_mut(view_handle).unwrap() = selections;
         ctx.queue.push("selections-merge-overlapping");
+
+        Ok(())
+    });
+
+    cr.register("history-save", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.active_editor_view else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        let history_entry = ctx.state.edit_histories.entry(view.buffer);
+        use std::collections::hash_map::Entry;
+        match history_entry {
+            Entry::Occupied(mut history) => {
+                history.get_mut().save_state(buffer);
+            }
+            Entry::Vacant(history) => {
+                history.insert(TextBufferHistory::new(buffer));
+            }
+        }
+
+        Ok(())
+    });
+
+    cr.register("history-undo", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.active_editor_view else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        let undid = ctx
+            .state
+            .edit_histories
+            .get_mut(&view.buffer)
+            .is_some_and(|history| history.undo(buffer));
+
+        if undid {
+            ctx.queue.emit("buffer-modified", "");
+        } else {
+            ctx.queue.push("message no remaining history");
+        }
 
         Ok(())
     });

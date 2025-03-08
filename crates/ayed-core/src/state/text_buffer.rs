@@ -18,10 +18,11 @@ use super::View;
 //     no implied line terminator).
 // #5. When inserting text, the character '\n' represents a line terminator.
 pub struct TextBuffer {
-    lines: Vec<String>,
-    selections: HashMap<Handle<View>, Selections>,
-    path: Option<String>,
-    dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
+    pub lines: Vec<String>,
+    pub selections: HashMap<Handle<View>, Selections>,
+    pub path: Option<String>,
+    pub dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
+    pub history_dirty: Cell<bool>, // Used to prevent saving changes to the undo/redo stack when there is none.
 }
 
 impl TextBuffer {
@@ -31,6 +32,7 @@ impl TextBuffer {
             selections: Default::default(),
             path: None,
             dirty: Default::default(),
+            history_dirty: Default::default(),
         }
     }
 
@@ -43,6 +45,7 @@ impl TextBuffer {
             selections: Default::default(),
             path: Some(path.to_string()),
             dirty: Default::default(),
+            history_dirty: Default::default(),
         })
     }
 
@@ -98,6 +101,13 @@ impl TextBuffer {
 
     fn mark_dirty(&self) {
         self.dirty.set(true);
+        self.history_dirty.set(true);
+    }
+
+    pub fn take_history_dirty(&self) -> bool {
+        let d = self.history_dirty.get();
+        self.history_dirty.set(false);
+        d
     }
 
     pub fn add_view_selections(&mut self, view: Handle<View>, selections: Selections) {

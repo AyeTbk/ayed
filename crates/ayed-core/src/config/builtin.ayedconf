@@ -4,10 +4,24 @@
 #       Async "scripts"?
 # - ...?
 
-# This one kinda essential...
+# Essential for input mapping
 hooks {
     input map-input
 }
+
+
+# Essential for undo/redo
+hooks {
+    buffer-opened history-save
+}
+
+mode normal {
+    hooks {
+        buffer-modified history-save
+        state-modified:mode history-save
+    }
+}
+
 
 mixin basic-movement {
     # FIXME those map-input's are dirty. Allow defining reusable commands in config!
@@ -112,14 +126,16 @@ mode normal {
         <a-;> selection-flip
         , selections-dismiss-extras
 
-        o $[ move-regex --line $$ ; insert-char \n ; state-set mode insert ]
+        o $[ move-regex --line $$ ; state-set mode insert ; insert-char \n ]
         <s-o> $[ move-regex --reversed --line ^ ; insert-char \n ; move u ; state-set mode insert ]
 
         x $[ selection-flip --backward ; map-input <s-home> ; selection-flip --forward ; map-input <s-end> ]
 
-        c $[ delete ; state-set mode insert ]
+        c $[ state-set mode insert ; delete ]
 
         d delete
+
+        u history-undo
 
         : panel-focus modeline
 
