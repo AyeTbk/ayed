@@ -7,8 +7,6 @@
 # This one kinda essential...
 hooks {
     input map-input
-
-    input message FIXME TODO generate-highlight doesn't kick in right away since new events system...
 }
 
 mixin basic-movement {

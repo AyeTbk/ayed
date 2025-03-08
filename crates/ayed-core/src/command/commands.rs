@@ -182,15 +182,20 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let path = opts.remainder();
 
         let buffer_handle;
+        let buffer_opened_path: Option<&str>;
         if path.is_empty() && scratch {
             buffer_handle = ctx.state.open_scratch();
+            buffer_opened_path = Some(path);
             ctx.queue.emit("buffer-opened", "");
         } else {
             match ctx.state.buffer_with_path(path) {
-                Some(handle) => buffer_handle = handle,
+                Some(handle) => {
+                    buffer_handle = handle;
+                    buffer_opened_path = None;
+                }
                 None => {
                     buffer_handle = ctx.state.open_file_or_scratch(path)?;
-                    ctx.queue.emit("buffer-opened", path);
+                    buffer_opened_path = Some(path);
                 }
             }
         }
@@ -216,7 +221,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         ctx.state.active_editor_view = Some(view_handle);
 
+        // The state must be updated before 'buffer-opened' is emitted so that
+        // hooked commands may behave correctly.
         ctx.queue.set_state(ConfigState::FILE, path);
+
+        if let Some(path) = buffer_opened_path {
+            ctx.queue.emit("buffer-opened", path);
+        }
 
         Ok(())
     });

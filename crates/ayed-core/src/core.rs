@@ -101,7 +101,13 @@ impl Core {
             }
         }
 
+        if self.state.config.state_value("cmdlog") == Some("true") {
+            eprintln!("{}", self.queue.take_debug_log());
+        }
+
         self.state.fill_modeline_infos();
+
+        self.queue.clear();
 
         // Updating the viewport is needed here since the size of some panels
         // (ex: line numbers) depends on the contents, which might have been
