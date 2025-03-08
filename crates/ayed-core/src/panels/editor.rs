@@ -98,7 +98,9 @@ impl Editor {
             }
         }
 
-        for (i, selection) in view.selections.borrow().iter().enumerate() {
+        let buffer = state.buffers.get(view.buffer);
+        let selections = buffer.view_selections(view_handle).unwrap();
+        for (i, selection) in selections.iter().enumerate() {
             let is_primary = i == 0;
             // FIXME dont hardcode insert/append here, make this configurable in the config somehow
             let use_alt_style = matches!(

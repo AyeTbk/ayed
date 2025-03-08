@@ -1,11 +1,13 @@
-use std::cell::Cell;
+use std::{cell::Cell, collections::HashMap};
 
 use crate::{
-    Ref, WeakRef,
     position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
+    slotmap::Handle,
     utils::string_utils::{char_count, char_index_to_byte_index},
 };
+
+use super::View;
 
 // #1. There should always be at least one line. A line is a String in the lines vector.
 // #2. The line terminators are not part of the content, they are implied for the
@@ -17,7 +19,7 @@ use crate::{
 // #5. When inserting text, the character '\n' represents a line terminator.
 pub struct TextBuffer {
     lines: Vec<String>,
-    selections: Vec<WeakRef<Selections>>,
+    selections: HashMap<Handle<View>, Selections>,
     path: Option<String>,
     dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
 }
@@ -26,7 +28,7 @@ impl TextBuffer {
     pub fn new_empty() -> Self {
         Self {
             lines: vec![String::new()], // Uphold #1.
-            selections: vec![],
+            selections: Default::default(),
             path: None,
             dirty: Default::default(),
         }
@@ -38,7 +40,7 @@ impl TextBuffer {
         let lines = content.split('\n').map(str::to_string).collect();
         Ok(Self {
             lines,
-            selections: Vec::new(),
+            selections: Default::default(),
             path: Some(path.to_string()),
             dirty: Default::default(),
         })
@@ -98,8 +100,16 @@ impl TextBuffer {
         self.dirty.set(true);
     }
 
-    pub fn add_selections(&mut self, selections: &Ref<Selections>) {
-        self.selections.push(Ref::downgrade(selections));
+    pub fn add_view_selections(&mut self, view: Handle<View>, selections: Selections) {
+        self.selections.insert(view, selections);
+    }
+
+    pub fn view_selections(&self, view: Handle<View>) -> Option<&Selections> {
+        self.selections.get(&view)
+    }
+
+    pub fn view_selections_mut(&mut self, view: Handle<View>) -> Option<&mut Selections> {
+        self.selections.get_mut(&view)
     }
 
     pub fn path(&self) -> Option<&str> {
@@ -298,7 +308,7 @@ impl TextBuffer {
 
     fn adjust_selections_after_insert_char(&mut self, inserted_at: Position) {
         for selections in self.selections() {
-            for selection in selections.borrow_mut().iter_mut() {
+            for selection in selections.iter_mut() {
                 let cursor =
                     Self::adjust_position_after_insert_char(selection.cursor(), inserted_at);
                 let anchor =
@@ -310,7 +320,7 @@ impl TextBuffer {
 
     fn adjust_selections_after_split_line(&mut self, split_at: Position) {
         for selections in self.selections() {
-            for selection in selections.borrow_mut().iter_mut() {
+            for selection in selections.iter_mut() {
                 let cursor = Self::adjust_position_after_split_line(selection.cursor(), split_at);
                 let anchor = Self::adjust_position_after_split_line(selection.anchor(), split_at);
                 *selection = selection.with_anchor(anchor).with_cursor(cursor);
@@ -320,7 +330,7 @@ impl TextBuffer {
 
     fn adjust_selections_after_delete_at(&mut self, deleted_at: Position) {
         for selections in self.selections() {
-            for selection in selections.borrow_mut().iter_mut() {
+            for selection in selections.iter_mut() {
                 let cursor = Self::adjust_position_after_delete_at(selection.cursor(), deleted_at);
                 let anchor = Self::adjust_position_after_delete_at(selection.anchor(), deleted_at);
                 *selection = selection.with_anchor(anchor).with_cursor(cursor);
@@ -334,7 +344,7 @@ impl TextBuffer {
         original_line_char_count: usize,
     ) {
         for selections in self.selections() {
-            for selection in selections.borrow_mut().iter_mut() {
+            for selection in selections.iter_mut() {
                 let cursor = Self::adjust_position_after_join_line_with_next(
                     selection.cursor(),
                     row,
@@ -350,19 +360,8 @@ impl TextBuffer {
         }
     }
 
-    fn selections(&mut self) -> Vec<Ref<Selections>> {
-        let mut sels = Vec::new();
-        let mut i = 0;
-        while i < self.selections.len() {
-            let weak = &self.selections[i];
-            if let Some(strong) = WeakRef::upgrade(weak) {
-                sels.push(strong);
-                i += 1;
-            } else {
-                self.selections.remove(i);
-            }
-        }
-        sels
+    fn selections(&mut self) -> impl Iterator<Item = &mut Selections> {
+        self.selections.values_mut()
     }
 
     fn adjust_position_after_insert_char(pos: Position, inserted_at: Position) -> Position {

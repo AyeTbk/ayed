@@ -1,7 +1,5 @@
 use crate::{
-    Ref,
     position::{Column, Position, Row},
-    selection::Selections,
     slotmap::{Handle, SlotMap},
     utils::string_utils::{char_count, char_index_to_byte_index, char_index_to_byte_index_end},
 };
@@ -11,7 +9,6 @@ use super::text_buffer::TextBuffer;
 pub struct View {
     pub top_left: Position,
     pub buffer: Handle<TextBuffer>,
-    pub selections: Ref<Selections>,
     pub virtual_buffer: Option<VirtualBuffer>,
 }
 

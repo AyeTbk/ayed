@@ -37,7 +37,7 @@ impl LineNumbers {
         let mut content = Vec::new();
         let mut spans = Vec::new();
 
-        let Some(view) = state.active_editor_view.map(|h| state.views.get(h)) else {
+        let Some(view_handle) = state.active_editor_view else {
             return UiPanel {
                 position: Position::ZERO,
                 size: self.rect.size(),
@@ -46,6 +46,7 @@ impl LineNumbers {
             };
         };
 
+        let view = state.views.get(view_handle);
         let buffer = state.buffers.get(view.buffer);
 
         let width: Column = self.rect.width.try_into().unwrap();
@@ -73,7 +74,10 @@ impl LineNumbers {
             s.push_str(&" ".repeat(Self::RIGHT_PAD_LEN as _));
             content.push(s);
 
-            let current_row = { view.selections.borrow().primary().cursor().row };
+            let current_row = {
+                let selections = buffer.view_selections(view_handle).unwrap();
+                selections.primary().cursor().row
+            };
             let color = if current_row + 1 == line_number {
                 Color::rgb(230, 230, 230)
             } else if line_number == buffer.line_count() {

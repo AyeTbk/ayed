@@ -10,6 +10,3 @@ mod state;
 pub mod ui;
 
 mod utils;
-
-mod shared;
-pub use shared::{Ref, WeakRef};
