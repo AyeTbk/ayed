@@ -10,22 +10,31 @@ hooks {
 }
 
 mixin basic-movement {
+    # FIXME those map-input's are dirty. Allow defining reusable commands in config!
     keybinds {
         <up> move u
-        <down> move d
-        <left> move l
-        <right> move r
         <s-up> move u anchored
+        <c-up> $[ map-input x ; selection-flip --backward ; move u ; map-input x ; selection-flip --backward ]
+        <cs-up> $[ map-input x ; selection-flip --backward ; move u anchored ; map-input x ; selection-flip --backward ]
+
+        <down> move d
         <s-down> move d anchored
+        <c-down> $[ map-input x ; move d ; map-input x ]
+        <cs-down> $[ map-input x ; move d anchored; map-input x ]
+
+        <left> move l
         <s-left> move l anchored
         <c-left> move-regex --reversed \w+\b|[^\s\w]+
         <cs-left> move-regex --reversed --anchored \w+\b|[^\s\w]+
+
+        <right> move r
         <s-right> move r anchored
         <c-right> move-regex \w+\b|[^\s\w]+
         <cs-right> move-regex --anchored \w+\b|[^\s\w]+
 
         <home> move-regex --reversed --line ^
         <s-home> move-regex --reversed --anchored --line ^
+
         <end> move-regex --line $$
         <s-end> move-regex --anchored --line $$
     }
@@ -76,8 +85,13 @@ mode normal {
 
         k move u
         K move u anchored
+        <c-k> $[ map-input x ; selection-flip --backward ; move u ; map-input x ; selection-flip --backward ]
+        <c-K> message <cs-letter> just dont work in terminal :(
+
         j move d
         J move d anchored
+        <c-j> $[ map-input x ; move d ; map-input x ]
+
         h move l
         H move l anchored
         <c-h> move-regex --reversed \w+|[^\s\w]+

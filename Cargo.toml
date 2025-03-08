@@ -3,3 +3,7 @@ resolver = "2"
 members = [
     "crates/*",
 ]
+
+[profile.dev.package.regex-automata]
+opt-level = 3
+

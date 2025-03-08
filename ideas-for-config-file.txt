@@ -1,3 +1,8 @@
+# Define reusable commands in config!
+commands {
+    do-thing $[ move u ; move d ]
+}
+
 # You could define mixins like this...
 mixin basic-movements {
     keybinds {
