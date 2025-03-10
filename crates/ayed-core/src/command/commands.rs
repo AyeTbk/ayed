@@ -312,10 +312,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         *buffer.view_selections_mut(view_handle).unwrap() = selections;
 
-        // FIXME these are being done often in this file, they probably should be hooked
-        // to some events, like buffer-modified and selections-modified.
-        ctx.queue.push("selections-merge-overlapping");
-        ctx.queue.push("look-keep-primary-cursor-in-view");
+        // TODO make this automatic maybe?, keep track of it in TextBuffer
+        // Same for buffer-modified??
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
@@ -415,8 +414,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         *buffer.view_selections_mut(view_handle).unwrap() = selections;
 
-        ctx.queue.push("selections-merge-overlapping");
-        ctx.queue.push("look-keep-primary-cursor-in-view");
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
@@ -473,8 +471,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             buffer.delete_selection(&sel)?;
         }
 
-        ctx.queue.push("selections-merge-overlapping");
         ctx.queue.emit("buffer-modified", "");
+        ctx.queue.emit("selections-modified", "");
+
         Ok(())
     });
 
@@ -523,8 +522,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             }
         }
 
-        ctx.queue.push("selections-merge-overlapping");
         ctx.queue.emit("buffer-modified", "");
+        ctx.queue.emit("selections-modified", "");
+
         Ok(())
     });
 
@@ -598,7 +598,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             };
         }
 
-        ctx.queue.push("look-keep-primary-cursor-in-view");
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
@@ -634,7 +634,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         }
 
         *buffer.view_selections_mut(view_handle).unwrap() = selections;
-        ctx.queue.push("selections-merge-overlapping");
+
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });

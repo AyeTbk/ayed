@@ -10,6 +10,12 @@ hooks {
 }
 
 
+# Essential for general editing
+hooks {
+    selections-modified $[ selections-merge-overlapping ; look-keep-primary-cursor-in-view ]
+}
+
+
 # Essential for undo/redo
 hooks {
     buffer-opened history-save
@@ -18,6 +24,7 @@ hooks {
 mode normal {
     hooks {
         buffer-modified history-save
+        selections-modified history-save
         state-modified:mode history-save
     }
 }

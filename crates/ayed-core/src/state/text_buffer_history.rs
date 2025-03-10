@@ -19,10 +19,17 @@ impl TextBufferHistory {
     }
 
     pub fn save_state(&mut self, buffer: &TextBuffer) {
+        let state = Self::extract_state(buffer);
+        let all_selections = state.all_selections.clone();
+
+        // Only add a new state if needed
         if buffer.take_history_dirty() {
-            dbg!(&buffer.lines);
-            self.state_stack.push(Self::extract_state(buffer));
+            self.state_stack.push(state);
         }
+
+        // Always update current state's selections
+        let current_state = self.state_stack.last_mut().expect("should never be empty");
+        current_state.all_selections = all_selections;
     }
 
     pub fn undo(&mut self, buffer: &mut TextBuffer) -> bool {
@@ -38,7 +45,6 @@ impl TextBufferHistory {
 
         // Restore the previous state
         if let Some(state) = self.state_stack.last().cloned() {
-            dbg!(&state.whole_content);
             buffer.lines = state.whole_content;
             buffer.selections = state.all_selections;
             true
