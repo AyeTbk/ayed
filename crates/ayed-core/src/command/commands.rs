@@ -560,6 +560,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let selections = buffer.view_selections_mut(view_handle).unwrap();
         *selections = Selections::parse(&opt)?;
 
+        ctx.queue.emit("selections-modified", "");
+
         Ok(())
     });
 
@@ -573,6 +575,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         for selection in selections.iter_mut() {
             *selection = selection.shrunk_to_cursor();
         }
+
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
@@ -679,6 +683,73 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         } else {
             ctx.queue.push("message no remaining history");
         }
+
+        Ok(())
+    });
+
+    cr.register("yank", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.active_editor_view else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get(view.buffer);
+
+        let selections = buffer.view_selections(view_handle).unwrap();
+        let register = &mut ctx.state.register;
+
+        register.content = buffer.selection_text(&selections.primary_selection);
+        register.extra_content.clear();
+        for selection in selections.extra_selections.iter() {
+            register
+                .extra_content
+                .push(buffer.selection_text(selection));
+        }
+
+        Ok(())
+    });
+
+    cr.register("paste", |opt, ctx| {
+        let opts = Options::new().flag("before").parse(opt)?;
+        let before = opts.contains("before");
+
+        let Some(view_handle) = ctx.state.active_editor_view else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+
+        let sel_count = buffer.view_selections(view_handle).unwrap().count();
+        for sel_idx in (0..sel_count).rev() {
+            let selections = buffer.view_selections(view_handle).unwrap();
+            let Some(sel) = selections.get(sel_idx) else {
+                continue;
+            };
+            let text = ctx
+                .state
+                .register
+                .iter()
+                .cycle()
+                .nth(sel_idx)
+                .expect("register.iter is never empty");
+            let insert_at = if before {
+                sel.start()
+            } else {
+                buffer
+                    .move_position_horizontally(sel.end(), 1)
+                    .unwrap_or(sel.end())
+            };
+
+            let inserted_sel = buffer.insert_str_at(insert_at, text)?;
+
+            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            let Some(sel) = selections.get_mut(sel_idx) else {
+                continue;
+            };
+            *sel = inserted_sel;
+        }
+
+        ctx.queue.emit("buffer-modified", "");
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });

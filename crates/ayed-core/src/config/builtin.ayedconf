@@ -144,6 +144,10 @@ mode normal {
 
         u history-undo
 
+        y yank
+        p paste
+        <s-p> paste --before
+
         : panel-focus modeline
 
         <backtab> state-set mode insert

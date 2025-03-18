@@ -4,8 +4,8 @@ use crate::position::{Column, Position, Row};
 
 #[derive(Debug, Clone)]
 pub struct Selections {
-    primary_selection: Selection,
-    extra_selections: Vec<Selection>,
+    pub primary_selection: Selection,
+    pub extra_selections: Vec<Selection>,
 }
 
 impl Selections {

@@ -155,6 +155,29 @@ impl TextBuffer {
             .map(|line| char_count(line).try_into().unwrap())
     }
 
+    pub fn selection_text(&self, selection: &Selection) -> String {
+        let mut text = String::new();
+        for (i, line_sel) in selection.split_lines().enumerate() {
+            if i != 0 {
+                text.push('\n');
+            }
+            let sel = self.limit_selection_to_content(&line_sel);
+            let line = self.line(sel.cursor().row).unwrap();
+            let line_char_count = self.line_char_count(sel.cursor().row).unwrap();
+
+            let start: usize = sel.start().column as _;
+            let end: usize = sel.end().column as _;
+
+            if end == line_char_count as _ {
+                text.push_str(&line[start..end]);
+                text.push('\n');
+            } else {
+                text.push_str(&line[start..=end]);
+            }
+        }
+        text
+    }
+
     pub fn selection_char_count(&self, selection: &Selection) -> usize {
         let start_row = selection.start().row;
         let start_column = selection.start().column;
@@ -224,6 +247,22 @@ impl TextBuffer {
         Some(self.limit_position_to_content(position))
     }
 
+    pub fn insert_str_at(&mut self, at: Position, s: &str) -> Result<Selection, String> {
+        // TODO PERF maybe make this not one by one, if you ever feel like it.
+        let mut cursor = at;
+        let mut prior_cursor = at;
+        for ch in s.chars() {
+            prior_cursor = cursor;
+            self.insert_char_at(cursor, ch)?;
+            if ch == '\n' {
+                cursor = Self::adjust_position_after_split_line(cursor, cursor);
+            } else {
+                cursor = Self::adjust_position_after_insert_char(cursor, cursor);
+            }
+        }
+        Ok(Selection::new().with_anchor(at).with_cursor(prior_cursor))
+    }
+
     pub fn insert_char_at(&mut self, at: Position, ch: char) -> Result<(), String> {
         if ch == '\n' {
             self.split_line(at)?;
@@ -285,6 +324,7 @@ impl TextBuffer {
     }
 
     pub fn delete_selection(&mut self, selection: &Selection) -> Result<(), String> {
+        // TODO PERF maybe make this not one by one, if you ever feel like it.
         for _ in 0..self.selection_char_count(selection) {
             self.delete_at(selection.start())?;
         }

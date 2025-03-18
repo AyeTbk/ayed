@@ -23,6 +23,9 @@ pub use view::View;
 mod highlight;
 pub use highlight::{Highlight, regex_syntax_highlight};
 
+mod register;
+pub use register::Register;
+
 #[derive(Default)]
 pub struct State {
     pub views: SlotMap<View>,
@@ -30,6 +33,7 @@ pub struct State {
     pub buffers: SlotMap<TextBuffer>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
+    pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,
     pub focused_panel: FocusedPanel,
