@@ -63,6 +63,12 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("wq", |_opt, ctx| {
+        ctx.queue.push(format!("buffer-write"));
+        ctx.queue.push(format!("quit"));
+        Ok(())
+    });
+
     cr.register("error", |opt, _ctx| Err(opt.to_string()));
 
     cr.register("message", |opt, ctx| {
@@ -754,6 +760,77 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("suggestions-select", |opt, ctx| {
+        if ctx.state.suggestions.items.is_empty() {
+            return Ok(());
+        }
+
+        let opts = Options::new().flag("next").flag("previous").parse(opt)?;
+        let next = opts.contains("next");
+        let previous = opts.contains("previous");
+
+        let cycling_from_original = ctx.state.suggestions.selected_item == 0;
+        ctx.state.suggestions.selected_item += next as i32 - (previous as i32);
+        let modulo = ctx.state.suggestions.items.len() as i32 + 1;
+        ctx.state.suggestions.selected_item =
+            ctx.state.suggestions.selected_item.rem_euclid(modulo);
+        let selected_item_idx = (ctx.state.suggestions.selected_item - 1).max(0) as usize;
+        let cycling_to_original = ctx.state.suggestions.selected_item == 0;
+
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let sel_count = buffer.view_selections(view_handle).unwrap().count();
+
+        if cycling_from_original {
+            ctx.state.suggestions.original_symbols.clear();
+            for sel_idx in 0..sel_count {
+                let selections = buffer.view_selections(view_handle).unwrap();
+                let sel = selections.get(sel_idx).unwrap();
+                let original = buffer.selection_text(&sel);
+                ctx.state.suggestions.original_symbols.push(original);
+            }
+        }
+
+        for sel_idx in 0..sel_count {
+            let selections = buffer.view_selections(view_handle).unwrap();
+            let sel = selections.get(sel_idx).unwrap();
+
+            buffer.delete_selection(&sel)?;
+
+            let text_to_insert;
+            if cycling_to_original {
+                text_to_insert = ctx.state.suggestions.original_symbols[sel_idx].as_str();
+            } else {
+                text_to_insert = ctx.state.suggestions.items[selected_item_idx].as_str();
+            }
+            let new_sel = buffer.insert_str_at(sel.start(), text_to_insert)?;
+
+            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            *selections.get_mut(sel_idx).unwrap() = new_sel;
+        }
+
+        ctx.queue.emit("buffer-modified", "");
+        ctx.queue.emit("selections-modified", "");
+
+        Ok(())
+    });
+
+    cr.register("suggestions-gather", |_opt, ctx| {
+        // Look at symbol under primary cursor (or right before)
+        // If it's the same as old one saved in state, bail.
+        // Else, clear suggs and gather new from configured source
+        ctx.state.suggestions.items.clear();
+        ctx.state.suggestions.selected_item = 0;
+
+        ctx.queue
+            .push("error 1qaz do this here! suggestions-gather");
+
+        Ok(())
+    });
+
     cr.register("vbuf-clear", |_opt, ctx| {
         // FIXME I dont believe the vbuffer should be handled directly
         // by commands like this. Its settings should be set (with
@@ -775,7 +852,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let view = ctx.state.views.get_mut(view_handle);
         view.rebuild_line_wrap(
             &ctx.state.buffers,
-            ctx.state.editor_size.column.try_into().unwrap(),
+            ctx.state.editor_rect.size().column.try_into().unwrap(),
         );
 
         Ok(())

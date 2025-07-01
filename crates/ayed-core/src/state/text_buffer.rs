@@ -167,10 +167,13 @@ impl TextBuffer {
 
             let start: usize = sel.start().column as _;
             let end: usize = sel.end().column as _;
+            let ends_on_last_line = sel.end().row == self.last_row();
 
             if end == line_char_count as _ {
                 text.push_str(&line[start..end]);
-                text.push('\n');
+                if !ends_on_last_line {
+                    text.push('\n');
+                }
             } else {
                 text.push_str(&line[start..=end]);
             }

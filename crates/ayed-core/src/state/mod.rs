@@ -26,6 +26,9 @@ pub use highlight::{Highlight, regex_syntax_highlight};
 mod register;
 pub use register::Register;
 
+mod suggestions;
+pub use suggestions::Suggestions;
+
 #[derive(Default)]
 pub struct State {
     pub views: SlotMap<View>,
@@ -33,13 +36,15 @@ pub struct State {
     pub buffers: SlotMap<TextBuffer>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
+    pub suggestions: Suggestions,
     pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,
     pub focused_panel: FocusedPanel,
     pub quit_requested: bool,
     pub viewport_size: Size,
-    pub editor_size: Size,
+    pub editor_rect: Rect,
+    pub modeline_rect: Rect,
     pub last_input: Option<Input>,
 }
 
@@ -88,7 +93,7 @@ impl State {
             .active_editor_view
             .map(|handle| self.views.get(handle).top_left)
             .unwrap_or_default();
-        Rect::with_position_and_size(top_left, self.editor_size)
+        Rect::with_position_and_size(top_left, self.editor_rect.size())
     }
 
     pub fn active_editor_buffer(&self) -> Option<Handle<TextBuffer>> {

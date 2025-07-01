@@ -16,6 +16,9 @@ pub use self::warpdrive::Warpdrive;
 mod combo;
 pub use self::combo::Combo;
 
+mod suggestions;
+pub use self::suggestions::Suggestions;
+
 #[derive(Default)]
 pub struct Panels {
     pub editor: Editor,
@@ -23,6 +26,7 @@ pub struct Panels {
     pub modeline: Modeline,
     pub warpdrive: Warpdrive,
     pub combo: Combo,
+    pub suggestion: Suggestions,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]

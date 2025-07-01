@@ -33,7 +33,7 @@ impl Position {
 
     pub fn offset(&self, offset: impl Into<Offset>) -> Self {
         let offset = offset.into();
-        let column = self.column + offset.column;
+        let column = self.column.saturating_add(offset.column); // idc just saturate
         let row = self.row + offset.row;
         Self { column, row }
     }
@@ -63,12 +63,19 @@ impl Position {
         }
     }
 
+    // TODO Remove this eventually, and find a better name
     pub fn local_to(&self, other: Self) -> (Option<i32>, Option<i32>) {
         let column = self.column - other.column;
         let column = (column >= 0).then_some(column);
         let row = self.row - other.row;
         let row = (row >= 0).then_some(row);
         (column, row)
+    }
+
+    pub fn local_to_pos(&self, other: Self) -> Position {
+        let column = self.column - other.column;
+        let row = self.row - other.row;
+        Position::new(column, row)
     }
 }
 
@@ -83,6 +90,16 @@ impl std::cmp::PartialOrd for Position {
 impl std::cmp::Ord for Position {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Less)
+    }
+}
+
+impl std::ops::Add for Position {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            column: self.column + rhs.column,
+            row: self.row + rhs.row,
+        }
     }
 }
 

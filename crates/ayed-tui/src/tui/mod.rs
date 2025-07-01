@@ -119,6 +119,9 @@ impl Tui {
             let after_end_x = start_x + panel.size.column as i32;
 
             for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
+                if y < 0 {
+                    continue;
+                }
                 self.screen.execute(MoveTo((start_x) as _, (y) as _))?;
 
                 cleanup_span_style(&mut self.screen)?;

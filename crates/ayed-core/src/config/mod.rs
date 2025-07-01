@@ -26,6 +26,10 @@ impl Config {
         self.current_config.get(key)
     }
 
+    pub fn get_entry_value(&self, mapping: &str, entry_name: &str) -> Option<&[String]> {
+        Some(self.get(mapping)?.get(entry_name)?.as_slice())
+    }
+
     pub fn state_value(&self, state_name: &str) -> Option<&str> {
         self.state.get(state_name)
     }

@@ -30,6 +30,30 @@ mode normal {
 }
 
 
+# Essential for suggestions
+suggestions {
+    placement cursor
+    source active-buffer
+}
+hooks {
+    selections-modified suggestions-gather
+}
+@override
+panel modeline {
+    suggestions {
+        placement modeline
+        source commands
+    }
+}
+panel modeline {
+    hooks {
+        suggestions-select move r anchored
+    }
+}
+
+
+# Default config
+
 mixin basic-movement {
     # FIXME those map-input's are dirty. Allow defining reusable commands in config!
     keybinds {
@@ -69,10 +93,21 @@ mixin basic-deletion {
     }
 }
 
+mixin suggestions {
+    keybinds {
+        <a-down> suggestions-select --next
+        <c-n> suggestions-select --next
+
+        <a-up> suggestions-select --previous
+        <c-p> suggestions-select --previous
+    }
+}
+
 @override
 panel modeline {
     use basic-movement
     use basic-deletion
+    use suggestions
 
     keybinds {
         <esc> panel-focus editor
@@ -99,6 +134,7 @@ hooks {
 
 mode normal {
     use basic-movement
+    use suggestions
 
     keybinds {
         <del> delete
@@ -165,6 +201,7 @@ mode normal {
 mixin mode-insert-append-common {
     use basic-movement
     use basic-deletion
+    use suggestions
 
     keybinds {
         <c-space> state-set mode normal

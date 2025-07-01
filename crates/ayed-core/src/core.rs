@@ -126,6 +126,10 @@ impl Core {
             panels.push(ui_panel);
         }
 
+        if let Some(suggestion_panel) = self.panels.suggestion.render(&self.state) {
+            panels.push(suggestion_panel);
+        }
+
         let mode = self.state.config.state_value("mode");
         let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
         if show_combo {
@@ -178,7 +182,7 @@ impl Core {
             editor_width,
             editor_height,
         ));
-        self.state.editor_size = self.panels.editor.rect().size();
+        self.state.editor_rect = self.panels.editor.rect();
 
         self.panels.warpdrive.set_rect(self.panels.editor.rect());
         self.panels.combo.set_rect(self.panels.editor.rect());
@@ -193,5 +197,6 @@ impl Core {
             self.state.viewport_size.column,
             1,
         ));
+        self.state.modeline_rect = self.panels.modeline.rect();
     }
 }
