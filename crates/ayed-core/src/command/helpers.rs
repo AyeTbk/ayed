@@ -16,6 +16,7 @@ pub fn alias(
     }
 }
 
+#[expect(dead_code)]
 pub struct FocusedBufferCommandContext<'a> {
     pub view_handle: Handle<View>,
     pub view: &'a mut View,

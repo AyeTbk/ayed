@@ -1,5 +1,5 @@
 use crate::{
-    command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
+    command::{CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     commands, config,
     input::Input,
     panels::{self, Panels, RenderPanelContext},
