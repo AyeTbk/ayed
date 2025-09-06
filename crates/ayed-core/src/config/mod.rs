@@ -26,8 +26,12 @@ impl Config {
         self.current_config.get(key)
     }
 
-    pub fn get_entry_value(&self, mapping: &str, entry_name: &str) -> Option<&[String]> {
-        Some(self.get(mapping)?.get(entry_name)?.as_slice())
+    pub fn get_entry_value(&self, mapping: &str, entry_name: &str) -> Result<&str, String> {
+        self.get(mapping)
+            .and_then(|m| m.get(entry_name))
+            .and_then(|e| e.as_slice().first())
+            .map(String::as_str)
+            .ok_or_else(|| format!("entry not found '{entry_name}' of '{mapping}'"))
     }
 
     pub fn state_value(&self, state_name: &str) -> Option<&str> {

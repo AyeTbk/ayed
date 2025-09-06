@@ -27,8 +27,8 @@ impl Suggestions {
             return None;
         }
 
-        let entry = state.config.get_entry_value("suggestions", "placement")?;
-        let placement = entry.first()?.as_str();
+        let placement = state.config.get_entry_value("suggestions", "placement");
+        let placement = placement.ok()?;
         match placement {
             "cursor" => self.render_at_cursor(state),
             "modeline" => self.render_at_modeline(state),

@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::{panels::Panels, state::State};
 
 pub mod commands;
+pub mod helpers;
 pub mod options;
 
 struct Command {

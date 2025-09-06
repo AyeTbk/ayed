@@ -89,11 +89,16 @@ impl State {
     }
 
     pub fn focused_view_rect(&self) -> Rect {
-        let top_left = self
-            .active_editor_view
+        let (view_handle, panel_rect) = match self.focused_panel {
+            FocusedPanel::Modeline(handle) => (Some(handle), self.modeline_rect),
+            FocusedPanel::Editor | FocusedPanel::Warpdrive => {
+                (self.active_editor_view, self.editor_rect)
+            }
+        };
+        let top_left = view_handle
             .map(|handle| self.views.get(handle).top_left)
             .unwrap_or_default();
-        Rect::with_position_and_size(top_left, self.editor_rect.size())
+        Rect::with_position_and_size(top_left, panel_rect.size())
     }
 
     pub fn active_editor_buffer(&self) -> Option<Handle<TextBuffer>> {

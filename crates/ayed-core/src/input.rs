@@ -1,4 +1,9 @@
-use std::hash::Hash;
+use std::{hash::Hash, sync::LazyLock};
+
+use regex::Regex;
+
+static RE_MOD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<([^-]+)-([^>]+)>").unwrap());
+static RE_KEY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<([^>]+)>").unwrap());
 
 #[derive(Debug, Clone, Copy, Eq)]
 pub struct Input {
@@ -73,16 +78,12 @@ impl Input {
             Ok(modifiers)
         }
 
-        // FIXME make static instead of compiling them every function call
-        let re_mod = regex::Regex::new(r"<([^-]+)-([^>]+)>").unwrap();
-        let re_key = regex::Regex::new(r"<([^>]+)>").unwrap();
-
-        let input = if let Some(captures) = re_mod.captures(s) {
+        let input = if let Some(captures) = RE_MOD.captures(s) {
             // Parse stuff like <ca-k> => ctrl+alt+k
             let modifiers = mod_group_to_modifiers(&captures.get(1).ok_or(())?.as_str())?;
             let key = char_group_to_key(&captures.get(2).ok_or(())?.as_str())?;
             Self::new(key, modifiers)
-        } else if let Some(captures) = re_key.captures(s) {
+        } else if let Some(captures) = RE_KEY.captures(s) {
             // Parse stuff like <space> => space
             let key = char_group_to_key(&captures.get(1).ok_or(())?.as_str())?;
             Self::new(key, Default::default())

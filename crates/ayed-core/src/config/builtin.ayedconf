@@ -169,8 +169,8 @@ mode normal {
         <a-;> selection-flip
         , selections-dismiss-extras
 
-        o $[ move-regex --line $$ ; state-set mode insert ; insert-char \n ]
-        <s-o> $[ move-regex --reversed --line ^ ; insert-char \n ; move u ; state-set mode insert ]
+        o $[ state-set mode insert ; move-regex --line $$ ; insert-char \n ]
+        <s-o> $[ state-set mode insert ; move-regex --reversed --line ^ ; insert-char \n ; move u ]
 
         x $[ selection-flip --backward ; map-input <s-home> ; selection-flip --forward ; map-input <s-end> ]
 
@@ -323,4 +323,3 @@ mode combo-.* {
         }
     }
 }
-

@@ -9,7 +9,7 @@ use crate::{
     utils::string_utils::byte_index_to_char_index,
 };
 
-use super::{CommandRegistry, options::Options};
+use super::{CommandRegistry, helpers::alias, options::Options};
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     cr.register("quit", |_opt, ctx| {
@@ -26,15 +26,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         ctx.state.quit_requested = true;
         Ok(())
     });
-    // TODO add alias capabilities to command registry
-    cr.register("q", |_opt, ctx| {
-        ctx.queue.push("quit");
-        Ok(())
-    });
-    cr.register("q!", |_opt, ctx| {
-        ctx.queue.push("quit!");
-        Ok(())
-    });
+    cr.register("q", alias("quit"));
+    cr.register("q!", alias("quit!"));
 
     cr.register("buffer-write", |opt, ctx| {
         let path = if opt.is_empty() { None } else { Some(opt) };
@@ -58,11 +51,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
-    cr.register("w", |opt, ctx| {
-        ctx.queue.push(format!("buffer-write {opt}"));
-        Ok(())
-    });
-
+    cr.register("w", alias("buffer-write"));
     cr.register("wq", |_opt, ctx| {
         ctx.queue.push(format!("buffer-write"));
         ctx.queue.push(format!("quit"));
@@ -104,10 +93,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
-    cr.register("ss", |opt, ctx| {
-        ctx.queue.push(format!("state-set {opt}"));
-        Ok(())
-    });
+    cr.register("ss", alias("state-set"));
 
     cr.register("panel-focus", |opt, ctx| {
         let panel_name = opt
@@ -229,6 +215,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+    cr.register("e", alias("edit"));
 
     cr.register("look", |opt, ctx| {
         let mut offset = Offset::new(0, 0);
@@ -822,11 +809,26 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         // Look at symbol under primary cursor (or right before)
         // If it's the same as old one saved in state, bail.
         // Else, clear suggs and gather new from configured source
+
+        let Some(view_handle) = ctx.state.focused_view() else {
+            return Ok(());
+        };
+        let view = ctx.state.views.get(view_handle);
+        let buffer = ctx.state.buffers.get(view.buffer);
+        let selections = buffer.view_selections(view_handle).unwrap();
+
+        selections.primary().cursor();
+        // todo!("get symbol primary cursor is within or right after");
+
         ctx.state.suggestions.items.clear();
         ctx.state.suggestions.selected_item = 0;
 
-        ctx.queue
-            .push("error 1qaz do this here! suggestions-gather");
+        let source = ctx.state.config.get_entry_value("suggestions", "source")?;
+        if source != "active-buffer" {
+            return Err(format!(
+                "only 'active-buffer' is supported as suggestion source"
+            ));
+        }
 
         Ok(())
     });
