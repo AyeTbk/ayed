@@ -9,12 +9,16 @@ use crate::{
     utils::string_utils::byte_index_to_char_index,
 };
 
-use super::{CommandRegistry, helpers::alias, options::Options};
+use super::{
+    CommandRegistry,
+    helpers::{alias, focused_buffer_command},
+    options::Options,
+};
 
 pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     cr.register("quit", |_opt, ctx| {
-        for (_, view) in ctx.state.views.iter() {
-            let buffer = ctx.state.buffers.get(view.buffer);
+        for (_, view) in ctx.resources.views.iter() {
+            let buffer = ctx.resources.buffers.get(view.buffer);
             if buffer.is_dirty() {
                 return Err(format!("there are unsaved changes"));
             }
@@ -35,8 +39,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         if let Some(path) = path {
             buffer.set_path(path);
@@ -107,9 +111,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
                 ctx.panels.warpdrive.clear_state();
             }
             FocusedPanel::Modeline(view_handle) => {
-                let buffer_handle = ctx.state.views.get(view_handle).buffer;
-                ctx.state.views.remove(view_handle);
-                ctx.state.buffers.remove(buffer_handle);
+                let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+                ctx.resources.views.remove(view_handle);
+                ctx.resources.buffers.remove(buffer_handle);
             }
             _ => (),
         }
@@ -119,13 +123,13 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
                 ctx.state.focused_panel = FocusedPanel::Editor;
             }
             "modeline" => {
-                let buffer = ctx.state.buffers.insert(TextBuffer::new_empty());
-                let view = ctx.state.views.insert(View {
+                let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
+                let view = ctx.resources.views.insert(View {
                     top_left: Position::ZERO,
                     buffer,
                     virtual_buffer: None,
                 });
-                ctx.state
+                ctx.resources
                     .buffers
                     .get_mut(buffer)
                     .add_view_selections(view, Selections::new());
@@ -150,8 +154,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Err("modeline not focused".into());
         };
 
-        let buffer_handle = ctx.state.views.get(view_handle).buffer;
-        let line = ctx.state.buffers.get(buffer_handle).first_line();
+        let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+        let line = ctx.resources.buffers.get(buffer_handle).first_line();
 
         ctx.queue.push("panel-focus editor");
         if !line.is_empty() {
@@ -169,32 +173,32 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let buffer_handle;
         let buffer_opened_path: Option<&str>;
         if path.is_empty() && scratch {
-            buffer_handle = ctx.state.open_scratch();
+            buffer_handle = ctx.resources.open_scratch();
             buffer_opened_path = Some(path);
             ctx.queue.emit("buffer-opened", "");
         } else {
-            match ctx.state.buffer_with_path(path) {
+            match ctx.resources.buffer_with_path(path) {
                 Some(handle) => {
                     buffer_handle = handle;
                     buffer_opened_path = None;
                 }
                 None => {
-                    buffer_handle = ctx.state.open_file_or_scratch(path)?;
+                    buffer_handle = ctx.resources.open_file_or_scratch(path)?;
                     buffer_opened_path = Some(path);
                 }
             }
         }
 
-        let view_handle = match ctx.state.view_with_buffer(buffer_handle) {
+        let view_handle = match ctx.resources.view_with_buffer(buffer_handle) {
             Some(handle) => handle,
             None => {
-                let view = ctx.state.views.insert(View {
+                let view = ctx.resources.views.insert(View {
                     top_left: Position::ZERO,
                     buffer: buffer_handle,
                     virtual_buffer: None,
                 });
 
-                ctx.state
+                ctx.resources
                     .buffers
                     .get_mut(buffer_handle)
                     .add_view_selections(view, Selections::new());
@@ -230,7 +234,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         }
 
         if let Some(view_handle) = ctx.state.focused_view() {
-            let view = ctx.state.views.get_mut(view_handle);
+            let view = ctx.resources.views.get_mut(view_handle);
             view.top_left = view.top_left.offset(offset);
         }
 
@@ -239,10 +243,10 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
     cr.register("look-keep-primary-cursor-in-view", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
-            let view_rect = ctx.state.focused_view_rect();
-            let view = ctx.state.views.get_mut(view_handle);
+            let view_rect = ctx.state.focused_view_rect(&ctx.resources);
+            let view = ctx.resources.views.get_mut(view_handle);
             let cursor = {
-                let buffer = ctx.state.buffers.get(view.buffer);
+                let buffer = ctx.resources.buffers.get(view.buffer);
                 let selections = buffer.view_selections(view_handle).unwrap();
                 selections.primary().cursor()
             };
@@ -273,8 +277,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let mut selections = buffer.view_selections(view_handle).unwrap().clone();
 
@@ -327,8 +331,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let mut selections = buffer.view_selections(view_handle).unwrap().clone();
         let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
 
@@ -425,8 +429,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
                 .ok_or_else(|| format!("not a char: {opt}"))?
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
@@ -448,8 +452,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
@@ -484,8 +488,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             (contains_previous, contains_next)
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
@@ -523,8 +527,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
     cr.register("selections-merge-overlapping", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
-            let view = ctx.state.views.get_mut(view_handle);
-            let buffer = ctx.state.buffers.get_mut(view.buffer);
+            let view = ctx.resources.views.get_mut(view_handle);
+            let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let selections = buffer.view_selections_mut(view_handle).unwrap();
             *selections = selections.overlapping_selections_merged()
         }
@@ -534,8 +538,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
 
     cr.register("selections-dismiss-extras", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
-            let view = ctx.state.views.get_mut(view_handle);
-            let buffer = ctx.state.buffers.get_mut(view.buffer);
+            let view = ctx.resources.views.get_mut(view_handle);
+            let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let selections = buffer.view_selections_mut(view_handle).unwrap();
             selections.dismiss_extras();
         }
@@ -548,8 +552,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get_mut(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get_mut(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let selections = buffer.view_selections_mut(view_handle).unwrap();
         *selections = Selections::parse(&opt)?;
 
@@ -562,8 +566,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let selections = buffer.view_selections_mut(view_handle).unwrap();
         for selection in selections.iter_mut() {
             *selection = selection.shrunk_to_cursor();
@@ -582,8 +586,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let selections = buffer.view_selections_mut(view_handle).unwrap();
         for selection in selections.iter_mut() {
             *selection = if forward {
@@ -614,8 +618,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let mut selections = buffer.view_selections(view_handle).unwrap().clone();
         let dupes = selections
             .iter()
@@ -641,8 +645,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let history_entry = ctx.state.edit_histories.entry(view.buffer);
         use std::collections::hash_map::Entry;
@@ -662,8 +666,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
 
         let undid = ctx
             .state
@@ -684,8 +688,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get(view.buffer);
 
         let selections = buffer.view_selections(view_handle).unwrap();
         let register = &mut ctx.state.register;
@@ -701,51 +705,42 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("paste", |opt, ctx| {
-        let opts = Options::new().flag("before").parse(opt)?;
-        let before = opts.contains("before");
+    cr.register(
+        "paste",
+        focused_buffer_command(|opt, mut ctx| {
+            let opts = Options::new().flag("before").parse(opt)?;
+            let before = opts.contains("before");
 
-        let Some(view_handle) = ctx.state.active_editor_view else {
-            return Ok(());
-        };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+            let enumerated_sels = ctx.selections.iter_mut().enumerate().collect::<Vec<_>>();
+            for (i, sel) in enumerated_sels.into_iter().rev() {
+                let text = ctx
+                    .state
+                    .register
+                    .iter()
+                    .cycle()
+                    .nth(i)
+                    .expect("register.iter is never empty");
+                let insert_at = if before {
+                    sel.start()
+                } else {
+                    ctx.buffer
+                        .move_position_horizontally(sel.end(), 1)
+                        .unwrap_or(sel.end())
+                };
 
-        let sel_count = buffer.view_selections(view_handle).unwrap().count();
-        for sel_idx in (0..sel_count).rev() {
-            let selections = buffer.view_selections(view_handle).unwrap();
-            let Some(sel) = selections.get(sel_idx) else {
-                continue;
-            };
-            let text = ctx
-                .state
-                .register
-                .iter()
-                .cycle()
-                .nth(sel_idx)
-                .expect("register.iter is never empty");
-            let insert_at = if before {
-                sel.start()
-            } else {
-                buffer
-                    .move_position_horizontally(sel.end(), 1)
-                    .unwrap_or(sel.end())
-            };
+                let inserted_sel = ctx.buffer.insert_str_at(insert_at, text)?;
+                *sel = inserted_sel;
+            }
 
-            let inserted_sel = buffer.insert_str_at(insert_at, text)?;
+            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            *sels = ctx.selections;
 
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
-            let Some(sel) = selections.get_mut(sel_idx) else {
-                continue;
-            };
-            *sel = inserted_sel;
-        }
+            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("selections-modified", "");
 
-        ctx.queue.emit("buffer-modified", "");
-        ctx.queue.emit("selections-modified", "");
-
-        Ok(())
-    });
+            Ok(())
+        }),
+    );
 
     cr.register("suggestions-select", |opt, ctx| {
         if ctx.state.suggestions.items.is_empty() {
@@ -767,8 +762,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get_mut(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
         if cycling_from_original {
@@ -813,8 +808,8 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };
-        let view = ctx.state.views.get(view_handle);
-        let buffer = ctx.state.buffers.get(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get(view.buffer);
         let selections = buffer.view_selections(view_handle).unwrap();
 
         selections.primary().cursor();
@@ -841,7 +836,7 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get_mut(view_handle);
+        let view = ctx.resources.views.get_mut(view_handle);
         view.virtual_buffer = None;
 
         Ok(())
@@ -851,9 +846,9 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
             return Ok(());
         };
 
-        let view = ctx.state.views.get_mut(view_handle);
+        let view = ctx.resources.views.get_mut(view_handle);
         view.rebuild_line_wrap(
-            &ctx.state.buffers,
+            &ctx.resources.buffers,
             ctx.state.editor_rect.size().column.try_into().unwrap(),
         );
 

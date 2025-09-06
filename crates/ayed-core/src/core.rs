@@ -2,8 +2,8 @@ use crate::{
     command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     config,
     input::Input,
-    panels::{self, Panels},
-    state::State,
+    panels::{self, Panels, RenderPanelContext},
+    state::{Resources, State},
     ui::{Rect, Size, ui_state::UiState},
 };
 
@@ -12,6 +12,7 @@ pub struct Core {
     pub commands: CommandRegistry,
     pub queue: CommandQueue,
     pub state: State,
+    pub resources: Resources,
     pub panels: Panels,
 }
 
@@ -73,6 +74,7 @@ impl Core {
                 ExecuteCommandContext {
                     queue: &mut self.queue,
                     state: &mut self.state,
+                    resources: &mut self.resources,
                     panels: &mut self.panels,
                 },
             );
@@ -105,7 +107,7 @@ impl Core {
             eprintln!("{}", self.queue.take_debug_log());
         }
 
-        self.state.fill_modeline_infos();
+        self.state.fill_modeline_infos(&self.resources);
 
         self.queue.clear();
 
@@ -116,17 +118,22 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
+        let render_ctx = RenderPanelContext {
+            state: &self.state,
+            resources: &self.resources,
+        };
+
         let mut panels = vec![
-            self.panels.editor.render(&self.state),
-            self.panels.line_numbers.render(&self.state),
-            self.panels.modeline.render(&self.state),
+            self.panels.editor.render(&render_ctx),
+            self.panels.line_numbers.render(&render_ctx),
+            self.panels.modeline.render(&render_ctx),
         ];
 
-        if let Some(ui_panel) = self.panels.warpdrive.render(&self.state) {
+        if let Some(ui_panel) = self.panels.warpdrive.render(&render_ctx) {
             panels.push(ui_panel);
         }
 
-        if let Some(suggestion_panel) = self.panels.suggestion.render(&self.state) {
+        if let Some(suggestion_panel) = self.panels.suggestion.render(&render_ctx) {
             panels.push(suggestion_panel);
         }
 
@@ -168,7 +175,12 @@ impl Core {
     fn update_viewport_size(&mut self, viewport_size: Size) {
         self.state.viewport_size = viewport_size;
 
-        let line_numbers_width = self.panels.line_numbers.required_width(&self.state);
+        let render_ctx = RenderPanelContext {
+            state: &self.state,
+            resources: &self.resources,
+        };
+
+        let line_numbers_width = self.panels.line_numbers.required_width(&render_ctx);
         let editor_width = self
             .state
             .viewport_size

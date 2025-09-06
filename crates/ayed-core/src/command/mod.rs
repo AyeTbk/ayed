@@ -1,6 +1,9 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::{panels::Panels, state::State};
+use crate::{
+    panels::Panels,
+    state::{Resources, State},
+};
 
 pub mod commands;
 pub mod helpers;
@@ -62,6 +65,7 @@ impl CommandRegistry {
 pub struct ExecuteCommandContext<'a> {
     pub queue: &'a mut CommandQueue,
     pub state: &'a mut State,
+    pub resources: &'a mut Resources,
     pub panels: &'a mut Panels,
 }
 

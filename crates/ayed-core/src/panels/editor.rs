@@ -1,13 +1,15 @@
 use crate::{
     position::{Column, Position},
     slotmap::Handle,
-    state::{State, View},
+    state::View,
     ui::{
         Color, Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::line_clamped_filled,
 };
+
+use super::RenderPanelContext;
 
 const PRIMARY_CURSOR_COLOR: Color = Color::WHITE;
 const PRIMARY_SELECTION_COLOR: Color = Color::rgb(18, 72, 150);
@@ -50,10 +52,10 @@ impl Editor {
         self.rect = rect;
     }
 
-    pub fn render(&self, state: &State) -> UiPanel {
+    pub fn render(&self, ctx: &RenderPanelContext) -> UiPanel {
         let size = self.rect.size();
 
-        let Some(view_handle) = self.view.or(state.active_editor_view) else {
+        let Some(view_handle) = self.view.or(ctx.state.active_editor_view) else {
             let mut content = vec![" ".repeat(size.column as _); size.row as _];
             if size.row > 0 {
                 content[0] = String::new()
@@ -68,7 +70,7 @@ impl Editor {
             };
         };
 
-        let view = state.views.get(view_handle);
+        let view = ctx.resources.views.get(view_handle);
 
         let mut content: Vec<String> = Vec::new();
         let mut spans: Vec<StyledRegion> = Vec::new();
@@ -76,7 +78,10 @@ impl Editor {
         let mut buf = String::new();
         let line_count = size.row.try_into().unwrap();
         for i in 0..line_count {
-            if view.render_view_line(i, &mut buf, &state.buffers).is_some() {
+            if view
+                .render_view_line(i, &mut buf, &ctx.resources.buffers)
+                .is_some()
+            {
                 content.push(line_clamped_filled(
                     &buf,
                     view.top_left.column as usize,
@@ -98,13 +103,13 @@ impl Editor {
             }
         }
 
-        let buffer = state.buffers.get(view.buffer);
+        let buffer = ctx.resources.buffers.get(view.buffer);
         let selections = buffer.view_selections(view_handle).unwrap();
         for (i, selection) in selections.iter().enumerate() {
             let is_primary = i == 0;
             // FIXME dont hardcode insert/append here, make this configurable in the config somehow
             let use_alt_style = matches!(
-                state.config.state_value("mode"),
+                ctx.state.config.state_value("mode"),
                 Some("insert" | "insert-append")
             );
 
@@ -122,7 +127,7 @@ impl Editor {
             };
 
             let is_end_of_line = {
-                let buffer = state.buffers.get(view.buffer);
+                let buffer = ctx.resources.buffers.get(view.buffer);
                 buffer
                     .line(selection.cursor().row)
                     .is_some_and(|line| line.len() as Column == selection.cursor().column)
@@ -156,7 +161,7 @@ impl Editor {
             // This is visible with line-wrap enabled.
             // Selection style
             for split_selection in selection.split_lines() {
-                let buffer = state.buffers.get(view.buffer);
+                let buffer = ctx.resources.buffers.get(view.buffer);
                 let sel = buffer.limit_selection_to_content(&split_selection);
                 let from = view.map_true_position_to_view_position(sel.start());
                 let to = view.map_true_position_to_view_position(sel.end());
@@ -177,7 +182,7 @@ impl Editor {
 
         // FIXME Same as above, doesnt support highlights that span multiple fragments
         // Syntax highlight
-        if let Some(highlights) = state.highlights.get(&view.buffer) {
+        if let Some(highlights) = ctx.state.highlights.get(&view.buffer) {
             spans.extend(highlights.iter().filter_map(|hl| {
                 let from = view.map_true_position_to_view_position(hl.styled_region.from)?;
                 let to = view.map_true_position_to_view_position(hl.styled_region.to)?;

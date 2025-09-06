@@ -1,5 +1,5 @@
 use crate::slotmap::Handle;
-use crate::state::View;
+use crate::state::{Resources, State, View};
 
 mod editor;
 pub use self::editor::Editor;
@@ -35,4 +35,9 @@ pub enum FocusedPanel {
     Editor,
     Modeline(Handle<View>),
     Warpdrive,
+}
+
+pub struct RenderPanelContext<'a> {
+    pub state: &'a State,
+    pub resources: &'a Resources,
 }

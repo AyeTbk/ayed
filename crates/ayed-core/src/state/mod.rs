@@ -7,7 +7,7 @@ use crate::{
         FocusedPanel,
         modeline::{Align, ModelineInfo, ModelineState},
     },
-    slotmap::{Handle, SlotMap},
+    slotmap::Handle,
     ui::{Rect, Size, Style},
 };
 
@@ -26,14 +26,15 @@ pub use highlight::{Highlight, regex_syntax_highlight};
 mod register;
 pub use register::Register;
 
+mod resources;
+pub use resources::Resources;
+
 mod suggestions;
 pub use suggestions::Suggestions;
 
 #[derive(Default)]
 pub struct State {
-    pub views: SlotMap<View>,
     pub active_editor_view: Option<Handle<View>>,
-    pub buffers: SlotMap<TextBuffer>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
     pub suggestions: Suggestions,
@@ -49,38 +50,6 @@ pub struct State {
 }
 
 impl State {
-    pub fn open_file(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
-        Ok(self.buffers.insert(TextBuffer::new_from_path(path)?))
-    }
-
-    pub fn open_scratch(&mut self) -> Handle<TextBuffer> {
-        self.buffers.insert(TextBuffer::new_empty())
-    }
-
-    pub fn open_file_or_scratch(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
-        if let Ok(true) = std::fs::exists(path) {
-            self.open_file(path)
-        } else {
-            let mut buffer = TextBuffer::new_empty();
-            buffer.set_path(path);
-            Ok(self.buffers.insert(buffer))
-        }
-    }
-
-    pub fn buffer_with_path(&self, path: &str) -> Option<Handle<TextBuffer>> {
-        self.buffers
-            .iter()
-            .find(|(_, buf)| buf.path() == Some(path))
-            .map(|(handle, _)| handle)
-    }
-
-    pub fn view_with_buffer(&self, buffer: Handle<TextBuffer>) -> Option<Handle<View>> {
-        self.views
-            .iter()
-            .find(|(_, view)| view.buffer == buffer)
-            .map(|(handle, _)| handle)
-    }
-
     pub fn focused_view(&self) -> Option<Handle<View>> {
         match self.focused_panel {
             FocusedPanel::Editor | FocusedPanel::Warpdrive => self.active_editor_view,
@@ -88,7 +57,7 @@ impl State {
         }
     }
 
-    pub fn focused_view_rect(&self) -> Rect {
+    pub fn focused_view_rect(&self, resources: &Resources) -> Rect {
         let (view_handle, panel_rect) = match self.focused_panel {
             FocusedPanel::Modeline(handle) => (Some(handle), self.modeline_rect),
             FocusedPanel::Editor | FocusedPanel::Warpdrive => {
@@ -96,20 +65,16 @@ impl State {
             }
         };
         let top_left = view_handle
-            .map(|handle| self.views.get(handle).top_left)
+            .map(|handle| resources.views.get(handle).top_left)
             .unwrap_or_default();
         Rect::with_position_and_size(top_left, panel_rect.size())
     }
 
-    pub fn active_editor_buffer(&self) -> Option<Handle<TextBuffer>> {
-        Some(self.views.get(self.active_editor_view?).buffer)
+    pub fn active_editor_buffer(&self, resources: &Resources) -> Option<Handle<TextBuffer>> {
+        Some(resources.views.get(self.active_editor_view?).buffer)
     }
 
-    pub fn active_editor_buffer_path(&self) -> Option<&str> {
-        self.buffers.get(self.active_editor_buffer()?).path()
-    }
-
-    pub fn fill_modeline_infos(&mut self) {
+    pub fn fill_modeline_infos(&mut self, resources: &Resources) {
         let mode_info = ModelineInfo {
             text: self
                 .config
@@ -131,8 +96,8 @@ impl State {
 
         let mut infos = vec![mode_info, input_info];
 
-        if let Some(active_editor_buffer_handle) = self.active_editor_buffer() {
-            let buffer = self.buffers.get(active_editor_buffer_handle);
+        if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
+            let buffer = resources.buffers.get(active_editor_buffer_handle);
             let mut path_text = buffer.path().unwrap_or("<scratch>").to_string();
             if buffer.is_dirty() {
                 path_text.push_str("*");

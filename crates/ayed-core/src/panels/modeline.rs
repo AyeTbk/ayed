@@ -1,6 +1,5 @@
 use crate::{
     position::Position,
-    state::State,
     ui::{
         Color, Rect, Style, theme,
         ui_state::{StyledRegion, UiPanel},
@@ -8,7 +7,7 @@ use crate::{
     utils::string_utils::line_builder::LineBuilder,
 };
 
-use super::{Editor, FocusedPanel};
+use super::{Editor, FocusedPanel, RenderPanelContext};
 
 pub const FG_COLOR: Color = theme::colors::MODELINE_TEXT;
 pub const BG_COLOR: Color = theme::colors::ACCENT;
@@ -29,17 +28,17 @@ impl Modeline {
         self.rect = rect;
     }
 
-    pub fn render(&self, state: &State) -> UiPanel {
+    pub fn render(&self, ctx: &RenderPanelContext) -> UiPanel {
         let size = self.rect.size();
 
-        if let FocusedPanel::Modeline(view_handle) = state.focused_panel {
+        if let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel {
             let mut editor = Editor::with_view(view_handle);
             editor.set_rect(Rect::from_positions(
                 self.rect.top_left(),
                 self.rect.bottom_right(),
             ));
 
-            let mut editor_panel = editor.render(state);
+            let mut editor_panel = editor.render(ctx);
 
             for line in &mut editor_panel.content {
                 line.insert(0, '›');
@@ -84,11 +83,11 @@ impl Modeline {
                 ..Default::default()
             };
 
-            if let Some(content_override) = &state.modeline.content_override {
+            if let Some(content_override) = &ctx.state.modeline.content_override {
                 line_builder = line_builder.add_left_aligned(&content_override.text, ());
                 style = content_override.style;
             } else {
-                for info in state.modeline.infos.iter() {
+                for info in ctx.state.modeline.infos.iter() {
                     // TODO styles for the infos
                     match info.align {
                         Align::Right => {

@@ -35,11 +35,11 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("generate-highlights", |_opt, ctx| {
-        let Some(buffer_handle) = ctx.state.active_editor_buffer() else {
+        let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
             return Ok(());
         };
 
-        let buffer = ctx.state.buffers.get(buffer_handle);
+        let buffer = ctx.resources.buffers.get(buffer_handle);
         let syntax = ctx.state.config.get_syntax();
         let syntax_style = ctx
             .state

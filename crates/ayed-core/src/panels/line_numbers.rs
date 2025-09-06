@@ -1,11 +1,12 @@
 use crate::{
     position::{Column, Position, Row},
-    state::State,
     ui::{
         Color, Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
 };
+
+use super::RenderPanelContext;
 
 #[derive(Default)]
 pub struct LineNumbers {
@@ -23,21 +24,21 @@ impl LineNumbers {
         self.rect = rect;
     }
 
-    pub fn required_width(&self, state: &State) -> u32 {
-        let Some(buffer_handle) = state.active_editor_buffer() else {
+    pub fn required_width(&self, ctx: &RenderPanelContext) -> u32 {
+        let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
             return 2;
         };
-        let max_line = state.buffers.get(buffer_handle).line_count();
+        let max_line = ctx.resources.buffers.get(buffer_handle).line_count();
         const LEFT_PAD_LEN: u32 = 1;
         let width = (max_line.ilog10() + 1) + LEFT_PAD_LEN + Self::RIGHT_PAD_LEN;
         width
     }
 
-    pub fn render(&self, state: &State) -> UiPanel {
+    pub fn render(&self, ctx: &RenderPanelContext) -> UiPanel {
         let mut content = Vec::new();
         let mut spans = Vec::new();
 
-        let Some(view_handle) = state.active_editor_view else {
+        let Some(view_handle) = ctx.state.active_editor_view else {
             return UiPanel {
                 position: Position::ZERO,
                 size: self.rect.size(),
@@ -46,12 +47,17 @@ impl LineNumbers {
             };
         };
 
-        let view = state.views.get(view_handle);
-        let buffer = state.buffers.get(view.buffer);
+        let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get(view.buffer);
 
         let width: Column = self.rect.width.try_into().unwrap();
         let mut previous_number = 0;
-        let line_count: Row = state.focused_view_rect().height.try_into().unwrap();
+        let line_count: Row = ctx
+            .state
+            .focused_view_rect(&ctx.resources)
+            .height
+            .try_into()
+            .unwrap();
         for i in 0..line_count {
             let Some(line_number) = view.map_view_line_idx_to_line_number(i) else {
                 content.push(" ".repeat(width as usize));

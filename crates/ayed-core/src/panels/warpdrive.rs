@@ -4,9 +4,10 @@ use regex::Regex;
 
 use crate::{
     command::ExecuteCommandContext,
+    panels::RenderPanelContext,
     position::{Column, Position, Row},
     slotmap::Handle,
-    state::{State, View},
+    state::View,
     ui::{
         Color, Rect, Style,
         ui_state::{StyledRegion, UiPanel},
@@ -36,7 +37,7 @@ impl Warpdrive {
         self.state = None;
     }
 
-    pub fn render(&self, _state: &State) -> Option<UiPanel> {
+    pub fn render(&self, _ctx: &RenderPanelContext) -> Option<UiPanel> {
         let position = self.rect.top_left();
         let size = self.rect.size();
         let mut spans: Vec<StyledRegion> = (0..size.row)
@@ -88,8 +89,12 @@ impl WarpdriveState {
     pub fn new(ctx: &ExecuteCommandContext, view_handle: Handle<View>) -> WarpdriveState {
         // TODO allow providing the regex for jump points
 
-        let view = ctx.state.views.get(view_handle);
-        let mut content = ctx.panels.editor.render(&ctx.state).content;
+        let view = ctx.resources.views.get(view_handle);
+        let render_ctx = &RenderPanelContext {
+            state: ctx.state,
+            resources: ctx.resources,
+        };
+        let mut content = ctx.panels.editor.render(render_ctx).content;
 
         // Gather jump points
         let mut jump_points = Vec::new();
