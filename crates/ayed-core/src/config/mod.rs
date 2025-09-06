@@ -4,8 +4,6 @@ use regex::Regex;
 
 use crate::input::Input;
 
-pub mod commands;
-
 #[derive(Default)]
 pub struct Config {
     modules: Vec<ConfigModule>,

@@ -5,7 +5,6 @@ use crate::{
     state::{Resources, State},
 };
 
-pub mod commands;
 pub mod helpers;
 pub mod options;
 

@@ -1,6 +1,6 @@
 use crate::{
     command::{self, CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
-    config,
+    commands, config,
     input::Input,
     panels::{self, Panels, RenderPanelContext},
     state::{Resources, State},
@@ -22,9 +22,8 @@ impl Core {
 
         this.register_builtin_events();
 
-        command::commands::register_builtin_commands(&mut this.commands);
+        commands::register_builtin_commands(&mut this.commands);
 
-        config::commands::register_builtin_commands(&mut this.commands);
         this.state.config = config::make_builtin_config();
 
         panels::warpdrive::commands::register_warpdrive_commands(&mut this.commands);

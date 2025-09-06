@@ -137,7 +137,7 @@ mode normal {
     use suggestions
 
     keybinds {
-        <del> delete
+        <del> delete -c
         <a-backspace> delete-around
 
         k move u

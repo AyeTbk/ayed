@@ -1,4 +1,5 @@
 mod command;
+mod commands;
 mod config;
 pub mod core;
 pub mod input;

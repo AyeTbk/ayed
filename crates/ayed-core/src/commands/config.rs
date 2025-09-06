@@ -1,6 +1,6 @@
 use crate::{command::CommandRegistry, input::Input, state::regex_syntax_highlight};
 
-pub fn register_builtin_commands(cr: &mut CommandRegistry) {
+pub fn register_config_commands(cr: &mut CommandRegistry) {
     cr.register("map-input", |opt, ctx| {
         // hackish support for combo modes
         let is_combo = ctx
