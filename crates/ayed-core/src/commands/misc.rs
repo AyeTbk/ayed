@@ -1,7 +1,16 @@
+use std::sync::LazyLock;
+
+use regex::Regex;
+
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
-    state::TextBufferHistory,
+    position::{Column, Position},
+    selection::Selection,
+    state::{TextBuffer, TextBufferHistory},
+    utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
+
+static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+|[^\s\w]+").unwrap());
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
     cr.register("history-save", |_opt, ctx| {
@@ -40,6 +49,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
         if undid {
             ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("selections-modified", "");
         } else {
             ctx.queue.push("message no remaining history");
         }
@@ -119,7 +129,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let modulo = ctx.state.suggestions.items.len() as i32 + 1;
         ctx.state.suggestions.selected_item =
             ctx.state.suggestions.selected_item.rem_euclid(modulo);
-        let selected_item_idx = (ctx.state.suggestions.selected_item - 1).max(0) as usize;
+        let selected_item_idx = i32::max(ctx.state.suggestions.selected_item - 1, 0) as usize;
         let cycling_to_original = ctx.state.suggestions.selected_item == 0;
 
         let Some(view_handle) = ctx.state.focused_view() else {
@@ -134,7 +144,15 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             for sel_idx in 0..sel_count {
                 let selections = buffer.view_selections(view_handle).unwrap();
                 let sel = selections.get(sel_idx).unwrap();
-                let original = buffer.selection_text(&sel);
+                let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor());
+                let selections = buffer.view_selections_mut(view_handle).unwrap();
+                let sel = selections.get_mut(sel_idx).unwrap();
+                *sel = new_sel;
+
+                let selections = buffer.view_selections(view_handle).unwrap();
+                let sel = selections.get(sel_idx).unwrap();
+                let original_sel = sel.with_end(sel.end().offset((-1, 0)));
+                let original = buffer.selection_text(&original_sel);
                 ctx.state.suggestions.original_symbols.push(original);
             }
         }
@@ -143,7 +161,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             let selections = buffer.view_selections(view_handle).unwrap();
             let sel = selections.get(sel_idx).unwrap();
 
-            buffer.delete_selection(&sel)?;
+            let delete_sel = sel.with_end(sel.end().offset((-1, 0)));
+            buffer.delete_selection(&delete_sel)?;
 
             let text_to_insert;
             if cycling_to_original {
@@ -151,7 +170,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             } else {
                 text_to_insert = ctx.state.suggestions.items[selected_item_idx].as_str();
             }
-            let new_sel = buffer.insert_str_at(sel.start(), text_to_insert)?;
+            let mut new_sel = buffer.insert_str_at(sel.start(), text_to_insert)?;
+            new_sel = new_sel.with_end(new_sel.end().offset((1, 0)));
 
             let selections = buffer.view_selections_mut(view_handle).unwrap();
             *selections.get_mut(sel_idx).unwrap() = new_sel;
@@ -163,33 +183,61 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("suggestions-gather", |_opt, ctx| {
-        // Look at symbol under primary cursor (or right before)
-        // If it's the same as old one saved in state, bail.
-        // Else, clear suggs and gather new from configured source
-
-        let Some(view_handle) = ctx.state.focused_view() else {
-            return Ok(());
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get(view.buffer);
-        let selections = buffer.view_selections(view_handle).unwrap();
-
-        selections.primary().cursor();
-        // todo!("get symbol primary cursor is within or right after");
-
+    cr.register("suggestions-clear", |_opt, ctx| {
         ctx.state.suggestions.items.clear();
         ctx.state.suggestions.selected_item = 0;
 
-        let source = ctx.state.config.get_entry_value("suggestions", "source")?;
-        if source != "active-buffer" {
-            return Err(format!(
-                "only 'active-buffer' is supported as suggestion source"
-            ));
-        }
-
         Ok(())
     });
+
+    cr.register(
+        "suggestions-gather",
+        focused_buffer_command(|_opt, ctx| {
+            let source = ctx.state.config.get_entry_value("suggestions", "source")?;
+            if source != "active-buffer" {
+                return Err("only 'active-buffer' is supported as suggestion source".to_string());
+            }
+
+            if ctx.state.suggestions.selected_item != 0 {
+                // Don't interfere with suggestions when user is selecting one.
+                return Ok(());
+            }
+
+            let cursor = ctx.selections.primary().cursor();
+            let line = ctx.buffer.line(cursor.row).unwrap();
+
+            let cursor_byte_idx =
+                char_index_to_byte_index(line, cursor.column as _).unwrap_or(line.len());
+            let mut maybe_symbol_prefix = None;
+            for matsh in RE_SYMBOL.find_iter(line) {
+                if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
+                    maybe_symbol_prefix =
+                        Some((matsh.as_str(), &line[matsh.start()..cursor_byte_idx]));
+                }
+            }
+
+            ctx.state.suggestions.items.clear();
+            ctx.state.suggestions.selected_item = 0;
+
+            let Some((symbol, prefix)) = maybe_symbol_prefix else { return Ok(()) };
+            // TODO bail if prefix hasnt changed (add prefix to suggs state)
+
+            for i in 0..ctx.buffer.line_count() {
+                let line = ctx.buffer.line(i).unwrap();
+                for matsh in RE_SYMBOL.find_iter(line) {
+                    let matsh_str = matsh.as_str();
+                    if matsh_str.starts_with(prefix) && matsh_str != symbol {
+                        let item = matsh_str.to_string();
+                        if !ctx.state.suggestions.items.contains(&item) {
+                            ctx.state.suggestions.items.push(item);
+                        }
+                    }
+                }
+            }
+
+            Ok(())
+        }),
+    );
 
     cr.register("vbuf-clear", |_opt, ctx| {
         // FIXME I dont believe the vbuffer should be handled directly
@@ -217,4 +265,24 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+}
+
+fn selection_from_symbol_prefix_under_cursor(buffer: &TextBuffer, cursor: Position) -> Selection {
+    let row = cursor.row;
+    let line = buffer.line(row).unwrap();
+    let cursor_byte_idx = char_index_to_byte_index(line, cursor.column as _).unwrap();
+    let mut maybe_selection = None;
+    for matsh in RE_SYMBOL.find_iter(line) {
+        if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
+            let start_column = byte_index_to_char_index(line, matsh.start()).unwrap() as Column;
+            // let end_column = byte_index_to_char_index(line, matsh.end()).unwrap() as Column;
+            let end_column = cursor_byte_idx as Column;
+            maybe_selection = Some(
+                Selection::new()
+                    .with_anchor((start_column, row).into())
+                    .with_cursor((end_column, row).into()),
+            )
+        }
+    }
+    maybe_selection.unwrap_or_else(|| Selection::new().with_cursor(cursor).shrunk_to_cursor())
 }

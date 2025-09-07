@@ -35,8 +35,11 @@ suggestions {
     placement cursor
     source active-buffer
 }
-hooks {
-    selections-modified suggestions-gather
+mode insert|insert-append {
+    hooks {
+        selections-modified suggestions-gather
+        state-before-modified:mode suggestions-clear
+    }
 }
 @override
 panel modeline {

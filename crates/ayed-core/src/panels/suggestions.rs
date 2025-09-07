@@ -53,7 +53,7 @@ impl Suggestions {
         let position = position.offset((0, 1));
 
         let width = ctx.state.suggestions.items.iter().map(String::len).max();
-        let width = width.unwrap_or(0).min(10) as i32;
+        let width = i32::max(10, width.unwrap_or(0) as _);
         let height = ctx.state.suggestions.items.len() as i32;
         let size = Size::new(width as u32, height as u32);
 

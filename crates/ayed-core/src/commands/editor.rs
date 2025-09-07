@@ -314,6 +314,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             }
 
             ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("selections-modified", "");
+
             Ok(())
         }),
     );
@@ -408,6 +410,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let selections = buffer.view_selections_mut(view_handle).unwrap();
             selections.dismiss_extras();
         }
+
+        ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
