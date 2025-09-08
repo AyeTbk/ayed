@@ -154,6 +154,10 @@ impl CommandQueue {
         self.debug_log.clear();
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
     pub(crate) fn start_scope(&mut self) {
         self.scope_stack.push(Scope::default());
     }

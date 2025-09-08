@@ -35,7 +35,7 @@ suggestions {
     placement cursor
     source active-buffer
 }
-mode insert|insert-append {
+mode insert.* {
     hooks {
         selections-modified suggestions-gather
         state-before-modified:mode suggestions-clear

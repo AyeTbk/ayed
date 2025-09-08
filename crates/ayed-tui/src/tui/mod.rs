@@ -39,26 +39,25 @@ impl Tui {
         self.render().unwrap();
 
         while !self.core.quit_requested() {
-            if !crossterm::event::poll(Duration::from_millis(1000)).unwrap() {
-                continue;
-            }
-            let event = crossterm::event::read().unwrap();
+            if crossterm::event::poll(Duration::from_millis(50)).unwrap() {
+                let event = crossterm::event::read().unwrap();
 
-            match event {
-                Event::Key(KeyEvent {
-                    code, modifiers, ..
-                }) => match convert_key_code_and_modifiers_to_ayed(code, modifiers) {
-                    Ok((key, modifiers)) => {
-                        let input = Input::new(key, modifiers);
-                        self.core.emit_input_event(input);
+                match event {
+                    Event::Key(KeyEvent {
+                        code, modifiers, ..
+                    }) => match convert_key_code_and_modifiers_to_ayed(code, modifiers) {
+                        Ok((key, modifiers)) => {
+                            let input = Input::new(key, modifiers);
+                            self.core.emit_input_event(input);
+                        }
+                        Err(msg) => {
+                            self.set_error_message(msg);
+                        }
+                    },
+                    Event::Resize(_, _) => (),
+                    e => {
+                        self.set_error_message(format!("unhandled event: {:?}", e));
                     }
-                    Err(msg) => {
-                        self.set_error_message(msg);
-                    }
-                },
-                Event::Resize(_, _) => (),
-                e => {
-                    self.set_error_message(format!("unhandled event: {:?}", e));
                 }
             }
 

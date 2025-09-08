@@ -59,7 +59,9 @@ impl Core {
     }
 
     pub fn tick(&mut self) {
-        self.state.modeline.clear_content_override();
+        if !self.queue.is_empty() {
+            self.state.modeline.clear_content_override();
+        }
 
         loop {
             let Some(command) = self.queue.pop() else {
