@@ -60,9 +60,9 @@ impl LspClient {
     }
 
     fn tick_initializing(&mut self) {
-        for response in self.recv_responses() {
+        for response in self.recv_messages() {
             match response {
-                ServerMessage::Response(resp @ lsp::Response { id, .. })
+                ServerMessage::Response(lsp::Response { id, .. })
                     if id == INITIALIZE_REQUEST_ID =>
                 {
                     self.send_notification(&make_initialized_notification());
@@ -102,25 +102,21 @@ impl LspClient {
         self.transport.send(full_message.into_bytes())
     }
 
-    pub fn recv_responses(&mut self) -> Vec<ServerMessage> {
-        if let Ok(err) = self.transport.recv_err.try_recv() {
+    pub fn recv_messages(&mut self) -> Vec<ServerMessage> {
+        if let Ok(err) = self.transport.recv_server_err.try_recv() {
             eprintln!("lsp server err: {}", String::from_utf8_lossy(&err))
         }
 
         self.transport
             .recv()
             .map(|b| {
-                let s = String::from_utf8(b).unwrap();
-                let (_, content) = s.split_once("\r\n\r\n").unwrap();
-                let message = serde_json::from_str::<lsp::Message>(content).unwrap();
+                let content = String::from_utf8(b).unwrap();
+                let message = serde_json::from_str::<lsp::Message>(&content).unwrap();
                 if message.id.is_some() {
-                    let response = serde_json::from_str::<lsp::Response>(content).unwrap();
-                    if response.id == 1 {
-                        dbg!(&content);
-                    }
+                    let response = serde_json::from_str::<lsp::Response>(&content).unwrap();
                     ServerMessage::Response(response)
                 } else {
-                    let notification = serde_json::from_str::<lsp::Notification>(content).unwrap();
+                    let notification = serde_json::from_str::<lsp::Notification>(&content).unwrap();
                     ServerMessage::Notification(notification)
                 }
             })

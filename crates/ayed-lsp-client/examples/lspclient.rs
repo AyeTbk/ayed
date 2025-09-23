@@ -1,5 +1,5 @@
 use ayed_lsp_client::{File, LspClient, Position, Request, ServerMessage};
-use serde_json::{json, value};
+use serde_json::json;
 
 fn main() {
     let mut client = LspClient::new();
@@ -34,7 +34,7 @@ fn main() {
         }
 
         client.tick();
-        for response in client.recv_responses() {
+        for response in client.recv_messages() {
             if let ServerMessage::Response(response) = response {
                 println!("{:?}", response);
             }
