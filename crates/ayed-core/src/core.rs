@@ -105,7 +105,9 @@ impl Core {
         }
 
         if self.state.config.state_value("cmdlog") == Some("true") {
-            eprintln!("{}", self.queue.take_debug_log());
+            if let Some(debug_log) = self.queue.take_debug_log() {
+                eprintln!("{}", debug_log);
+            }
         }
 
         self.state.fill_modeline_infos(&self.resources);

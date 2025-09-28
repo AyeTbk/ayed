@@ -86,10 +86,13 @@ impl Default for CommandQueue {
 }
 
 impl CommandQueue {
-    pub fn take_debug_log(&mut self) -> String {
+    pub fn take_debug_log(&mut self) -> Option<String> {
+        if self.debug_log.is_empty() {
+            return None;
+        }
         let log = format!("Command log:\n{}", self.debug_log);
         self.debug_log.clear();
-        log
+        Some(log)
     }
 
     pub fn set_state(&mut self, state: &str, value: &str) {

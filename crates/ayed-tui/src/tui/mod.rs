@@ -6,7 +6,7 @@ use std::{
 use ayed_core::{
     core::Core,
     input::{self, Input},
-    ui::{Color, Size, ui_state::StyledRegion},
+    ui::{Color, Size, Style},
 };
 
 use crossterm::{
@@ -14,8 +14,13 @@ use crossterm::{
     cursor::MoveTo,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
     style::{SetBackgroundColor, SetForegroundColor},
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{
+        BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode,
+    },
 };
+
+mod render_buffer;
 
 pub struct Tui {
     core: Core,
@@ -39,7 +44,8 @@ impl Tui {
         self.render().unwrap();
 
         while !self.core.quit_requested() {
-            if crossterm::event::poll(Duration::from_millis(50)).unwrap() {
+            // if crossterm::event::poll(Duration::from_millis(50)).unwrap() {
+            if true {
                 let event = crossterm::event::read().unwrap();
 
                 match event {
@@ -75,7 +81,7 @@ impl Tui {
     }
 
     fn render(&mut self) -> io::Result<()> {
-        fn cleanup_span_style(screen: &mut impl Write) -> io::Result<()> {
+        fn cleanup_style(screen: &mut impl Write) -> io::Result<()> {
             write!(
                 screen,
                 "{}{}",
@@ -83,20 +89,20 @@ impl Tui {
                 crossterm::style::Attribute::Reset
             )
         }
-        fn prepare_span_style(span: &StyledRegion, screen: &mut impl Write) -> io::Result<()> {
-            cleanup_span_style(screen)?;
-            if let Some(foreground_color) = span.style.foreground_color {
+        fn prepare_style(style: &Style, screen: &mut impl Write) -> io::Result<()> {
+            cleanup_style(screen)?;
+            if let Some(foreground_color) = style.foreground_color {
                 let fg = convert_color_to_crossterm(foreground_color);
                 screen.execute(SetForegroundColor(fg))?;
             }
-            if let Some(background_color) = span.style.background_color {
+            if let Some(background_color) = style.background_color {
                 let bg = convert_color_to_crossterm(background_color);
                 screen.execute(SetBackgroundColor(bg))?;
             }
-            if span.style.invert {
+            if style.invert {
                 write!(screen, "{}", crossterm::style::Attribute::Reverse)?;
             }
-            if span.style.underlined {
+            if style.underlined {
                 write!(screen, "{}", crossterm::style::Attribute::Underlined)?;
             }
             Ok(())
@@ -105,56 +111,25 @@ impl Tui {
         self.update_viewport_size_if_needed();
 
         let ui_state = self.core.render();
+        let rbuf = render_buffer::RenderBuffer::render(self.viewport_size(), ui_state);
 
-        //write!(self.screen, "{}", termion::clear::All).unwrap(); // This makes the display blink sometimes
+        self.screen.execute(BeginSynchronizedUpdate)?;
 
-        for mut panel in ui_state.panels.into_iter() {
-            panel.normalize_spans();
-            panel.fixup_weird_chars();
+        for (y, line) in rbuf.buffer.into_iter().enumerate() {
+            self.screen.execute(MoveTo(0 as _, y as _))?;
 
-            let start_y = panel.position.row;
-            let after_end_y = start_y + panel.size.row as i32;
-            let start_x = panel.position.column;
-            let after_end_x = start_x + panel.size.column as i32;
+            let mut char_buf = [0; 4];
+            for cell in line {
+                prepare_style(&cell.style, &mut self.screen)?;
 
-            for (y, line) in (start_y..after_end_y).zip(panel.content.iter()) {
-                if y < 0 {
-                    continue;
-                }
-                self.screen.execute(MoveTo((start_x) as _, (y) as _))?;
-
-                cleanup_span_style(&mut self.screen)?;
-
-                let panel_row = y - panel.position.row; // NOTE this line makes the row local to panel position
-                let mut char_str = String::new();
-                let spans_on_line = panel.spans_on_line(panel_row).collect::<Vec<_>>();
-                for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
-                    let panel_column = x - panel.position.column; // NOTE this line makes the column local to panel position
-                    if let Some(span) = spans_on_line
-                        .iter()
-                        .filter(|span| span.from.column == panel_column)
-                        .next()
-                    {
-                        prepare_span_style(span, &mut self.screen)?;
-                    }
-
-                    char_str.clear();
-                    char_str.push(ch);
-                    self.screen.write(char_str.as_bytes())?;
-
-                    if spans_on_line
-                        .iter()
-                        .filter(|span| span.to.column == panel_column)
-                        .next()
-                        .is_some()
-                    {
-                        cleanup_span_style(&mut self.screen)?;
-                    }
-                }
+                let bytes = cell.data.encode_utf8(&mut char_buf).as_bytes();
+                self.screen.write(bytes)?;
             }
         }
 
         self.render_error_message()?;
+
+        self.screen.execute(EndSynchronizedUpdate)?;
 
         self.screen.flush()?;
         Ok(())
@@ -270,5 +245,6 @@ fn unset_crossterm_styling() -> io::Result<()> {
         crossterm::style::ResetColor,
         crossterm::style::Attribute::Reset,
         crossterm::cursor::Show,
-    )
+    )?;
+    stdout.flush()
 }

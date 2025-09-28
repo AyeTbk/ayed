@@ -70,6 +70,14 @@ impl State {
         Rect::with_position_and_size(top_left, panel_rect.size())
     }
 
+    pub fn active_editor_view_rect(&self, resources: &Resources) -> Rect {
+        let (view_handle, panel_rect) = (self.active_editor_view, self.editor_rect);
+        let top_left = view_handle
+            .map(|handle| resources.views.get(handle).top_left)
+            .unwrap_or_default();
+        Rect::with_position_and_size(top_left, panel_rect.size())
+    }
+
     pub fn active_editor_buffer(&self, resources: &Resources) -> Option<Handle<TextBuffer>> {
         Some(resources.views.get(self.active_editor_view?).buffer)
     }

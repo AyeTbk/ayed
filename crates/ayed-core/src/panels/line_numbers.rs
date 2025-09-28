@@ -54,7 +54,7 @@ impl LineNumbers {
         let mut previous_number = 0;
         let line_count: Row = ctx
             .state
-            .focused_view_rect(&ctx.resources)
+            .active_editor_view_rect(&ctx.resources)
             .height
             .try_into()
             .unwrap();
