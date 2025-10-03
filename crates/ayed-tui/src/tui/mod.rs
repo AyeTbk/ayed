@@ -1,7 +1,4 @@
-use std::{
-    io::{self, Stdout, Write, stdout},
-    time::Duration,
-};
+use std::io::{self, Stdout, Write, stdout};
 
 use ayed_core::{
     core::Core,

@@ -15,7 +15,7 @@ impl Options {
         self
     }
 
-    pub fn parse(self, opt_input: &str) -> Result<ParsedOptions, String> {
+    pub fn parse(self, opt_input: &str) -> Result<ParsedOptions<'_>, String> {
         // Options are separated by spaces ('\x20').
         // flags: --flag
         // switches: --switch=value (TODO not impl yet)

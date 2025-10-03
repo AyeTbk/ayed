@@ -6,10 +6,12 @@ use std::{
 };
 
 pub struct SubprocessTransport {
+    #[expect(dead_code)]
     pub child: Child,
     pub send_client_msg: Sender<Vec<u8>>,
     pub recv_server_msg: Receiver<Vec<u8>>,
     pub recv_server_err: Receiver<Vec<u8>>,
+    #[expect(dead_code)]
     pub threads: [JoinHandle<()>; 3], // TODO join?
 }
 
