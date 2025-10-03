@@ -46,16 +46,31 @@ impl Suggestions {
         let buffer = ctx.resources.buffers.get(buffer_handle);
         let selections = buffer.view_selections(view_handle).unwrap();
 
-        let position_in_buffer = selections.primary().cursor();
-        let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
-        let position =
-            position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
-        let position = position.offset((0, 1));
-
         let width = ctx.state.suggestions.items.iter().map(String::len).max();
         let width = i32::max(10, width.unwrap_or(0) as _);
         let height = ctx.state.suggestions.items.len() as i32;
         let size = Size::new(width as u32, height as u32);
+
+        let position_in_buffer = selections.primary().cursor();
+        let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
+        let cursor_position =
+            position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
+        let mut position = cursor_position;
+
+        // Place on the line below the cursor
+        position = position.offset((-1, 1));
+
+        // Don't let the panel go past the end of the viewport, rightward
+        if position.column + width >= ctx.state.viewport_size.column as i32 {
+            let corrected_column = ctx.state.viewport_size.column as i32 - width;
+            position = position.with_column(corrected_column);
+        }
+
+        // Don't let the panel go past the end of the viewport, downward
+        if position.row + height >= ctx.state.viewport_size.row as i32 {
+            let corrected_row = cursor_position.row - height;
+            position = position.with_row(corrected_row);
+        }
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
