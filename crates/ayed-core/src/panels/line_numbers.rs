@@ -77,7 +77,15 @@ impl LineNumbers {
                 .saturating_sub(s.len())
                 .saturating_sub(Self::RIGHT_PAD_LEN as _);
             s.insert_str(0, &" ".repeat(left_pad_len));
-            s.push_str(&" ".repeat(Self::RIGHT_PAD_LEN as _));
+
+            let mut right_pad_len = Self::RIGHT_PAD_LEN;
+            // Show when view is scolled horizontally to the right
+            if view.top_left.column != 0 {
+                s.push_str(&"‹");
+                right_pad_len = right_pad_len.saturating_sub(1);
+            }
+
+            s.push_str(&" ".repeat(right_pad_len as _));
             content.push(s);
 
             let current_row = {
