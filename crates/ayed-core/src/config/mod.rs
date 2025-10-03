@@ -1,8 +1,10 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use regex::Regex;
 
-use crate::input::Input;
+use crate::{config::applied_config::AppliedConfig, input::Input};
+
+mod applied_config;
 
 #[derive(Default)]
 pub struct Config {
@@ -72,99 +74,7 @@ impl Config {
     }
 
     fn rebuild_current_config(&mut self) {
-        self.current_config = Self::build_applied_config(&self.modules, &self.state);
-    }
-
-    fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) -> AppliedConfig {
-        let mut active_mappings: HashMap<String, Vec<&ConditionalMapping>> = Default::default();
-
-        // Gather all active mappings
-        for module in modules {
-            for cond_mapping in &module.mappings {
-                if !cond_mapping.is_active(state) {
-                    continue;
-                }
-
-                active_mappings
-                    .entry(cond_mapping.name.clone()) // FIXME Unecessary allocation
-                    .or_default()
-                    .push(&cond_mapping);
-            }
-        }
-
-        // Merge active mappings, giving priority to the ones with more specific selectors.
-        let mut layers_of_mappings: BTreeMap<i32, HashMap<String, HashMap<String, Vec<String>>>> =
-            Default::default();
-        for (mapping_name, mut cond_mappings) in active_mappings {
-            cond_mappings.sort_by(|a, b| a.selector_specificity_cmp(b));
-            for cond_mapping in cond_mappings {
-                let mappings = layers_of_mappings.entry(cond_mapping.layer).or_default();
-                let current_mapping = mappings.entry(mapping_name.clone()).or_default(); // FIXME Unecessary allocation
-                for (key, values) in &cond_mapping.mapping {
-                    let existing_values = current_mapping
-                        .entry(key.to_string()) // FIXME Unecessary allocations
-                        .or_default();
-                    let mut more_specific_values = values.to_vec();
-
-                    enum MergeStrategy {
-                        MergeMoreSpecificFirst,
-                        ReplaceWithMoreSpecific,
-                    }
-
-                    // TODO The "hooks" mapping is special for now, but a way
-                    // to control the strategy of specific mappings should
-                    // probably be exposed in some way in the config.
-                    let strategy = if mapping_name == "hooks" {
-                        MergeStrategy::MergeMoreSpecificFirst
-                    } else {
-                        MergeStrategy::ReplaceWithMoreSpecific
-                    };
-
-                    match strategy {
-                        MergeStrategy::MergeMoreSpecificFirst => {
-                            std::mem::swap(existing_values, &mut more_specific_values);
-                            existing_values.extend(more_specific_values);
-                        }
-                        MergeStrategy::ReplaceWithMoreSpecific => {
-                            *existing_values = more_specific_values;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Merge mappings, respecting layers
-        let mut mappings: HashMap<String, HashMap<String, Vec<String>>> = Default::default();
-        for (_, layer_mappings) in layers_of_mappings.into_iter() {
-            mappings.extend(layer_mappings);
-        }
-
-        let syntax = mappings
-            .get("syntax")
-            .unwrap_or(&HashMap::new())
-            .iter()
-            .map(|(rule_name, patterns)| {
-                let regexes = patterns
-                    .iter()
-                    .map(|pat| Regex::new(pat).unwrap())
-                    .collect();
-                (rule_name.to_string(), regexes)
-            })
-            .collect();
-
-        AppliedConfig { mappings, syntax }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct AppliedConfig {
-    mappings: HashMap<String, HashMap<String, Vec<String>>>,
-    syntax: HashMap<String, Vec<Regex>>,
-}
-
-impl AppliedConfig {
-    fn get(&self, key: &str) -> Option<&HashMap<String, Vec<String>>> {
-        self.mappings.get(key)
+        self.current_config = applied_config::build_applied_config(&self.modules, &self.state);
     }
 }
 
@@ -183,7 +93,7 @@ struct ConditionalMapping {
     // Active mappings of the same layer merge together, but merged mappings on
     // higher layers replace those lower layers.
     layer: i32,
-    mapping: HashMap<String, Vec<String>>,
+    entries: HashMap<String, Vec<String>>,
 }
 
 impl ConditionalMapping {
@@ -191,8 +101,8 @@ impl ConditionalMapping {
         self.selectors.iter().all(|s| s.is_selected(state))
     }
 
-    pub fn selector_specificity_cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.selectors.len().cmp(&other.selectors.len())
+    pub fn specificity(&self) -> usize {
+        self.selectors.len()
     }
 }
 
@@ -291,7 +201,7 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                     name: name.to_string(),
                     selectors: selector_stack.to_vec(),
                     layer,
-                    mapping,
+                    entries: mapping,
                 });
             }
             ast::BlockKind::Mixin(ast::MixinBlock { name, children }) => {

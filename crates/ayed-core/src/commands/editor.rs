@@ -112,6 +112,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             ctx.view.top_left = ctx.view.top_left.offset(offset);
 
+            ctx.view.top_left.column = i32::max(0, ctx.view.top_left.column);
+            ctx.view.top_left.row = i32::max(0, ctx.view.top_left.row);
+
             Ok(())
         }),
     );

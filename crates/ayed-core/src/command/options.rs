@@ -75,8 +75,12 @@ mod parsers {
 
     pub fn flag(i: &str) -> Option<(&str, &str)> {
         let (i, _) = tag("--")(i)?;
-        let (i, name) = take_while1(char::is_alphabetic)(i)?;
+        let (i, name) = take_while1(is_flag_char)(i)?;
         Some((i, name))
+    }
+
+    fn is_flag_char(ch: char) -> bool {
+        char::is_alphanumeric(ch) || ch == '-'
     }
 
     fn take_while1(pred: impl Fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {

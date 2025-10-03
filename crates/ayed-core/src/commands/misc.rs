@@ -180,6 +180,9 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         ctx.queue.emit("buffer-modified", "");
         ctx.queue.emit("selections-modified", "");
 
+        ctx.queue
+            .push("message TODO make suggbox not select the thing, do like kak"); // TODO
+
         Ok(())
     });
 
