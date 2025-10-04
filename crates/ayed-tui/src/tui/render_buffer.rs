@@ -38,7 +38,7 @@ impl RenderBuffer {
                 let spans_on_line = panel.spans_on_line(panel_local_row).collect::<Vec<_>>();
 
                 for (x, ch) in (start_x..after_end_x).zip(line.chars()) {
-                    if x >= viewport_width {
+                    if x < 0 || x >= viewport_width {
                         continue;
                     }
 

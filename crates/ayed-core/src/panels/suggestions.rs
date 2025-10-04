@@ -38,24 +38,18 @@ impl Suggestions {
     }
 
     fn render_at_cursor(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
-        let Some(view_handle) = ctx.state.active_editor_view else {
-            return None;
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer_handle = view.buffer;
-        let buffer = ctx.resources.buffers.get(buffer_handle);
-        let selections = buffer.view_selections(view_handle).unwrap();
-
         let width = ctx.state.suggestions.items.iter().map(String::len).max();
         let width = i32::max(10, width.unwrap_or(0) as _);
+        let width = width + 2; // There is one cell padding on either side of the text.
         let height = ctx.state.suggestions.items.len() as i32;
         let size = Size::new(width as u32, height as u32);
 
-        let position_in_buffer = selections.primary().cursor();
+        // let position_in_buffer = selections.primary().cursor();
+        let position_in_buffer = ctx.state.suggestions.original_symbol_start;
         let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
-        let cursor_position =
+        let target_position =
             position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
-        let mut position = cursor_position;
+        let mut position = target_position;
 
         // Place on the line below the cursor
         position = position.offset((-1, 1));
@@ -66,17 +60,24 @@ impl Suggestions {
             position = position.with_column(corrected_column);
         }
 
+        // Don't let the panel go past the end of the viewport, leftward
+        if position.column < 0 {
+            position = position.with_column(0);
+        }
+
         // Don't let the panel go past the end of the viewport, downward
         if position.row + height >= ctx.state.viewport_size.row as i32 {
-            let corrected_row = cursor_position.row - height;
+            let corrected_row = target_position.row - height;
             position = position.with_row(corrected_row);
         }
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
         for (i, item) in ctx.state.suggestions.items.iter().enumerate() {
-            let mut s = item.clone();
-            let pad = " ".repeat(width as usize - s.len());
+            let mut s = String::from(" ");
+            let pad_len = (width as usize).saturating_sub(item.len());
+            let pad = " ".repeat(pad_len);
+            s.push_str(item);
             s.push_str(&pad);
             content.push(s);
 

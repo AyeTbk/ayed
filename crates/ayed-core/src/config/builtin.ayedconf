@@ -86,10 +86,10 @@ mixin basic-movement {
         <end> move-regex --line $$
         <s-end> move-regex --anchored --line $$
 
-        <a-up> look u
-        <a-down> look d
-        <a-left> look l
-        <a-right> look r
+        <sa-up> look u
+        <sa-down> look d
+        <sa-left> look l
+        <sa-right> look r
     }
 }
 

@@ -139,15 +139,18 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
-        if cycling_from_original {
-            ctx.state.suggestions.original_symbols.clear();
-            for sel_idx in 0..sel_count {
-                let selections = buffer.view_selections(view_handle).unwrap();
-                let sel = selections.get(sel_idx).unwrap();
-                let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor());
-                let selections = buffer.view_selections_mut(view_handle).unwrap();
-                let sel = selections.get_mut(sel_idx).unwrap();
-                *sel = new_sel;
+        // Select the symbols under cursor in order to delete and replace it later.
+        for sel_idx in 0..sel_count {
+            let selections = buffer.view_selections(view_handle).unwrap();
+            let sel = selections.get(sel_idx).unwrap();
+            let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor());
+            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            let sel = selections.get_mut(sel_idx).unwrap();
+            *sel = new_sel;
+
+            if cycling_from_original {
+                // Gather original symbols
+                ctx.state.suggestions.original_symbols.clear();
 
                 let selections = buffer.view_selections(view_handle).unwrap();
                 let sel = selections.get(sel_idx).unwrap();
@@ -157,6 +160,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             }
         }
 
+        // Delete symbols under cursors and replace with appropriate suggestion
         for sel_idx in 0..sel_count {
             let selections = buffer.view_selections(view_handle).unwrap();
             let sel = selections.get(sel_idx).unwrap();
@@ -173,20 +177,20 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             let mut new_sel = buffer.insert_str_at(sel.start(), text_to_insert)?;
             new_sel = new_sel.with_end(new_sel.end().offset((1, 0)));
 
+            ctx.state.suggestions.prompt_suggestion_cursor_position = Some(new_sel.end());
+
             let selections = buffer.view_selections_mut(view_handle).unwrap();
-            *selections.get_mut(sel_idx).unwrap() = new_sel;
+            *selections.get_mut(sel_idx).unwrap() = new_sel.shrunk_to_cursor();
         }
 
         ctx.queue.emit("buffer-modified", "");
         ctx.queue.emit("selections-modified", "");
 
-        ctx.queue
-            .push("message TODO make suggbox not select the thing, do like kak"); // TODO
-
         Ok(())
     });
 
     cr.register("suggestions-clear", |_opt, ctx| {
+        ctx.state.suggestions.prompt_suggestion_cursor_position = None;
         ctx.state.suggestions.items.clear();
         ctx.state.suggestions.selected_item = 0;
 
@@ -201,26 +205,42 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 return Err("only 'active-buffer' is supported as suggestion source".to_string());
             }
 
-            if ctx.state.suggestions.selected_item != 0 {
+            let cursor = ctx.selections.primary().cursor();
+
+            let should_prompt =
+                Some(cursor) == ctx.state.suggestions.prompt_suggestion_cursor_position;
+
+            if should_prompt && ctx.state.suggestions.selected_item != 0 {
                 // Don't interfere with suggestions when user is selecting one.
                 return Ok(());
             }
 
-            let cursor = ctx.selections.primary().cursor();
             let line = ctx.buffer.line(cursor.row).unwrap();
 
             let cursor_byte_idx =
                 char_index_to_byte_index(line, cursor.column as _).unwrap_or(line.len());
             let mut maybe_symbol_prefix = None;
+            let mut maybe_symbol_start_end = None;
             for matsh in RE_SYMBOL.find_iter(line) {
                 if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
                     maybe_symbol_prefix =
                         Some((matsh.as_str(), &line[matsh.start()..cursor_byte_idx]));
+                    maybe_symbol_start_end = Some((matsh.start(), matsh.end()));
                 }
             }
 
             ctx.state.suggestions.items.clear();
             ctx.state.suggestions.selected_item = 0;
+
+            if let Some((start_index, end_index)) = maybe_symbol_start_end {
+                let start_column = byte_index_to_char_index(line, start_index).unwrap();
+                let symbol_start = Position::new(start_column as Column, cursor.row);
+                ctx.state.suggestions.original_symbol_start = symbol_start;
+
+                let end_column = byte_index_to_char_index(line, end_index).unwrap();
+                let prompt_position = Position::new(end_column as Column + 1, cursor.row);
+                ctx.state.suggestions.prompt_suggestion_cursor_position = Some(prompt_position);
+            }
 
             let Some((symbol, prefix)) = maybe_symbol_prefix else { return Ok(()) };
             // TODO bail if prefix hasnt changed (add prefix to suggs state)
