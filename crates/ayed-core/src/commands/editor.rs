@@ -8,7 +8,7 @@ use crate::{
     },
     config::ConfigState,
     position::{Column, Offset, Position},
-    selection::Selections,
+    selection::{Selection, Selections},
     state::View,
     utils::string_utils::byte_index_to_char_index,
 };
@@ -185,6 +185,54 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             // TODO make this automatic maybe?, keep track of it in TextBuffer
             // Same for buffer-modified??
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "move-to-edge",
+        focused_buffer_command(|opt, mut ctx| {
+            enum Edge {
+                Start,
+                PastEnd,
+            }
+
+            let opts = Options::new().flag("anchored").parse(opt)?;
+            let anchored = opts.contains("anchored");
+
+            let edge = match opts.remainder().trim() {
+                "start" => Edge::Start,
+                "past-end" => Edge::PastEnd,
+                rem => {
+                    return Err(format!("edge unknown '{rem}'"));
+                }
+            };
+
+            for selection in ctx.selections.iter_mut() {
+                let mut cursor = selection.cursor();
+
+                match edge {
+                    Edge::Start => cursor = cursor.with_column(0),
+                    Edge::PastEnd => {
+                        let Some(line_past_end_row) = ctx.buffer.line_char_count(cursor.row) else {
+                            return Err("move-to-edge past-end err".to_string());
+                        };
+                        cursor = cursor.with_column(line_past_end_row);
+                    }
+                }
+
+                let mut sel = selection.with_cursor(cursor);
+                if !anchored {
+                    sel = sel.with_anchor(cursor);
+                }
+                *selection = sel;
+            }
+
+            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            *sels = ctx.selections;
+
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -476,15 +524,13 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    // FIXME rename this command to duplicate-selection or something
-    cr.register("dupe", |opt, ctx| {
-        // FIXME the primary selection should become the newly created selection
-        let row_offset = match opt.chars().next() {
-            Some('u') => -1,
-            Some('d') => 1,
-            _ => return Err(format!("invalid option: {opt}")),
-        };
-        let offset = Offset::new(0, row_offset);
+    cr.register("selections-duplicate", |opt, ctx| {
+        let opts = Options::new().flag("up").flag("down").parse(opt)?;
+        let up = opts.contains("up");
+        let down = opts.contains("down");
+
+        let row_offset = -(up as i8) + (down as i8);
+        let offset = Offset::new(0, row_offset as i32);
 
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -493,18 +539,24 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         let view = ctx.resources.views.get(view_handle);
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let mut selections = buffer.view_selections(view_handle).unwrap().clone();
-        let dupes = selections
-            .iter()
-            .map(|sel| {
-                buffer.limit_selection_to_content(
-                    &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
-                        .with_provisional_cursor(sel.desired_cursor().offset(offset)),
-                )
-            })
-            .collect::<Vec<_>>();
-        for dupe in dupes {
-            selections.add(dupe);
+
+        let make_dupe = |sel: Selection, offset| {
+            buffer.limit_selection_to_content(
+                &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
+                    .with_provisional_cursor(sel.desired_cursor().offset(offset)),
+            )
+        };
+
+        let mut new_extra_sels = Vec::new();
+
+        for (i, &sel) in selections.iter().enumerate() {
+            if i != 0 {
+                new_extra_sels.push(sel);
+            }
+            new_extra_sels.push(make_dupe(sel, offset));
         }
+        selections.extra_selections = new_extra_sels;
+        selections.rotate(1);
 
         *buffer.view_selections_mut(view_handle).unwrap() = selections;
 
@@ -512,4 +564,20 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+
+    cr.register(
+        "selections-rotate",
+        focused_buffer_command(|opt, ctx| {
+            let opts = Options::new().flag("reversed").parse(opt)?;
+            let reversed = opts.contains("reversed");
+            let rotate_amount = if reversed { -1 } else { 1 };
+
+            let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            selections.rotate(rotate_amount);
+
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
 }

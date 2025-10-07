@@ -190,7 +190,13 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("suggestions-clear", |_opt, ctx| {
+        // TODO In order for this to work properly, it would need to keep track of what
+        // this position is over the modifications that happen in the buffer (in
+        // particular, this makes the suggbox misbehave with multicursors before the
+        // primary cursor).
+        // TODO fix the above using a buffer mark when that's a thing.
         ctx.state.suggestions.prompt_suggestion_cursor_position = None;
+
         ctx.state.suggestions.items.clear();
         ctx.state.suggestions.selected_item = 0;
 

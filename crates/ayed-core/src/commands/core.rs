@@ -1,5 +1,5 @@
 use crate::{
-    command::{CommandRegistry, helpers::alias},
+    command::{CommandRegistry, helpers::alias, options::Options},
     panels::FocusedPanel,
     position::Position,
     selection::Selections,
@@ -121,7 +121,44 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
         ctx.queue.push("panel-focus editor");
         if !line.is_empty() {
+            ctx.state.modeline.history.push(line.to_string());
+            ctx.state.modeline.history_selected_item = ctx.state.modeline.history.len();
+
             ctx.queue.push(line);
+        }
+
+        Ok(())
+    });
+
+    cr.register("modeline-history", |opt, ctx| {
+        let opts = Options::new().flag("next").flag("previous").parse(opt)?;
+        let next = opts.contains("next");
+        let previous = opts.contains("previous");
+
+        let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel else {
+            return Err("modeline not focused".into());
+        };
+
+        let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+        if let Some(line) = ctx.resources.buffers.get_mut(buffer_handle).line_mut(0) {
+            let max = ctx.state.modeline.history.len();
+            let item_idx = &mut ctx.state.modeline.history_selected_item;
+            if next {
+                *item_idx = usize::min(item_idx.saturating_add(1), max);
+            }
+            if previous {
+                *item_idx = item_idx.saturating_sub(1);
+            }
+
+            if *item_idx == max {
+                line.clear();
+            } else {
+                let item = &ctx.state.modeline.history[*item_idx];
+                line.clear();
+                line.push_str(item);
+
+                ctx.queue.push("move-to-edge past-end");
+            }
         }
 
         Ok(())

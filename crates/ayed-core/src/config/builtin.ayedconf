@@ -83,8 +83,8 @@ mixin basic-movement {
         <home> move-regex --reversed --line ^
         <s-home> move-regex --reversed --anchored --line ^
 
-        <end> move-regex --line $$
-        <s-end> move-regex --anchored --line $$
+        <end> move-to-edge past-end
+        <s-end> move-to-edge --anchored past-end
 
         <sa-up> look u
         <sa-down> look d
@@ -120,6 +120,10 @@ panel modeline {
     keybinds {
         <esc> panel-focus editor
         <ret> modeline-exec
+
+        <up> modeline-history --previous
+        <down> modeline-history --next
+
         else insert-char
     }
 }
@@ -171,11 +175,14 @@ mode normal {
         b move-regex --reversed \b\w|[^\s\w]
         <s-b> move-regex --reversed --anchored \b\w|[^\s\w]
 
-        C dupe d
-        <a-C> dupe u
+        C selections-duplicate --down
+        <a-C> selections-duplicate --up
         ; selection-shrink
         <a-;> selection-flip
         , selections-dismiss-extras
+
+        ) selections-rotate
+        ( selections-rotate --reversed
 
         o $[ state-set mode insert ; move-regex --line $$ ; insert-char \n ]
         <s-o> $[ state-set mode insert ; move-regex --reversed --line ^ ; insert-char \n ; move u ]

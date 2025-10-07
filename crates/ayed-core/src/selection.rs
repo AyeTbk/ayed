@@ -40,14 +40,25 @@ impl Selections {
         self.primary_selection
     }
 
-    pub fn change_primary(&mut self, idx_of_new_primary: usize) {
-        if idx_of_new_primary == 0 {
+    pub fn rotate(&mut self, amount: i32) {
+        if self.count() <= 1 {
             return;
         }
-        std::mem::swap(
-            &mut self.primary_selection,
-            &mut self.extra_selections[idx_of_new_primary - 1],
-        );
+        // TODO perf: this can be impl'd more efficiently
+        let n = amount.abs();
+        if amount > 0 {
+            for _ in 0..n {
+                let mut tmp = self.extra_selections.remove(0);
+                std::mem::swap(&mut tmp, &mut self.primary_selection);
+                self.extra_selections.push(tmp);
+            }
+        } else if amount < 0 {
+            for _ in 0..n {
+                let mut tmp = self.extra_selections.pop().expect("self.count() > 1");
+                std::mem::swap(&mut tmp, &mut self.primary_selection);
+                self.extra_selections.insert(0, tmp);
+            }
+        }
     }
 
     pub fn dismiss_extras(&mut self) {

@@ -124,14 +124,13 @@ impl Modeline {
 pub struct ModelineState {
     pub infos: Vec<ModelineInfo>,
     pub content_override: Option<ContentOverride>,
+    pub history: Vec<String>,
+    pub history_selected_item: usize,
 }
 
 impl ModelineState {
     pub fn new() -> Self {
-        Self {
-            infos: Default::default(),
-            content_override: Default::default(),
-        }
+        Self::default()
     }
 
     pub fn set_message(&mut self, text: String) {
