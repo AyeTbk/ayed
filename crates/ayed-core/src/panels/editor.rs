@@ -163,8 +163,11 @@ impl Editor {
             for split_selection in selection.split_lines() {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let sel = buffer.limit_selection_to_content(&split_selection);
-                let from = view.map_true_position_to_view_position(sel.start());
+                let mut from = view.map_true_position_to_view_position(sel.start());
                 let to = view.map_true_position_to_view_position(sel.end());
+                if from.is_none() && to.is_some() {
+                    from = Some(Position::new(0, sel.start().row));
+                }
                 if let (Some(from), Some(to)) = (from, to) {
                     spans.push(StyledRegion {
                         from,
