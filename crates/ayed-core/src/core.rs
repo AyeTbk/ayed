@@ -2,7 +2,7 @@ use crate::{
     command::{CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     commands, config,
     input::Input,
-    panels::{self, Panels, RenderPanelContext},
+    panels::{self, Modeline, Panels, RenderPanelContext},
     state::{Resources, State},
     ui::{Rect, Size, ui_state::UiState},
 };
@@ -189,7 +189,11 @@ impl Core {
             .viewport_size
             .column
             .saturating_sub(line_numbers_width);
-        let editor_height = self.state.viewport_size.row.saturating_sub(1);
+        let editor_height = self
+            .state
+            .viewport_size
+            .row
+            .saturating_sub(Modeline::HEIGHT);
 
         self.panels.editor.set_rect(Rect::new(
             line_numbers_width,
@@ -208,9 +212,12 @@ impl Core {
 
         self.panels.modeline.set_rect(Rect::new(
             0,
-            self.state.viewport_size.row.saturating_sub(1),
+            self.state
+                .viewport_size
+                .row
+                .saturating_sub(Modeline::HEIGHT),
             self.state.viewport_size.column,
-            1,
+            Modeline::HEIGHT,
         ));
         self.state.modeline_rect = self.panels.modeline.rect();
     }

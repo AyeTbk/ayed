@@ -20,6 +20,7 @@ pub struct Modeline {
 }
 
 impl Modeline {
+    pub const HEIGHT: u32 = 2;
     pub fn rect(&self) -> Rect {
         self.rect
     }
@@ -29,8 +30,13 @@ impl Modeline {
     }
 
     pub fn render(&self, ctx: &RenderPanelContext) -> UiPanel {
+        // TODO clean up this mess
+
         let size = self.rect.size();
 
+        let mut spans = Vec::new();
+
+        let mut bottom_editor = None;
         if let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel {
             let mut editor = Editor::with_view(view_handle);
             editor.set_rect(Rect::from_positions(
@@ -50,9 +56,9 @@ impl Modeline {
             }
 
             // Prompt color
-            editor_panel.spans.push(StyledRegion {
-                from: Position::ZERO,
-                to: Position::ZERO,
+            spans.push(StyledRegion {
+                from: Position::ZERO.offset((0, 1)),
+                to: Position::ZERO.offset((0, 1)),
                 style: Style {
                     foreground_color: None,
                     background_color: Some(theme::colors::ACCENT_BRIGHT),
@@ -61,61 +67,80 @@ impl Modeline {
                 priority: 1,
             });
 
-            // Bg color
-            editor_panel.spans.push(StyledRegion {
-                from: Position::ZERO,
-                to: Position::ZERO.offset((self.rect().width as _, 0)),
-                style: Style {
-                    foreground_color: None,
-                    background_color: Some(theme::colors::ACCENT),
-                    ..Default::default()
-                },
-                priority: 0,
-            });
+            for span in &mut editor_panel.spans {
+                span.from = span.from.offset((0, 1));
+                span.to = span.to.offset((0, 1));
+            }
+            spans.extend(std::mem::take(&mut editor_panel.spans));
 
-            editor_panel
-        } else {
-            let mut line_builder = LineBuilder::new_with_length(size.column as _);
+            bottom_editor = Some(editor_panel);
+        }
 
-            let mut style = Style {
-                foreground_color: Some(FG_COLOR),
-                background_color: Some(BG_COLOR),
-                ..Default::default()
-            };
+        let mut top_line_builder = LineBuilder::new_with_length(size.column as _);
+        let mut bottom_line_builder = LineBuilder::new_with_length(size.column as _);
 
-            if let Some(content_override) = &ctx.state.modeline.content_override {
-                line_builder = line_builder.add_left_aligned(&content_override.text, ());
-                style = content_override.style;
-            } else {
-                for info in ctx.state.modeline.infos.iter() {
-                    // TODO styles for the infos
-                    match info.align {
-                        Align::Right => {
-                            line_builder = line_builder.add_right_aligned(&info.text, ());
-                            line_builder = line_builder.add_right_aligned("  ", ());
-                        }
-                        Align::Left => {
-                            line_builder = line_builder.add_left_aligned(&info.text, ());
-                            line_builder = line_builder.add_left_aligned("  ", ());
-                        }
-                    }
+        let mut top_style = Style {
+            foreground_color: Some(FG_COLOR),
+            background_color: Some(BG_COLOR),
+            ..Default::default()
+        };
+        let mut bottom_style = Style {
+            foreground_color: None,
+            background_color: Some(theme::colors::ACCENT_DARK),
+            ..Default::default()
+        };
+
+        if let Some(content_override) = &ctx.state.modeline.content_override {
+            bottom_line_builder = bottom_line_builder.add_left_aligned(&content_override.text, ());
+            if let Some(style) = content_override.top_style {
+                top_style = style;
+            }
+            if let Some(style) = content_override.bottom_style {
+                bottom_style = style;
+            }
+        }
+
+        for info in ctx.state.modeline.infos.iter() {
+            // TODO styles for the infos
+            match info.align {
+                Align::Right => {
+                    top_line_builder = top_line_builder.add_right_aligned(&info.text, ());
+                    top_line_builder = top_line_builder.add_right_aligned("  ", ());
+                }
+                Align::Left => {
+                    top_line_builder = top_line_builder.add_left_aligned(&info.text, ());
+                    top_line_builder = top_line_builder.add_left_aligned("  ", ());
                 }
             }
+        }
 
-            let (content, _) = line_builder.build();
+        let (top_line_content, _) = top_line_builder.build();
+        let (mut bottom_line_content, _) = bottom_line_builder.build();
 
-            UiPanel {
-                position: self.rect.top_left(),
-                size,
-                content: vec![content],
-                spans: vec![StyledRegion {
-                    from: Position::ZERO,
-                    to: Position::ZERO
-                        .with_column(size.column.saturating_sub(1).try_into().unwrap()),
-                    style,
-                    ..Default::default()
-                }],
-            }
+        if let Some(mut editor_panel) = bottom_editor {
+            bottom_line_content = editor_panel.content.remove(0);
+        }
+
+        // Top Bg color
+        spans.push(StyledRegion {
+            from: Position::ZERO,
+            to: Position::ZERO.with_column(size.column.saturating_sub(1).try_into().unwrap()),
+            style: top_style,
+            ..Default::default()
+        });
+        // Bottom Bg color
+        spans.push(StyledRegion {
+            from: Position::ZERO.offset((0, 1)),
+            to: Position::ZERO.offset((self.rect().width as _, 1)),
+            style: bottom_style,
+            priority: 0,
+        });
+
+        UiPanel {
+            position: self.rect.top_left(),
+            size,
+            content: vec![top_line_content, bottom_line_content],
+            spans,
         }
     }
 }
@@ -136,20 +161,23 @@ impl ModelineState {
     pub fn set_message(&mut self, text: String) {
         self.content_override = Some(ContentOverride {
             text,
-            style: Style {
-                ..Default::default()
-            },
+            ..Default::default()
         });
     }
 
     pub fn set_error(&mut self, text: String) {
         self.content_override = Some(ContentOverride {
             text,
-            style: Style {
+            top_style: Some(Style {
+                foreground_color: Some(theme::colors::MODELINE_TEXT),
+                background_color: Some(theme::colors::ERROR),
+                ..Default::default()
+            }),
+            bottom_style: Some(Style {
                 foreground_color: Some(theme::colors::MODELINE_TEXT),
                 background_color: Some(theme::colors::ERROR_DARK),
                 ..Default::default()
-            },
+            }),
         });
     }
 
@@ -175,8 +203,9 @@ pub enum Align {
     Right,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct ContentOverride {
     pub text: String,
-    pub style: Style,
+    pub top_style: Option<Style>,
+    pub bottom_style: Option<Style>,
 }
