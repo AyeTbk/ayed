@@ -59,7 +59,7 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
-    cr.register("ss", alias("state-set"));
+    cr.register("set", alias("state-set"));
 
     cr.register("panel-focus", |opt, ctx| {
         let panel_name = opt
@@ -157,7 +157,7 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
                 line.clear();
                 line.push_str(item);
 
-                ctx.queue.push("move-to-edge past-end");
+                ctx.queue.push("move-to-edge line-past-end");
             }
         }
 

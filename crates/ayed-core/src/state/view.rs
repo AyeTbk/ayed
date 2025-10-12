@@ -31,7 +31,7 @@ impl View {
     // space a position is expressed in.
     pub fn map_true_position_to_view_position(&self, position: Position) -> Option<Position> {
         self.map_true_position_to_virtual_position(position)
-            .and_then(|p| self.map_virtual_position_to_view_position(p))
+            .map(|p| self.map_virtual_position_to_view_position(p))
     }
 
     pub fn map_view_position_to_true_position(&self, position: Position) -> Option<Position> {
@@ -39,11 +39,8 @@ impl View {
         self.map_virtual_position_to_true_position(vpos)
     }
 
-    pub fn map_virtual_position_to_view_position(&self, position: Position) -> Option<Position> {
-        let (Some(column), Some(row)) = position.local_to(self.top_left) else {
-            return None;
-        };
-        Some(Position::new(column, row))
+    pub fn map_virtual_position_to_view_position(&self, position: Position) -> Position {
+        position.local_to_pos(self.top_left)
     }
 
     pub fn map_view_position_to_virtual_position(&self, position: Position) -> Position {

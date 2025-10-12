@@ -6,6 +6,13 @@ use crate::{config::applied_config::AppliedConfig, input::Input};
 
 mod applied_config;
 
+// TODO change hashmaps for some kind of map that keeps insertion order.
+// most likely, all hashmaps in the config modules need to be changed to
+// such a map, so that configs visible in the editor are in a deterministic
+// order. Combo-modes are an example where this matters, where at the moment
+// the order of the entries displayed is randomized everytime the editor is
+// run.
+
 #[derive(Default)]
 pub struct Config {
     modules: Vec<ConfigModule>,

@@ -157,10 +157,7 @@ impl TextBuffer {
 
     pub fn selection_text(&self, selection: &Selection) -> String {
         let mut text = String::new();
-        for (i, line_sel) in selection.split_lines().enumerate() {
-            if i != 0 {
-                text.push('\n');
-            }
+        for line_sel in selection.split_lines() {
             let sel = self.limit_selection_to_content(&line_sel);
             let line = self.line(sel.cursor().row).unwrap();
             let line_char_count = self.line_char_count(sel.cursor().row).unwrap();
@@ -169,7 +166,7 @@ impl TextBuffer {
             let end: usize = sel.end().column as _;
             let ends_on_last_line = sel.end().row == self.last_row();
 
-            if end == line_char_count as _ {
+            if end >= line_char_count as _ {
                 text.push_str(&line[start..end]);
                 if !ends_on_last_line {
                     text.push('\n');
@@ -357,6 +354,14 @@ impl TextBuffer {
         self.mark_dirty();
 
         Ok(())
+    }
+
+    pub fn end_position(&self) -> Position {
+        let row = self.last_row();
+        let column = self
+            .line_char_count(row)
+            .expect("last_row should gives correct row");
+        Position::new(column, row)
     }
 
     fn adjust_selections_after_insert_char(&mut self, inserted_at: Position) {

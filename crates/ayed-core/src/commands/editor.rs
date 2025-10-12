@@ -195,36 +195,53 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         "move-to-edge",
         focused_buffer_command(|opt, mut ctx| {
             enum Edge {
-                Start,
-                PastEnd,
+                LineStart,
+                LinePastEnd,
+                BufferStart,
+                BufferEnd,
             }
 
-            let opts = Options::new().flag("anchored").parse(opt)?;
+            let opts = Options::new()
+                .flag("anchored")
+                .flag("reanchored")
+                .parse(opt)?;
             let anchored = opts.contains("anchored");
+            let reanchored = opts.contains("reanchored");
 
             let edge = match opts.remainder().trim() {
-                "start" => Edge::Start,
-                "past-end" => Edge::PastEnd,
+                "line-start" => Edge::LineStart,
+                "line-past-end" => Edge::LinePastEnd,
+                "buffer-start" => Edge::BufferStart,
+                "buffer-end" => Edge::BufferEnd,
                 rem => {
                     return Err(format!("edge unknown '{rem}'"));
                 }
             };
 
             for selection in ctx.selections.iter_mut() {
+                let original_cursor = selection.cursor();
                 let mut cursor = selection.cursor();
 
                 match edge {
-                    Edge::Start => cursor = cursor.with_column(0),
-                    Edge::PastEnd => {
+                    Edge::LineStart => cursor = cursor.with_column(0),
+                    Edge::LinePastEnd => {
                         let Some(line_past_end_row) = ctx.buffer.line_char_count(cursor.row) else {
                             return Err("move-to-edge past-end err".to_string());
                         };
                         cursor = cursor.with_column(line_past_end_row);
                     }
+                    Edge::BufferStart => {
+                        cursor = Position::new(0, 0);
+                    }
+                    Edge::BufferEnd => {
+                        cursor = ctx.buffer.end_position();
+                    }
                 }
 
                 let mut sel = selection.with_cursor(cursor);
-                if !anchored {
+                if reanchored {
+                    sel = sel.with_anchor(original_cursor);
+                } else if !anchored {
                     sel = sel.with_anchor(cursor);
                 }
                 *selection = sel;
@@ -498,7 +515,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selection-flip", |opt, ctx| {
+    cr.register("selections-flip", |opt, ctx| {
         let opts = Options::new().flag("forward").flag("backward").parse(opt)?;
         let forward = opts.contains("forward");
         let backward = opts.contains("backward");

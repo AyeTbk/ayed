@@ -125,3 +125,8 @@ hooks {
 commands {
     hello $[error bye]
 }
+
+modeline-info {
+    top-left $(mode)
+    top-right $(last-input) $(file)
+}

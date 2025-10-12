@@ -75,6 +75,13 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 .push(buffer.selection_text(selection));
         }
 
+        let sel_count = register.extra_content.len() + 1;
+        ctx.queue.push(format!(
+            "message yanked {} selection{}",
+            sel_count,
+            if sel_count != 1 { "s" } else { "" }
+        ));
+
         Ok(())
     });
 
@@ -86,20 +93,42 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             let enumerated_sels = ctx.selections.iter_mut().enumerate().collect::<Vec<_>>();
             for (i, sel) in enumerated_sels.into_iter().rev() {
-                let text = ctx
+                let mut text = ctx
                     .state
                     .register
                     .iter()
                     .cycle()
                     .nth(i)
                     .expect("register.iter is never empty");
-                let insert_at = if before {
-                    sel.start()
+
+                let line_pasting_mode = text.ends_with('\n');
+
+                let insert_at = if line_pasting_mode {
+                    if before {
+                        // Line start of selection start
+                        Position::new(0, sel.start().row)
+                    } else {
+                        // Line start of row after selection end row
+                        Position::new(0, sel.end().row + 1)
+                    }
                 } else {
-                    ctx.buffer
-                        .move_position_horizontally(sel.end(), 1)
-                        .unwrap_or(sel.end())
+                    if before {
+                        sel.start()
+                    } else {
+                        if sel.end() == ctx.buffer.end_position() {
+                            Position::new(0, sel.end().row + 1)
+                        } else {
+                            ctx.buffer
+                                .move_position_horizontally(sel.end(), 1)
+                                .unwrap_or(sel.end())
+                        }
+                    }
                 };
+
+                if insert_at > ctx.buffer.end_position() {
+                    ctx.buffer.insert_char_at(ctx.buffer.end_position(), '\n')?;
+                    text = text.strip_suffix('\n').unwrap_or(text);
+                }
 
                 let inserted_sel = ctx.buffer.insert_str_at(insert_at, text)?;
                 *sel = inserted_sel;

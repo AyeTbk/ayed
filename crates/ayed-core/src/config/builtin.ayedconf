@@ -62,8 +62,8 @@ mixin basic-movement {
     keybinds {
         <up> move u
         <s-up> move u anchored
-        <c-up> $[ map-input x ; selection-flip --backward ; move u ; map-input x ; selection-flip --backward ]
-        <cs-up> $[ map-input x ; selection-flip --backward ; move u anchored ; map-input x ; selection-flip --backward ]
+        <c-up> $[ map-input x ; selections-flip --backward ; move u ; map-input x ; selections-flip --backward ]
+        <cs-up> $[ map-input x ; selections-flip --backward ; move u anchored ; map-input x ; selections-flip --backward ]
 
         <down> move d
         <s-down> move d anchored
@@ -80,11 +80,11 @@ mixin basic-movement {
         <c-right> move-regex \w+\b|[^\s\w]+
         <cs-right> move-regex --anchored \w+\b|[^\s\w]+
 
-        <home> move-regex --reversed --line ^
-        <s-home> move-regex --reversed --anchored --line ^
+        <home> move-to-edge --reanchored line-start
+        <s-home> move-to-edge --anchored line-start
 
-        <end> move-to-edge past-end
-        <s-end> move-to-edge --anchored past-end
+        <end> move-to-edge --reanchored line-past-end
+        <s-end> move-to-edge --anchored line-past-end
 
         <sa-up> look u
         <sa-down> look d
@@ -141,7 +141,7 @@ panel warpdrive {
 ### Editing keybinds ###
 
 hooks {
-    started state-set mode normal
+    started set mode normal
 }
 
 mode normal {
@@ -154,7 +154,7 @@ mode normal {
 
         k move u
         K move u anchored
-        <c-k> $[ map-input x ; selection-flip --backward ; move u ; map-input x ; selection-flip --backward ]
+        <c-k> $[ map-input x ; selections-flip --backward ; move u ; map-input x ; selections-flip --backward ]
         <c-K> message <cs-letter> just dont work in terminal :(
 
         j move d
@@ -168,32 +168,34 @@ mode normal {
         L move r anchored
         <c-l> move-regex \w+|[^\s\w]+
 
-        e move-regex \w\b|[^\s\w]
-        <s-e> move-regex --anchored \w\b|[^\s\w]
-        w move-regex \b\w|[^\s\w]
-        <s-w> move-regex --anchored \b\w|[^\s\w]
-        b move-regex --reversed \b\w|[^\s\w]
-        <s-b> move-regex --reversed --anchored \b\w|[^\s\w]
+        e move-regex \s*\w+\b|\s*[^\s\w]+
+        <s-e> move-regex --anchored \s*\w+\b|\s*[^\s\w]+
+        w move-regex \w+\b\s*|[^\s\w]+\s*
+        <s-w> move-regex --anchored \w+\b\s*|[^\s\w]+\s*
+        b move-regex --reversed \w+\b\s*|[^\s\w]+\s*
+        <s-b> move-regex --reversed --anchored \w+\b\s*|[^\s\w]+\s*
 
         C selections-duplicate --down
         <a-C> selections-duplicate --up
         ; selection-shrink
-        <a-;> selection-flip
+        <a-;> selections-flip
         , selections-dismiss-extras
 
         ) selections-rotate
         ( selections-rotate --reversed
 
-        o $[ state-set mode insert ; move-regex --line $$ ; insert-char \n ]
-        <s-o> $[ state-set mode insert ; move-regex --reversed --line ^ ; insert-char \n ; move u ]
+        o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char \n ]
+        <s-o> $[ set mode insert ; move-to-edge line-start ; insert-char \n ; move u ]
 
-        x $[ selection-flip --backward ; map-input <s-home> ; selection-flip --forward ; map-input <s-end> ]
+        x $[ selections-flip --backward ; map-input <s-home> ; selections-flip --forward ; map-input <s-end> ]
 
-        c $[ state-set mode insert ; delete ]
+        c $[ set mode insert ; yank ; delete ]
 
-        d delete
+        d $[ yank ; delete ]
 
         u history-undo
+
+        % $[ move-to-edge buffer-start ; move-to-edge --anchored buffer-end ]
 
         y yank
         p paste
@@ -201,15 +203,16 @@ mode normal {
 
         : panel-focus modeline
 
-        <backtab> state-set mode insert
-        i state-set mode insert
-        <s-i> $[ map-input <home> ; state-set mode insert ]
+        <backtab> set mode insert
+        i set mode insert
+        <s-i> $[ map-input <home> ; set mode insert ]
 
-        a state-set mode insert-append
+        a set mode insert-append
 
-        <space> state-set mode combo-user
+        <space> set mode combo-user
+        g set mode combo-goto
 
-        w warpdrive
+        q warpdrive
     }
 }
 
@@ -219,8 +222,8 @@ mixin mode-insert-append-common {
     use suggestions
 
     keybinds {
-        <c-space> state-set mode normal
-        <esc> state-set mode normal
+        <c-space> set mode normal
+        <esc> set mode normal
         else insert-char
     }
 }
@@ -229,7 +232,7 @@ mode insert {
     use mode-insert-append-common
 
     hooks {
-        state-modified:mode selection-flip --backward
+        state-modified:mode selections-flip --backward
     }
 }
 
@@ -237,7 +240,7 @@ mode insert-append {
     use mode-insert-append-common
 
     hooks {
-        state-modified:mode $[ selection-flip --forward ; move r anchored ]
+        state-modified:mode $[ selections-flip --forward ; move r anchored ]
         state-before-modified:mode move l anchored
     }
 }
@@ -297,7 +300,7 @@ file .*\.rs {
 ###  Line wrapping   ###
 
 hooks {
-    started state-set line-wrap none
+    started set line-wrap none
 }
 
 line-wrap none {
@@ -319,22 +322,35 @@ line-wrap wrap {
 #############
 ### Combo ###
 
-mode combo-.* {
-    mode combo-user {
-        keybinds {
-            f state-set mode combo-file
-        }
-        keybinds-doc {
-            f File management
-        }
+mode combo-user {
+    keybinds {
+        f set mode combo-file
     }
+    keybinds-doc {
+        f File management
+    }
+}
 
-    mode combo-file {
-        keybinds {
-            s buffer-write
-        }
-        keybinds-doc {
-            s Save file
-        }
+mode combo-file {
+    keybinds {
+        s buffer-write
+    }
+    keybinds-doc {
+        s Save file
+    }
+}
+
+mode combo-goto {
+    keybinds {
+        g move-to-edge buffer-start
+        G move-to-edge --anchored buffer-start
+        e move-to-edge buffer-end
+        E move-to-edge --anchored buffer-end
+    }
+    keybinds-doc {
+        g Buffer start
+        G Buffer start (anchored)
+        e Buffer end
+        E Buffer end (anchored)
     }
 }
