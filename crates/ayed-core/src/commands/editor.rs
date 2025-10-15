@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use regex::Regex;
 
 use crate::{
@@ -10,7 +12,7 @@ use crate::{
     position::{Column, Offset, Position},
     selection::{Selection, Selections},
     state::View,
-    utils::string_utils::byte_index_to_char_index,
+    utils::string_utils::{byte_index_to_char_index, char_count, ops::take_while},
 };
 
 pub fn register_editor_commands(cr: &mut CommandRegistry) {
@@ -212,6 +214,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         focused_buffer_command(|opt, mut ctx| {
             enum Edge {
                 LineStart,
+                LinePastIndent,
+                LineEnd,
                 LinePastEnd,
                 BufferStart,
                 BufferEnd,
@@ -226,6 +230,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             let edge = match opts.remainder().trim() {
                 "line-start" => Edge::LineStart,
+                "line-past-indent" => Edge::LinePastIndent,
+                "line-end" => Edge::LineEnd,
                 "line-past-end" => Edge::LinePastEnd,
                 "buffer-start" => Edge::BufferStart,
                 "buffer-end" => Edge::BufferEnd,
@@ -240,11 +246,28 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
                 match edge {
                     Edge::LineStart => cursor = cursor.with_column(0),
+                    Edge::LinePastIndent => {
+                        let line = ctx.buffer.line(cursor.row).expect("cursor should be valid");
+                        if let Some(not_indent_idx) = line.find(|c| !is_whitespace(c)) {
+                            let indent = &line[..not_indent_idx];
+                            let new_column = indent.chars().count() as Column;
+                            cursor = cursor.with_column(new_column);
+                        }
+                    }
+                    Edge::LineEnd => {
+                        let maybe_column = ctx.buffer.line_char_count(cursor.row);
+                        let new_column = i32::max(
+                            maybe_column
+                                .expect("cursor should be valid")
+                                .saturating_sub(1),
+                            0,
+                        );
+                        cursor = cursor.with_column(new_column);
+                    }
                     Edge::LinePastEnd => {
-                        let Some(line_past_end_row) = ctx.buffer.line_char_count(cursor.row) else {
-                            return Err("move-to-edge past-end err".to_string());
-                        };
-                        cursor = cursor.with_column(line_past_end_row);
+                        let maybe_column = ctx.buffer.line_char_count(cursor.row);
+                        let new_column = maybe_column.expect("cursor should be valid");
+                        cursor = cursor.with_column(new_column);
                     }
                     Edge::BufferStart => {
                         cursor = Position::new(0, 0);
@@ -476,6 +499,57 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }),
     );
 
+    cr.register(
+        "indent",
+        focused_buffer_command(|opt, ctx| {
+            let opts = Options::new()
+                .flag("more")
+                .flag("less")
+                .flag("reindent")
+                .parse(opt)?;
+            let mut more = opts.contains("more");
+            let less = opts.contains("less");
+            let reindent = opts.contains("reindent");
+            if !(more || less || reindent) {
+                more = true;
+            }
+            let level_mod = (more as i32) - (less as i32);
+
+            let mut affected_lines = HashSet::new();
+            for sel in ctx.selections.iter() {
+                for line_sel in sel.split_lines() {
+                    affected_lines.insert(line_sel.cursor.row);
+                }
+            }
+
+            let indent_size = ctx.state.config.get_editor().indent_size;
+            for row in affected_lines {
+                let Some(line) = ctx.buffer.line(row) else { continue };
+
+                let (indentation, _) = take_while(line, is_whitespace);
+                let indent_char_count = char_count(indentation) as i32;
+                let new_indent_level = i32::max(indent_char_count / indent_size + level_mod, 0);
+                let new_indent_char_count = new_indent_level * indent_size;
+                let new_indentation = " ".repeat(new_indent_char_count as usize);
+
+                if indent_char_count > 0 {
+                    let indent_sel = Selection::new()
+                        .with_anchor(Position::new(0, row))
+                        .with_cursor(Position::new(indent_char_count - 1, row));
+                    ctx.buffer.delete_selection(&indent_sel)?;
+                }
+
+                ctx.buffer
+                    .insert_str_at(Position::new(0, row), &new_indentation)?;
+            }
+
+            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
     cr.register("selections-merge-overlapping", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
             let view = ctx.resources.views.get_mut(view_handle);
@@ -613,4 +687,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
+}
+
+// TODO This should probably be put somewhere in crate::utils or something
+fn is_whitespace(c: char) -> bool {
+    c.is_ascii_whitespace()
 }

@@ -1,5 +1,6 @@
 pub mod grid_string_builder;
 pub mod line_builder;
+pub mod ops;
 
 pub fn line_clamped_filled(line: &str, start: usize, char_count: usize, fill: char) -> String {
     let mut s = String::new();

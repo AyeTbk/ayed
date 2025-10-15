@@ -131,8 +131,8 @@ impl TextBuffer {
         self.path = path.into().map(Into::into);
     }
 
-    pub fn line(&self, row_index: Row) -> Option<&str> {
-        self.lines.get(row_index as usize).map(String::as_str)
+    pub fn line(&self, row: Row) -> Option<&str> {
+        self.lines.get(row as usize).map(String::as_str)
     }
 
     // I'd document this properly if I knew I to put words together to describe it

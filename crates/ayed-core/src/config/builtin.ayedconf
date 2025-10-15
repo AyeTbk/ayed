@@ -58,7 +58,7 @@ panel modeline {
 # Default config
 
 editor {
-    indent-size 8
+    indent-size 4
 }
 
 mixin basic-movement {
@@ -84,11 +84,15 @@ mixin basic-movement {
         <c-right> move-regex \w+\b|[^\s\w]+
         <cs-right> move-regex --anchored \w+\b|[^\s\w]+
 
-        <home> move-to-edge --reanchored line-start
-        <s-home> move-to-edge --anchored line-start
+        <home> move-to-edge --reanchored line-past-indent
+        <s-home> move-to-edge --anchored line-past-indent
+        <c-home> move-to-edge --reanchored line-start
+        <cs-home> move-to-edge --anchored line-start
 
-        <end> move-to-edge --reanchored line-past-end
-        <s-end> move-to-edge --anchored line-past-end
+        <end> move-to-edge --reanchored line-end
+        <s-end> move-to-edge --anchored line-end
+        <c-end> move-to-edge --reanchored line-past-end
+        <cs-end> move-to-edge --anchored line-past-end
 
         <sa-up> look u
         <sa-down> look d
@@ -201,6 +205,10 @@ mode normal {
 
         % $[ move-to-edge buffer-start ; move-to-edge --anchored buffer-end ]
 
+        <lt> indent --less
+        <gt> indent --more
+        <a-lt> indent --reindent
+
         y yank
         p paste
         <s-p> paste --before
@@ -209,7 +217,7 @@ mode normal {
 
         <backtab> set mode insert
         i set mode insert
-        <s-i> $[ map-input <home> ; set mode insert ]
+        <s-i> $[ move-to-edge line-past-indent ; set mode insert ]
 
         a set mode insert-append
 
