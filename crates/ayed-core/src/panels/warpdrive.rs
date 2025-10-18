@@ -107,12 +107,8 @@ impl WarpdriveState {
                 let end_column = match_end - 1;
                 let start_in_view = Position::new(start_column, row);
                 let end_in_view = Position::new(end_column, row);
-                let Some(start) = view.map_view_position_to_true_position(start_in_view) else {
-                    continue;
-                };
-                let Some(end) = view.map_view_position_to_true_position(end_in_view) else {
-                    continue;
-                };
+                let start = view.map_view_position_to_true_position(start_in_view);
+                let end = view.map_view_position_to_true_position(end_in_view);
                 let code = String::new();
                 jump_points_indices.push((i, (matsh.start(), matsh.end())));
                 jump_points.push(JumpPoint {

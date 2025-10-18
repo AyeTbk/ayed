@@ -70,7 +70,6 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 let view = ctx.resources.views.insert(View {
                     top_left: Position::ZERO,
                     buffer: buffer_handle,
-                    virtual_buffer: None,
                 });
 
                 ctx.resources
@@ -128,10 +127,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 let selections = buffer.view_selections(view_handle).unwrap();
                 selections.primary().cursor()
             };
-            let Some(view_cursor) = view.map_true_position_to_virtual_position(cursor) else {
-                return Ok(());
-            };
-            let offset = view_rect.offset_from_position(view_cursor);
+            let offset = view_rect.offset_from_position(cursor);
             view.top_left = view.top_left.offset(offset);
         }
 

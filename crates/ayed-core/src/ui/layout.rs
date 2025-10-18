@@ -96,25 +96,17 @@ impl Rect {
     }
 
     pub fn offset_from_position(&self, position: Position) -> Offset {
-        let column_offset: i32 = if (position.column as u32) < self.left() {
-            (position.column as i64 - self.left() as i64)
-                .try_into()
-                .unwrap()
-        } else if (position.column as u32) > self.right() {
-            (position.column as i64 - self.right() as i64)
-                .try_into()
-                .unwrap()
+        let column_offset: i32 = if position.column < self.left() as i32 {
+            position.column - self.left() as i32
+        } else if position.column > self.right() as i32 {
+            position.column - self.right() as i32
         } else {
             0
         };
-        let row_offset: i32 = if (position.row as u32) < self.top() {
-            (position.row as i64 - self.top() as i64)
-                .try_into()
-                .unwrap()
-        } else if (position.row as u32) > self.bottom() {
-            (position.row as i64 - self.bottom() as i64)
-                .try_into()
-                .unwrap()
+        let row_offset: i32 = if position.row < self.top() as i32 {
+            position.row - self.top() as i32
+        } else if position.row > self.bottom() as i32 {
+            position.row - self.bottom() as i32
         } else {
             0
         };

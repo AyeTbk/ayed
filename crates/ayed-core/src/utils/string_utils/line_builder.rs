@@ -1,3 +1,5 @@
+use crate::utils::string_utils::char_count;
+
 use super::char_index_to_byte_index;
 
 const ELLIPSIS: &'static str = " …";
@@ -33,11 +35,11 @@ impl<'a, Data> LineBuilder<'a, Data> {
         let mut buf = " ".repeat(self.line_length);
 
         let left_aligned_content = Self::joined_content_string(&self.left_aligned_content);
-        let left_aligned_length = left_aligned_content.chars().count();
+        let left_aligned_length = char_count(&left_aligned_content);
         let left_aligned_space = left_aligned_length.min(self.line_length);
 
         let right_aligned_content = Self::joined_content_string(&self.right_aligned_content);
-        let right_aligned_length = right_aligned_content.chars().count();
+        let right_aligned_length = char_count(&right_aligned_content);
         let right_aligned_space = right_aligned_length.min(self.line_length - left_aligned_space);
         let right_aligned_slice_start_idx = right_aligned_length - right_aligned_space;
         let right_aligned_buf_start_idx = self.line_length - right_aligned_space;
@@ -102,7 +104,7 @@ mod tests {
     fn build__when_empty__filled_with_spaces() {
         let expected = "                        ";
         let (result, _payload) =
-            LineBuilder::<()>::new_with_length(expected.chars().count() as _).build();
+            LineBuilder::<()>::new_with_length(char_count(expected) as _).build();
 
         assert_eq!(result, expected);
     }
@@ -110,7 +112,7 @@ mod tests {
     #[test]
     fn build__right_aligned_is_right_aligned() {
         let expected = "            salut";
-        let (result, _payload) = LineBuilder::new_with_length(expected.chars().count() as _)
+        let (result, _payload) = LineBuilder::new_with_length(char_count(expected) as _)
             .add_right_aligned("salut", ())
             .build();
 

@@ -144,56 +144,48 @@ impl Editor {
             };
 
             // Cursor style
-            if let Some(cursor) = view.map_true_position_to_view_position(selection.cursor()) {
-                spans.push(StyledRegion {
-                    from: cursor,
-                    to: cursor,
-                    style: Style {
-                        foreground_color: Some(cursor_color),
-                        invert: true,
-                        ..Default::default()
-                    },
-                    priority: 255,
-                });
-            }
+            let cursor = view.map_true_position_to_view_position(selection.cursor());
+            spans.push(StyledRegion {
+                from: cursor,
+                to: cursor,
+                style: Style {
+                    foreground_color: Some(cursor_color),
+                    invert: true,
+                    ..Default::default()
+                },
+                priority: 255,
+            });
 
-            // FIXME This doesn't handle selection that span multiple virtual fragments.
-            // This is visible with line-wrap enabled.
             // Selection style
             for split_selection in selection.split_lines() {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let sel = buffer.limit_selection_to_content(&split_selection);
-                let mut from = view.map_true_position_to_view_position(sel.start());
+                let from = view.map_true_position_to_view_position(sel.start());
                 let to = view.map_true_position_to_view_position(sel.end());
-                if from.is_none() && to.is_some() {
-                    from = Some(Position::new(0, sel.start().row));
-                }
-                if let (Some(from), Some(to)) = (from, to) {
-                    spans.push(StyledRegion {
-                        from,
-                        to,
-                        style: Style {
-                            foreground_color: Some(SELECTION_TEXT_COLOR),
-                            background_color: Some(selection_color),
-                            ..Default::default()
-                        },
-                        priority: 254,
-                    });
-                }
+                spans.push(StyledRegion {
+                    from,
+                    to,
+                    style: Style {
+                        foreground_color: Some(SELECTION_TEXT_COLOR),
+                        background_color: Some(selection_color),
+                        ..Default::default()
+                    },
+                    priority: 254,
+                });
             }
         }
 
         // FIXME Same as above, doesnt support highlights that span multiple fragments
         // Syntax highlight
         if let Some(highlights) = ctx.state.highlights.get(&view.buffer) {
-            spans.extend(highlights.iter().filter_map(|hl| {
-                let from = view.map_true_position_to_view_position(hl.styled_region.from)?;
-                let to = view.map_true_position_to_view_position(hl.styled_region.to)?;
-                Some(StyledRegion {
+            spans.extend(highlights.iter().map(|hl| {
+                let from = view.map_true_position_to_view_position(hl.styled_region.from);
+                let to = view.map_true_position_to_view_position(hl.styled_region.to);
+                StyledRegion {
                     from,
                     to,
                     ..hl.styled_region
-                })
+                }
             }));
         }
 

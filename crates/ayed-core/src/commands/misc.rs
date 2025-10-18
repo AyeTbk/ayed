@@ -296,33 +296,6 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
-
-    cr.register("vbuf-clear", |_opt, ctx| {
-        // FIXME I dont believe the vbuffer should be handled directly
-        // by commands like this. Its settings should be set (with
-        // states) and the changes should take effect automatically.
-        let Some(view_handle) = ctx.state.focused_view() else {
-            return Ok(());
-        };
-
-        let view = ctx.resources.views.get_mut(view_handle);
-        view.virtual_buffer = None;
-
-        Ok(())
-    });
-    cr.register("vbuf-line-wrap-rebuild", |_opt, ctx| {
-        let Some(view_handle) = ctx.state.focused_view() else {
-            return Ok(());
-        };
-
-        let view = ctx.resources.views.get_mut(view_handle);
-        view.rebuild_line_wrap(
-            &ctx.resources.buffers,
-            ctx.state.editor_rect.size().column.try_into().unwrap(),
-        );
-
-        Ok(())
-    });
 }
 
 fn selection_from_symbol_prefix_under_cursor(buffer: &TextBuffer, cursor: Position) -> Selection {

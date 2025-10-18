@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::utils::string_utils::char_count;
+
 pub struct GridStringBuilder {
     cells: BTreeMap<CellId, Cell>,
     spans: Vec<(CellId, CellId)>,
@@ -56,7 +58,7 @@ impl GridStringBuilder {
                 column
                     .map(|(id, cell)| {
                         if self.is_cell_end_of_its_span(id) {
-                            cell.content.chars().count()
+                            char_count(&cell.content)
                         } else {
                             0
                         }
@@ -91,7 +93,7 @@ impl GridStringBuilder {
                 }
 
                 let column_end = column_start + column_width;
-                let padding_len = column_end.saturating_sub(buf.chars().count());
+                let padding_len = column_end.saturating_sub(char_count(&buf));
                 for _ in 0..padding_len {
                     buf.push(' ');
                 }

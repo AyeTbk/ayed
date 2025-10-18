@@ -89,7 +89,6 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
                 let view = ctx.resources.views.insert(View {
                     top_left: Position::ZERO,
                     buffer,
-                    virtual_buffer: None,
                 });
                 ctx.resources
                     .buffers

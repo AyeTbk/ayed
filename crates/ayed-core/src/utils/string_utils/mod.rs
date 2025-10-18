@@ -27,6 +27,7 @@ pub fn char_index_to_byte_index(s: &str, ch_idx: usize) -> Option<usize> {
     }
 }
 
+#[expect(dead_code)]
 pub fn char_index_to_byte_index_end(s: &str, ch_idx: usize) -> Option<usize> {
     s.char_indices()
         .chain(Some((s.len(), '\n')))

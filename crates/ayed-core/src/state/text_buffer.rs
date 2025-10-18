@@ -13,7 +13,7 @@ use super::View;
 // #2. The line terminators are not part of the content, they are implied for the
 //     current line when there is a following line.
 // #3. Positions refer to lines in row and to codepoints (Rust chars) of said line in column.
-// #4. A position with column == line.chars().count() is allowed. It can be thought of as the
+// #4. A position with  column == line's char count  is allowed. It can be thought of as the
 //     position of the line terminator (also allowed for the last line even though there is
 //     no implied line terminator).
 // #5. When inserting text, the character '\n' represents a line terminator.
