@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
-use crate::{config::applied_config::AppliedConfig, input::Input};
+use crate::{
+    config::applied_config::{AppliedConfig, EditorConfig},
+    input::Input,
+};
 
 mod applied_config;
 
@@ -73,6 +76,10 @@ impl Config {
 
     pub fn get_syntax(&self) -> &HashMap<String, Vec<Regex>> {
         &self.current_config.syntax
+    }
+
+    pub fn get_editor(&self) -> &EditorConfig {
+        &self.current_config.editor
     }
 
     pub fn get_keybind_else(&self) -> Option<&[String]> {

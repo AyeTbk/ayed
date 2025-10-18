@@ -34,6 +34,8 @@ impl Resources {
             .map(|(handle, _)| handle)
     }
 
+    // FIXME this is inherently broken, there will eventually be the possibility of
+    // buffers with multiple views
     pub fn view_with_buffer(&self, buffer: Handle<TextBuffer>) -> Option<Handle<View>> {
         self.views
             .iter()

@@ -79,7 +79,7 @@ impl Editor {
         let line_count = size.row.try_into().unwrap();
         for i in 0..line_count {
             if view
-                .render_view_line(i, &mut buf, &ctx.resources.buffers)
+                .render_view_line(i, &mut buf, &ctx.resources.buffers, &ctx.state.config)
                 .is_some()
             {
                 content.push(line_clamped_filled(
@@ -129,8 +129,8 @@ impl Editor {
             let is_end_of_line = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 buffer
-                    .line(selection.cursor().row)
-                    .is_some_and(|line| line.len() as Column == selection.cursor().column)
+                    .line(selection.cursor.row)
+                    .is_some_and(|line| line.len() as Column == selection.cursor.column)
             };
             let cursor_color = if is_end_of_line {
                 match (is_primary, use_alt_style) {
@@ -144,10 +144,20 @@ impl Editor {
             };
 
             // Cursor style
-            let cursor = view.map_true_position_to_view_position(selection.cursor());
+            let cursor = view.map_logical_position_to_view_position(
+                buffer.map_true_position_to_logical_position(selection.cursor, &ctx.state.config),
+            );
+            let cursor_end = view
+                .map_logical_position_to_view_position(
+                    buffer.map_true_position_to_logical_position(
+                        selection.cursor.offset((1, 0)),
+                        &ctx.state.config,
+                    ),
+                )
+                .offset((-1, 0));
             spans.push(StyledRegion {
                 from: cursor,
-                to: cursor,
+                to: cursor_end,
                 style: Style {
                     foreground_color: Some(cursor_color),
                     invert: true,
@@ -160,8 +170,12 @@ impl Editor {
             for split_selection in selection.split_lines() {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let sel = buffer.limit_selection_to_content(&split_selection);
-                let from = view.map_true_position_to_view_position(sel.start());
-                let to = view.map_true_position_to_view_position(sel.end());
+                let from = view.map_logical_position_to_view_position(
+                    buffer.map_true_position_to_logical_position(sel.start(), &ctx.state.config),
+                );
+                let to = view.map_logical_position_to_view_position(
+                    buffer.map_true_position_to_logical_position(sel.end(), &ctx.state.config),
+                );
                 spans.push(StyledRegion {
                     from,
                     to,
@@ -179,8 +193,8 @@ impl Editor {
         // Syntax highlight
         if let Some(highlights) = ctx.state.highlights.get(&view.buffer) {
             spans.extend(highlights.iter().map(|hl| {
-                let from = view.map_true_position_to_view_position(hl.styled_region.from);
-                let to = view.map_true_position_to_view_position(hl.styled_region.to);
+                let from = view.map_logical_position_to_view_position(hl.styled_region.from);
+                let to = view.map_logical_position_to_view_position(hl.styled_region.to);
                 StyledRegion {
                     from,
                     to,

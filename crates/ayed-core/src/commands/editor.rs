@@ -125,7 +125,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let cursor = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let selections = buffer.view_selections(view_handle).unwrap();
-                selections.primary().cursor()
+                selections.primary().cursor
             };
             let offset = view_rect.offset_from_position(cursor);
             view.top_left = view.top_left.offset(offset);
@@ -154,8 +154,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 if horizontal_move {
                     let new_cursor = ctx
                         .buffer
-                        .move_position_horizontally(selection.cursor(), offset.column)
-                        .unwrap_or(selection.cursor());
+                        .move_position_horizontally(selection.cursor, offset.column)
+                        .unwrap_or(selection.cursor);
 
                     *selection = if anchored {
                         selection.with_cursor(new_cursor)
@@ -163,16 +163,36 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                         selection.with_anchor(new_cursor).with_cursor(new_cursor)
                     };
                 } else {
-                    let limited_cursor = ctx
+                    let logpos = ctx
                         .buffer
-                        .limit_position_to_content(selection.desired_cursor().offset(offset));
+                        .map_true_position_to_logical_position(selection.cursor, &ctx.state.config);
+                    if selection.old_logical_cursor_column.is_none() {
+                        selection.old_logical_cursor_column = Some(logpos.column);
+                    }
+                    let desired_logpos = if let Some(column) = selection.old_logical_cursor_column {
+                        logpos.with_column(column)
+                    } else {
+                        logpos
+                    };
+                    let moved_logpos = ctx
+                        .buffer
+                        .move_logical_position_vertically(
+                            desired_logpos,
+                            offset.row,
+                            &ctx.state.config,
+                        )
+                        .unwrap_or(logpos);
+                    let new_cursor = ctx
+                        .buffer
+                        .map_logical_position_to_true_position(moved_logpos, &ctx.state.config);
+
                     *selection = if anchored {
-                        selection.with_provisional_cursor(limited_cursor)
+                        selection.with_provisional_cursor(new_cursor)
                     } else {
                         selection
-                            .with_anchor(limited_cursor)
-                            .with_provisional_cursor(limited_cursor)
-                    }
+                            .with_anchor(new_cursor)
+                            .with_provisional_cursor(new_cursor)
+                    };
                 }
             }
 
@@ -215,8 +235,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             };
 
             for selection in ctx.selections.iter_mut() {
-                let original_cursor = selection.cursor();
-                let mut cursor = selection.cursor();
+                let original_cursor = selection.cursor;
+                let mut cursor = selection.cursor;
 
                 match edge {
                     Edge::LineStart => cursor = cursor.with_column(0),
@@ -273,7 +293,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
 
         for selection in selections.iter_mut() {
-            let cursor = selection.cursor();
+            let cursor = selection.cursor;
             let mut row = cursor.row;
             let mut search_start_column = cursor.column;
 
@@ -374,7 +394,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 else {
                     continue;
                 };
-                ctx.buffer.insert_char_at(sel.cursor(), the_char)?;
+                ctx.buffer.insert_char_at(sel.cursor, the_char)?;
             }
 
             ctx.queue.emit("buffer-modified", "");
@@ -555,8 +575,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         let make_dupe = |sel: Selection, offset| {
             buffer.limit_selection_to_content(
-                &sel.with_provisional_anchor(sel.desired_anchor().offset(offset))
-                    .with_provisional_cursor(sel.desired_cursor().offset(offset)),
+                &sel.with_anchor(sel.anchor.offset(offset))
+                    .with_cursor(sel.cursor.offset(offset)),
             )
         };
 

@@ -172,7 +172,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         for sel_idx in 0..sel_count {
             let selections = buffer.view_selections(view_handle).unwrap();
             let sel = selections.get(sel_idx).unwrap();
-            let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor());
+            let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor);
             let selections = buffer.view_selections_mut(view_handle).unwrap();
             let sel = selections.get_mut(sel_idx).unwrap();
             *sel = new_sel;
@@ -240,7 +240,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 return Err("only 'active-buffer' is supported as suggestion source".to_string());
             }
 
-            let cursor = ctx.selections.primary().cursor();
+            let cursor = ctx.selections.primary().cursor;
 
             let should_prompt =
                 Some(cursor) == ctx.state.suggestions.prompt_suggestion_cursor_position;

@@ -106,6 +106,7 @@ impl State {
 
         if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
             let buffer = resources.buffers.get(active_editor_buffer_handle);
+            // Path info
             let mut path_text = buffer.path().unwrap_or("<scratch>").to_string();
             if buffer.is_dirty() {
                 path_text.push_str("*");
@@ -116,6 +117,23 @@ impl State {
                 align: Align::Right,
             };
             infos.push(path_info);
+
+            // Cursor info
+            let sels = buffer
+                .view_selections(
+                    resources
+                        .view_with_buffer(active_editor_buffer_handle)
+                        .unwrap(),
+                )
+                .unwrap();
+            let cursor = sels.primary().cursor;
+            let logicursor = buffer.map_true_position_to_logical_position(cursor, &self.config);
+            let cursor_info = ModelineInfo {
+                text: format!("{cursor} / {logicursor}"),
+                style: Style::default(),
+                align: Align::Right,
+            };
+            infos.push(cursor_info);
         }
 
         self.modeline.infos = infos;

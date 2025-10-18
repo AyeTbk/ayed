@@ -22,6 +22,7 @@ impl TextBufferHistory {
         let state = Self::extract_state(buffer);
         let all_selections = state.all_selections.clone();
 
+        // TODO text buffer dirty is a bit basic, make it more robust. Some changes that arent actual changes get recorded (ex: delete-around in an empty buffer)
         // Only add a new state if needed
         if buffer.take_history_dirty() {
             self.state_stack.push(state);

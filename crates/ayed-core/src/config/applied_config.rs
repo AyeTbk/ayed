@@ -8,6 +8,7 @@ use crate::config::{ConditionalMapping, ConfigModule, ConfigState};
 pub struct AppliedConfig {
     pub mappings: HashMap<String, HashMap<String, Vec<String>>>,
     pub syntax: HashMap<String, Vec<Regex>>,
+    pub editor: EditorConfig,
 }
 
 impl AppliedConfig {
@@ -115,5 +116,31 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
         })
         .collect();
 
-    AppliedConfig { mappings, syntax }
+    let mut editor = EditorConfig::default();
+    if let Some(mapping) = mappings.get("editor") {
+        if let Some(indent_size) = mapping
+            .get("indent-size")
+            .and_then(|v| v.first())
+            .and_then(|s| u8::from_str_radix(s, 10).ok())
+        {
+            editor.indent_size = indent_size as i32;
+        }
+    }
+
+    AppliedConfig {
+        mappings,
+        syntax,
+        editor,
+    }
+}
+
+#[derive(Debug)]
+pub struct EditorConfig {
+    pub indent_size: i32,
+}
+
+impl Default for EditorConfig {
+    fn default() -> Self {
+        Self { indent_size: 4 }
+    }
 }

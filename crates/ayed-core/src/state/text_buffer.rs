@@ -1,6 +1,7 @@
 use std::{cell::Cell, collections::HashMap};
 
 use crate::{
+    config::Config,
     position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
     slotmap::Handle,
@@ -134,6 +135,63 @@ impl TextBuffer {
         self.lines.get(row_index as usize).map(String::as_str)
     }
 
+    // I'd document this properly if I knew I to put words together to describe it
+    // but basically this is to handle how to display tabs.
+    // All code that wants to display a line should use this.
+    pub fn logical_line(&self, row_index: Row, config: &Config) -> Option<String> {
+        self.lines
+            .get(row_index as usize)
+            .map(|s| s.replace('\t', &" ".repeat(config.get_editor().indent_size as usize))) // TODO get from config
+    }
+
+    pub fn logical_line_char_count(&self, row: Row, config: &Config) -> Option<i32> {
+        let line = self.line(row)?;
+        let mut logical_char_count = 0;
+        for ch in line.chars() {
+            let count = logical_char_char_count(ch, config);
+            logical_char_count += count;
+        }
+        Some(logical_char_count)
+    }
+
+    pub fn map_true_position_to_logical_position(
+        &self,
+        position: Position,
+        config: &Config,
+    ) -> Position {
+        let Some(line) = self.line(position.row) else {
+            return position;
+        };
+        let mut logical_column = 0;
+        let chars = line.chars().chain(Some('\n'));
+        for ch in chars.take(position.column as usize) {
+            let count = logical_char_char_count(ch, config);
+            logical_column += count;
+        }
+        position.with_column(logical_column)
+    }
+
+    pub fn map_logical_position_to_true_position(
+        &self,
+        logpos: Position,
+        config: &Config,
+    ) -> Position {
+        let Some(line) = self.line(logpos.row) else {
+            return logpos;
+        };
+        let mut logical_char_count = 0;
+        let mut char_count: i32 = 0;
+        for ch in line.chars() {
+            let count = logical_char_char_count(ch, config);
+            logical_char_count += count;
+            if logical_char_count > logpos.column {
+                break;
+            }
+            char_count += 1;
+        }
+        logpos.with_column(char_count)
+    }
+
     pub fn line_mut(&mut self, row_index: Row) -> Option<&mut String> {
         self.lines.get_mut(row_index as usize)
     }
@@ -159,8 +217,8 @@ impl TextBuffer {
         let mut text = String::new();
         for line_sel in selection.split_lines() {
             let sel = self.limit_selection_to_content(&line_sel);
-            let line = self.line(sel.cursor().row).unwrap();
-            let line_char_count = self.line_char_count(sel.cursor().row).unwrap();
+            let line = self.line(sel.cursor.row).unwrap();
+            let line_char_count = self.line_char_count(sel.cursor.row).unwrap();
 
             let start: usize = sel.start().column as _;
             let end: usize = sel.end().column as _;
@@ -201,11 +259,9 @@ impl TextBuffer {
     }
 
     pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
-        let cursor = self.limit_position_to_content(selection.cursor());
-        let anchor = self.limit_position_to_content(selection.anchor());
-        selection
-            .with_provisional_cursor(cursor)
-            .with_provisional_anchor(anchor)
+        let cursor = self.limit_position_to_content(selection.cursor);
+        let anchor = self.limit_position_to_content(selection.anchor);
+        selection.with_cursor(cursor).with_anchor(anchor)
     }
 
     pub fn limit_position_to_content(&self, position: Position) -> Position {
@@ -245,6 +301,29 @@ impl TextBuffer {
             position.offset(offset)
         };
         Some(self.limit_position_to_content(position))
+    }
+
+    pub fn move_logical_position_vertically(
+        &self,
+        logpos: Position,
+        direction: i32,
+        config: &Config,
+    ) -> Option<Position> {
+        let offset = Offset::new(0, direction.signum());
+        let moved_logpos = logpos.offset(offset);
+        if moved_logpos.row < 0 || moved_logpos.row > self.last_row() {
+            return None;
+        }
+        let correct_row = moved_logpos.row;
+        let correct_column = moved_logpos.column.clamp(
+            0,
+            self.logical_line_char_count(correct_row, config)
+                .unwrap_or(0),
+        );
+
+        let correct_logpos = Position::new(correct_column, correct_row);
+
+        Some(correct_logpos)
     }
 
     pub fn insert_str_at(&mut self, at: Position, s: &str) -> Result<Selection, String> {
@@ -367,10 +446,8 @@ impl TextBuffer {
     fn adjust_selections_after_insert_char(&mut self, inserted_at: Position) {
         for selections in self.selections() {
             for selection in selections.iter_mut() {
-                let cursor =
-                    Self::adjust_position_after_insert_char(selection.cursor(), inserted_at);
-                let anchor =
-                    Self::adjust_position_after_insert_char(selection.anchor(), inserted_at);
+                let cursor = Self::adjust_position_after_insert_char(selection.cursor, inserted_at);
+                let anchor = Self::adjust_position_after_insert_char(selection.anchor, inserted_at);
                 *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
@@ -379,8 +456,8 @@ impl TextBuffer {
     fn adjust_selections_after_split_line(&mut self, split_at: Position) {
         for selections in self.selections() {
             for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_split_line(selection.cursor(), split_at);
-                let anchor = Self::adjust_position_after_split_line(selection.anchor(), split_at);
+                let cursor = Self::adjust_position_after_split_line(selection.cursor, split_at);
+                let anchor = Self::adjust_position_after_split_line(selection.anchor, split_at);
                 *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
@@ -389,8 +466,8 @@ impl TextBuffer {
     fn adjust_selections_after_delete_at(&mut self, deleted_at: Position) {
         for selections in self.selections() {
             for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_delete_at(selection.cursor(), deleted_at);
-                let anchor = Self::adjust_position_after_delete_at(selection.anchor(), deleted_at);
+                let cursor = Self::adjust_position_after_delete_at(selection.cursor, deleted_at);
+                let anchor = Self::adjust_position_after_delete_at(selection.anchor, deleted_at);
                 *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
@@ -404,12 +481,12 @@ impl TextBuffer {
         for selections in self.selections() {
             for selection in selections.iter_mut() {
                 let cursor = Self::adjust_position_after_join_line_with_next(
-                    selection.cursor(),
+                    selection.cursor,
                     row,
                     original_line_char_count,
                 );
                 let anchor = Self::adjust_position_after_join_line_with_next(
-                    selection.anchor(),
+                    selection.anchor,
                     row,
                     original_line_char_count,
                 );
@@ -474,6 +551,14 @@ impl TextBuffer {
         } else {
             pos.offset((0, -1))
         }
+    }
+}
+
+fn logical_char_char_count(ch: char, config: &Config) -> i32 {
+    if ch == '\t' {
+        config.get_editor().indent_size
+    } else {
+        1
     }
 }
 

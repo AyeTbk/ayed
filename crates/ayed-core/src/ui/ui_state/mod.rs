@@ -27,12 +27,9 @@ impl UiPanel {
 
     pub fn fixup_weird_chars(&mut self) {
         for line in &mut self.content {
-            // Tabs render in a special way in terminals, which doesn't match
-            // what the editor wants to show. Proper tab support will have to
-            // be added so that the editor emits an amount of spaces equal to
-            // the intended tab width. Until then, this fix will do, because
-            // I don't use tabs often. TODO remove this once tabs are supported
-            *line = line.replace('\t', "�");
+            // Tabs render in a special way in terminals, which doesn't match what the editor wants to show.
+            // Tabs should be rendered as an appropriate amount of space by renderers.
+            *line = line.replace('\t', "⬸");
         }
     }
 

@@ -90,7 +90,7 @@ impl LineNumbers {
 
             let current_row = {
                 let selections = buffer.view_selections(view_handle).unwrap();
-                selections.primary().cursor().row
+                selections.primary().cursor.row
             };
             let color = if current_row + 1 == line_number {
                 Color::rgb(230, 230, 230)

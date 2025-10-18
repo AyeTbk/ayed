@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     position::{Position, Row},
     slotmap::{Handle, SlotMap},
 };
@@ -16,18 +17,20 @@ impl View {
         idx: Row,
         render: &mut String,
         buffers: &SlotMap<TextBuffer>,
+        config: &Config,
     ) -> Option<()> {
+        // FIXME this should consider not just the row but the columns too, right now, this doesn't really render a view
         let idx = self.top_left.row + idx;
-        self.render_true_line(idx, render, buffers)
+        self.render_logical_line(idx, render, buffers, config)
     }
 
     // TODO Maybe these different "position spaces" could have separate types/type aliases to make it clearer what
     // space a position is expressed in.
-    pub fn map_true_position_to_view_position(&self, position: Position) -> Position {
+    pub fn map_logical_position_to_view_position(&self, position: Position) -> Position {
         position.local_to_pos(self.top_left)
     }
 
-    pub fn map_view_position_to_true_position(&self, position: Position) -> Position {
+    pub fn map_view_position_to_logical_position(&self, position: Position) -> Position {
         position.offset(self.top_left.to_offset())
     }
 
@@ -36,19 +39,21 @@ impl View {
         return Some(view_line + 1);
     }
 
-    fn render_true_line(
+    fn render_logical_line(
         &self,
         row: Row,
         render: &mut String,
         buffers: &SlotMap<TextBuffer>,
+        config: &Config,
     ) -> Option<()> {
         render.clear();
 
         let buffer = buffers.get(self.buffer);
-        let Some(line) = buffer.line(row) else {
+        let Some(line) = buffer.logical_line(row, config) else {
             return None;
         };
-        render.push_str(line);
+        render.push_str(&line);
+
         Some(())
     }
 }

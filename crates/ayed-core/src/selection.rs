@@ -147,10 +147,9 @@ impl std::fmt::Display for Selections {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Selection {
-    cursor: Position,
-    anchor: Position,
-    desired_cursor_column_index: Column,
-    desired_anchor_column_index: Column,
+    pub cursor: Position,
+    pub anchor: Position,
+    pub old_logical_cursor_column: Option<Column>,
 }
 
 impl Selection {
@@ -158,8 +157,7 @@ impl Selection {
         Self {
             cursor: Position::ZERO,
             anchor: Position::ZERO,
-            desired_cursor_column_index: 0,
-            desired_anchor_column_index: 0,
+            old_logical_cursor_column: None,
         }
     }
 
@@ -180,15 +178,14 @@ impl Selection {
         Self {
             cursor: position,
             anchor: position,
-            desired_cursor_column_index: position.column,
-            desired_anchor_column_index: position.column,
+            old_logical_cursor_column: None,
         }
     }
 
     pub fn with_cursor(&self, cursor: Position) -> Self {
         Self {
             cursor,
-            desired_cursor_column_index: cursor.column,
+            old_logical_cursor_column: None,
             ..*self
         }
     }
@@ -197,22 +194,7 @@ impl Selection {
         Self { cursor, ..*self }
     }
 
-    pub fn with_desired_cursor_column_index(&self, desired_cursor_column_index: Column) -> Self {
-        Self {
-            desired_cursor_column_index,
-            ..*self
-        }
-    }
-
     pub fn with_anchor(&self, anchor: Position) -> Self {
-        Self {
-            anchor,
-            desired_anchor_column_index: anchor.column,
-            ..*self
-        }
-    }
-
-    pub fn with_provisional_anchor(&self, anchor: Position) -> Self {
         Self { anchor, ..*self }
     }
 
@@ -243,7 +225,6 @@ impl Selection {
     pub fn shrunk_to_cursor(&self) -> Self {
         let mut this = *self;
         this.anchor = this.cursor;
-        this.desired_anchor_column_index = this.desired_cursor_column_index;
         this
     }
 
@@ -258,8 +239,7 @@ impl Selection {
         Self {
             cursor: self.anchor,
             anchor: self.cursor,
-            desired_cursor_column_index: self.desired_anchor_column_index,
-            desired_anchor_column_index: self.desired_cursor_column_index,
+            old_logical_cursor_column: None,
         }
     }
 
@@ -268,31 +248,6 @@ impl Selection {
             self.flipped()
         } else {
             *self
-        }
-    }
-
-    pub fn cursor(&self) -> Position {
-        self.cursor
-    }
-
-    pub fn desired_cursor(&self) -> Position {
-        self.cursor.with_column(self.desired_cursor_column_index)
-    }
-
-    pub fn anchor(&self) -> Position {
-        self.anchor
-    }
-
-    pub fn desired_anchor(&self) -> Position {
-        self.anchor.with_column(self.desired_anchor_column_index)
-    }
-
-    pub fn to_desired(&self) -> Self {
-        Self {
-            cursor: self.cursor,
-            anchor: self.anchor,
-            desired_cursor_column_index: self.cursor.column,
-            desired_anchor_column_index: self.anchor.column,
         }
     }
 
@@ -328,8 +283,7 @@ impl Selection {
             Some(Self {
                 cursor,
                 anchor,
-                desired_cursor_column_index: self.desired_cursor_column_index,
-                desired_anchor_column_index: self.desired_anchor_column_index,
+                old_logical_cursor_column: None,
             })
         } else {
             None
