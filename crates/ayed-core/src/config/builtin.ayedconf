@@ -4,6 +4,7 @@
 #       Async "scripts"?
 # - ...?
 
+
 # Essential for input mapping
 hooks {
     input map-input
@@ -13,6 +14,7 @@ hooks {
 # Essential for general editing
 hooks {
     selections-modified $[ selections-merge-overlapping ; look-keep-primary-cursor-in-view ]
+    insert-char __auto-indent-shim
 }
 
 
@@ -148,6 +150,11 @@ panel warpdrive {
 ########################
 ### Editing keybinds ###
 
+keybinds {
+    # Escape hatch for when mode is set to nonsense
+    <a-1> set mode normal
+}
+
 hooks {
     started set mode normal
 }
@@ -193,9 +200,9 @@ mode normal {
         ( selections-rotate --reversed
 
         o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char \n ]
-        <s-o> $[ set mode insert ; move-to-edge line-start ; insert-char \n ; move u ]
+        <s-o> $[ set mode insert ; move-to-edge line-past-indent ; insert-char \n ; move u ]
 
-        x $[ selections-flip --backward ; map-input <s-home> ; selections-flip --forward ; map-input <s-end> ]
+        x $[ selections-flip --backward ; move-to-edge line-start ; selections-flip --forward ; move-to-edge --anchored line-past-end ]
 
         c $[ set mode insert ; yank ; delete ]
 
@@ -208,6 +215,7 @@ mode normal {
         <lt> indent --less
         <gt> indent --more
         <a-lt> indent --reindent
+        <a-gt> indent --auto
 
         y yank
         p paste
@@ -220,6 +228,7 @@ mode normal {
         <s-i> $[ move-to-edge line-past-indent ; set mode insert ]
 
         a set mode insert-append
+        <s-a> $[ set mode insert ; move-to-edge line-past-end ]
 
         <space> set mode combo-user
         g set mode combo-goto

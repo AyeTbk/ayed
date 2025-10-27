@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use regex::Regex;
 
@@ -506,16 +506,19 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 .flag("more")
                 .flag("less")
                 .flag("reindent")
+                .flag("auto")
+                .flag("auto-dedent") // To be used with auto, to check whether to dedent or no considering the current line
                 .parse(opt)?;
             let mut more = opts.contains("more");
             let less = opts.contains("less");
             let reindent = opts.contains("reindent");
-            if !(more || less || reindent) {
+            let auto = opts.contains("auto");
+            let auto_dedent = opts.contains("auto-dedent");
+            if !(more || less || reindent || auto) {
                 more = true;
             }
-            let level_mod = (more as i32) - (less as i32);
 
-            let mut affected_lines = HashSet::new();
+            let mut affected_lines = BTreeSet::new();
             for sel in ctx.selections.iter() {
                 for line_sel in sel.split_lines() {
                     affected_lines.insert(line_sel.cursor.row);
@@ -526,9 +529,28 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             for row in affected_lines {
                 let Some(line) = ctx.buffer.line(row) else { continue };
 
-                let (indentation, _) = take_while(line, is_whitespace);
+                let mut level_mod = (more as i32) - (less as i32);
+
+                if auto && auto_dedent {
+                    if line.trim() == "}" {
+                        level_mod -= 1;
+                    } else {
+                        continue;
+                    }
+                }
+
+                let indentation = take_while(line, is_whitespace).0;
                 let indent_char_count = char_count(indentation) as i32;
-                let new_indent_level = i32::max(indent_char_count / indent_size + level_mod, 0);
+                let new_indent_char_count = if auto {
+                    let Some(prev_line) = ctx.buffer.line(row - 1) else { continue };
+                    if let Some('{') = prev_line.trim_end().chars().last() {
+                        level_mod += 1;
+                    }
+                    char_count(take_while(prev_line, is_whitespace).0) as i32
+                } else {
+                    indent_char_count
+                };
+                let new_indent_level = i32::max(new_indent_char_count / indent_size + level_mod, 0);
                 let new_indent_char_count = new_indent_level * indent_size;
                 let new_indentation = " ".repeat(new_indent_char_count as usize);
 
@@ -549,6 +571,17 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
+
+    cr.register("__auto-indent-shim", |opt, ctx| {
+        match opt {
+            // TODO find a way to not have to check for both of these (like avoid the raw string)
+            "\n" | r"\n" => ctx.queue.push("indent --auto"),
+            // FIXME find a proper and cleaner way to handle nesting aware auto-indent/dedent
+            "}" => ctx.queue.push("indent --auto --auto-dedent"),
+            _ => (),
+        }
+        Ok(())
+    });
 
     cr.register("selections-merge-overlapping", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view() {
