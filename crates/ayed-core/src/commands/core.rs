@@ -77,6 +77,11 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
                 ctx.resources.views.remove(view_handle);
                 ctx.resources.buffers.remove(buffer_handle);
             }
+            FocusedPanel::FilePicker(view_handle) => {
+                let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+                ctx.resources.views.remove(view_handle);
+                ctx.resources.buffers.remove(buffer_handle);
+            }
             _ => (),
         }
 
@@ -98,6 +103,21 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
                 // TODO the modeline view and buffer handles could just be stored in the panel maybe?
                 // It would avoid having to cleanup and recreate them (but would still need to clear the buffer).
                 ctx.state.focused_panel = FocusedPanel::Modeline(view);
+            }
+            "file-picker" => {
+                let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
+                let view = ctx.resources.views.insert(View {
+                    top_left: Position::ZERO,
+                    buffer,
+                });
+                ctx.resources
+                    .buffers
+                    .get_mut(buffer)
+                    .add_view_selections(view, Selections::new());
+
+                // TODO the file picker view and buffer handles could just be stored in the panel maybe?
+                // It would avoid having to cleanup and recreate them (but would still need to clear the buffer).
+                ctx.state.focused_panel = FocusedPanel::FilePicker(view);
             }
             "warpdrive" => {
                 ctx.state.focused_panel = FocusedPanel::Warpdrive;

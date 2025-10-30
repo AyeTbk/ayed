@@ -99,6 +99,9 @@ impl Tui {
             if style.invert {
                 write!(screen, "{}", crossterm::style::Attribute::Reverse)?;
             }
+            if style.bold {
+                write!(screen, "{}", crossterm::style::Attribute::Bold)?;
+            }
             if style.underlined {
                 write!(screen, "{}", crossterm::style::Attribute::Underlined)?;
             }

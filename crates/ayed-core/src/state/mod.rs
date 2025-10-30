@@ -5,6 +5,7 @@ use crate::{
     input::Input,
     panels::{
         FocusedPanel,
+        file_picker::FilePickerState,
         modeline::{Align, ModelineInfo, ModelineState},
     },
     slotmap::Handle,
@@ -41,11 +42,13 @@ pub struct State {
     pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,
+    pub file_picker: FilePickerState,
     pub focused_panel: FocusedPanel,
     pub quit_requested: bool,
     pub viewport_size: Size,
     pub editor_rect: Rect,
     pub modeline_rect: Rect,
+    pub file_picker_rect: Rect,
     pub last_input: Option<Input>,
 }
 
@@ -54,12 +57,14 @@ impl State {
         match self.focused_panel {
             FocusedPanel::Editor | FocusedPanel::Warpdrive => self.active_editor_view,
             FocusedPanel::Modeline(view) => Some(view),
+            FocusedPanel::FilePicker(view) => Some(view),
         }
     }
 
     pub fn focused_view_rect(&self, resources: &Resources) -> Rect {
         let (view_handle, panel_rect) = match self.focused_panel {
             FocusedPanel::Modeline(handle) => (Some(handle), self.modeline_rect),
+            FocusedPanel::FilePicker(handle) => (Some(handle), self.file_picker_rect),
             FocusedPanel::Editor | FocusedPanel::Warpdrive => {
                 (self.active_editor_view, self.editor_rect)
             }

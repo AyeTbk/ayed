@@ -67,7 +67,11 @@ impl Rect {
     }
 
     pub fn top_left(&self) -> Position {
-        (self.x as _, self.y as _).into()
+        (self.left() as _, self.top() as _).into()
+    }
+
+    pub fn top_right(&self) -> Position {
+        (self.right() as _, self.top() as _).into()
     }
 
     pub fn bottom_right(&self) -> Position {
@@ -111,6 +115,24 @@ impl Rect {
             0
         };
         Offset::new(column_offset, row_offset)
+    }
+
+    pub fn offset(&self, offset: impl Into<Offset>) -> Self {
+        let offset = offset.into();
+        Self {
+            x: self.x.saturating_add_signed(offset.column),
+            y: self.y.saturating_add_signed(offset.row),
+            ..*self
+        }
+    }
+
+    pub fn grown(&self, top: i32, bottom: i32, left: i32, right: i32) -> Self {
+        Self {
+            x: self.x.saturating_add_signed(-left),
+            y: self.y.saturating_add_signed(-top),
+            width: self.width.saturating_add_signed(right + left),
+            height: self.height.saturating_add_signed(bottom + top),
+        }
     }
 }
 

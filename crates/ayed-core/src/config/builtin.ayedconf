@@ -91,10 +91,10 @@ mixin basic-movement {
         <c-home> move-to-edge --reanchored line-start
         <cs-home> move-to-edge --anchored line-start
 
-        <end> move-to-edge --reanchored line-end
-        <s-end> move-to-edge --anchored line-end
-        <c-end> move-to-edge --reanchored line-past-end
-        <cs-end> move-to-edge --anchored line-past-end
+        <end> move-to-edge --reanchored line-past-end
+        <s-end> move-to-edge --anchored line-past-end
+        <c-end> move-to-edge --reanchored line-end
+        <cs-end> move-to-edge --anchored line-end
 
         <sa-up> look u
         <sa-down> look d
@@ -129,12 +129,39 @@ panel modeline {
 
     keybinds {
         <esc> panel-focus editor
+        <c-space> panel-focus editor
+
         <ret> modeline-exec
 
         <up> modeline-history --previous
         <down> modeline-history --next
 
         else insert-char
+    }
+}
+
+# Essential for file-picker
+@override
+panel file-picker {
+    use basic-movement
+    use basic-deletion
+
+    keybinds {
+        <esc> panel-focus editor
+        <c-space> panel-focus editor
+
+        <ret> file-picker-confirm
+
+        <up> file-picker-select --previous
+        <down> file-picker-select --next
+
+        else insert-char
+    }
+}
+panel file-picker {
+    hooks {
+        state-modified:panel file-picker-fill-list
+        buffer-modified file-picker-fill-list
     }
 }
 
@@ -323,9 +350,11 @@ file .*\.rs {
 
 mode combo-user {
     keybinds {
+        e panel-focus file-picker
         f set mode combo-file
     }
     keybinds-doc {
+        e File picker
         f File management
     }
 }

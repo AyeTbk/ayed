@@ -359,7 +359,18 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
                 if let Some((new_anchor_column, new_cursor_column)) = needle {
                     if !anchored {
-                        *selection = selection.with_anchor(Position::new(new_anchor_column, row));
+                        let mut new_anchor = Position::new(new_anchor_column, row);
+                        // Limit new anchor to where the cursor was
+                        if reversed {
+                            if new_anchor > cursor {
+                                new_anchor = cursor;
+                            }
+                        } else {
+                            if new_anchor < cursor {
+                                new_anchor = cursor;
+                            }
+                        }
+                        *selection = selection.with_anchor(new_anchor);
                     }
                     *selection = selection.with_cursor(Position::new(new_cursor_column, row));
 

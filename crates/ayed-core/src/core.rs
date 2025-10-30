@@ -27,6 +27,7 @@ impl Core {
         this.state.config = config::make_builtin_config();
 
         panels::warpdrive::commands::register_warpdrive_commands(&mut this.commands);
+        panels::file_picker::commands::register_file_picker_commands(&mut this.commands);
 
         this.queue_command("started".to_string());
         this.tick();
@@ -132,12 +133,14 @@ impl Core {
             self.panels.modeline.render(&render_ctx),
         ];
 
-        if let Some(ui_panel) = self.panels.warpdrive.render(&render_ctx) {
-            panels.push(ui_panel);
+        panels.extend(self.panels.file_picker.render(&render_ctx));
+
+        if let Some(panel) = self.panels.warpdrive.render(&render_ctx) {
+            panels.push(panel);
         }
 
-        if let Some(suggestion_panel) = self.panels.suggestion.render(&render_ctx) {
-            panels.push(suggestion_panel);
+        if let Some(panel) = self.panels.suggestion.render(&render_ctx) {
+            panels.push(panel);
         }
 
         let mode = self.state.config.state_value("mode");
@@ -220,5 +223,16 @@ impl Core {
             Modeline::HEIGHT,
         ));
         self.state.modeline_rect = self.panels.modeline.rect();
+
+        self.panels.file_picker.set_rect(
+            Rect::new(
+                0,
+                0,
+                self.state.viewport_size.column,
+                self.state.viewport_size.row,
+            )
+            .grown(-1, -(Modeline::HEIGHT as i32 + 1), -4, -4),
+        );
+        self.state.file_picker_rect = self.panels.file_picker.rect();
     }
 }

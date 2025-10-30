@@ -10,6 +10,9 @@ pub use self::line_numbers::LineNumbers;
 pub mod modeline;
 pub use self::modeline::Modeline;
 
+pub mod file_picker;
+pub use self::file_picker::FilePicker;
+
 pub mod warpdrive;
 pub use self::warpdrive::Warpdrive;
 
@@ -24,6 +27,7 @@ pub struct Panels {
     pub editor: Editor,
     pub line_numbers: LineNumbers,
     pub modeline: Modeline,
+    pub file_picker: FilePicker,
     pub warpdrive: Warpdrive,
     pub combo: Combo,
     pub suggestion: Suggestions,
@@ -34,6 +38,7 @@ pub enum FocusedPanel {
     #[default]
     Editor,
     Modeline(Handle<View>),
+    FilePicker(Handle<View>),
     Warpdrive,
 }
 
