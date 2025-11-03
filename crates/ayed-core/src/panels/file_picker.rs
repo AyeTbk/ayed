@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{
     position::Position,
     ui::{
@@ -152,8 +154,13 @@ impl FilePickerState {
 
     pub fn reselect(&mut self) {
         self.selected_item = 0;
-        self.select_next();
-        self.select_previous();
+        if self.list_items.is_empty() {
+            return;
+        }
+        let selected_item = self.list_items.get(self.selected_item);
+        if matches!(selected_item, Some(FileListItem::Section { .. })) {
+            self.select_next();
+        }
     }
 
     fn select_impl(&mut self, direction: i32) {
@@ -182,7 +189,7 @@ impl FilePickerState {
 pub mod commands {
     use crate::{
         command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
-        panels::file_picker::FileListItem,
+        panels::file_picker::{FileListItem, file_list_to_file_tree},
     };
 
     pub fn register_file_picker_commands(cr: &mut CommandRegistry) {
@@ -225,7 +232,7 @@ pub mod commands {
             focused_buffer_command(|_opt, ctx| {
                 let filter = ctx.buffer.line(0).unwrap_or_default();
                 match file_picker_fill_list(filter) {
-                    Ok(list) => ctx.state.file_picker.list_items = list,
+                    Ok(list) => ctx.state.file_picker.list_items = file_list_to_file_tree(list),
                     Err(err) => return Err(err.to_string()),
                 }
                 ctx.state.file_picker.reselect();
@@ -235,18 +242,25 @@ pub mod commands {
     }
 
     fn file_picker_fill_list(filter: &str) -> std::io::Result<Vec<FileListItem>> {
-        fn aux(filter: &str, dir_path: &str, list: &mut Vec<FileListItem>) -> std::io::Result<()> {
+        fn aux(
+            filters: &[&str],
+            dir_path: &str,
+            list: &mut Vec<FileListItem>,
+        ) -> std::io::Result<()> {
             if list.len() > 200 {
                 return Ok(());
             }
-            for maybe_entry in std::fs::read_dir(dir_path)? {
+            'entry: for maybe_entry in std::fs::read_dir(dir_path)? {
                 let Ok(entry) = maybe_entry else { continue };
                 let path = entry.path().to_str().unwrap().to_string();
                 if entry.file_type()?.is_dir() {
-                    aux(filter, &path, list)?;
+                    aux(filters, &path, list)?;
                 } else {
-                    if !path.contains(filter) {
-                        continue;
+                    for filter in filters {
+                        // TODO FEAT case insensitivity
+                        if !path.contains(filter) {
+                            continue 'entry;
+                        }
                     }
                     list.push(FileListItem::File {
                         text: path.clone(),
@@ -258,7 +272,87 @@ pub mod commands {
         }
 
         let mut list = Vec::new();
-        aux(filter, ".", &mut list)?;
+        let filters = filter.split(' ').collect::<Vec<&str>>();
+        aux(&filters, ".", &mut list)?;
         Ok(list)
     }
+}
+
+fn file_list_to_file_tree(list: Vec<FileListItem>) -> Vec<FileListItem> {
+    // Build up some kind of prefix tree built on the paths to
+    // extract sections and files from a flat file list.
+
+    #[derive(Default)]
+    struct Node<'a> {
+        part: &'a str,
+        children: BTreeMap<&'a str, usize>,
+        items: BTreeMap<&'a str, &'a FileListItem>,
+    }
+
+    let mut nodes = Vec::new();
+    nodes.push(Node::default());
+
+    for item in &list {
+        let path = item.path().expect("there should only be Files");
+
+        let mut parts = path.split('/').peekable();
+        let mut curr_node_id = 0;
+        while let Some(part) = parts.next() {
+            if parts.peek().is_none() {
+                let curr_node = &mut nodes[curr_node_id];
+                curr_node.items.insert(part, item);
+            } else {
+                if !nodes[curr_node_id].children.contains_key(part) {
+                    let next_node_id = nodes.len();
+                    nodes.push(Node {
+                        part,
+                        ..Default::default()
+                    });
+                    nodes[curr_node_id].children.insert(part, next_node_id);
+                    curr_node_id = next_node_id;
+                } else {
+                    let next_node_id = *nodes[curr_node_id].children.get(part).unwrap();
+                    curr_node_id = next_node_id;
+                }
+            }
+        }
+    }
+
+    // Extract sections and files
+    fn aux(curr_node: usize, nodes: &[Node], parts: &str, level: i32, out: &mut Vec<FileListItem>) {
+        const IDENT_SIZE: i32 = 2; // TODO make configurable
+
+        let node = &nodes[curr_node];
+        let mut next_parts = parts.to_string();
+        let mut next_level = level;
+        if node.part != "" {
+            if node.items.is_empty() {
+                next_parts = format!("{parts}{}/", node.part);
+            } else {
+                next_parts = format!("");
+                next_level += 1;
+                let indent = " ".repeat((level * IDENT_SIZE) as _);
+                out.push(FileListItem::Section {
+                    text: format!("{indent}{parts}{}/", node.part),
+                });
+            }
+        }
+
+        for (part, item) in &node.items {
+            let indent = " ".repeat((next_level * IDENT_SIZE) as _);
+            out.push(FileListItem::File {
+                text: format!("{indent}{part}"),
+                path: item.path().unwrap().to_string(),
+            });
+        }
+
+        for &child in node.children.values() {
+            aux(child, nodes, &next_parts, next_level, out);
+        }
+    }
+
+    let mut out = Vec::new();
+    aux(0, &nodes, "", 0, &mut out);
+
+    return out;
 }

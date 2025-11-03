@@ -321,6 +321,7 @@ syntax-style {
     type                $[ #55b89b ; priority:12 ]
     literal             $[ #aaddcc ; priority:11 ]
     string              $[ #bb8866 ; priority:14 ]
+    lifetime            $[ #cccccc ; priority:14 ]
     function            $[ #b8a4fc ; priority:13 ]
     namespace           #55b89b
     comment             $[ #55887a ; priority:15 ]
@@ -334,9 +335,10 @@ file .*\.rs {
         operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
         delimiter (->|=>|\{|\}|\[|\]|\(|\)|<|>)
         macro \b([a-zA-Z0-9_]+\!)
-        type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b((u|i)(8|16|32|64|128)|f32|f64)\b ; \b(char)\b ]
+        type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b((u|i)(8|16|32|64|128)|f32|f64)\b ; \b(char|bool|str)\b ]
         literal $[ (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) ; \b(true|false)\b ]
-        string $[ (r?\"[^\"]*\") ; (r?'[^']*') ]
+        string $[ (r?\"[^\"]*\") ; (r?'[^']') ]
+        lifetime $[ (r?'.) ]
         function \b([a-z0-9_][a-zA-Z0-9_]*)\(
         namespace \b([a-zA-Z0-9_]+)::
         comment (//.*)$
