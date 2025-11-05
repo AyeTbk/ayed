@@ -4,10 +4,12 @@ use crate::{
     position::Position,
     ui::{
         Color, Rect, Style,
-        theme::colors::ACCENT,
         ui_state::{StyledRegion, UiPanel},
     },
-    utils::string_utils::line_clamped_filled,
+    utils::{
+        render_utils::{decorated_rectangle, separator_h},
+        string_utils::line_clamped_filled,
+    },
 };
 
 use super::{Editor, FocusedPanel, RenderPanelContext};
@@ -31,22 +33,19 @@ impl FilePicker {
             return Vec::new();
         };
 
-        let size = self.rect.size();
-        let mut spans = Vec::new();
-        let mut content = Vec::new();
+        let boxbg = ctx.state.config.get_theme_color("box-bg");
+        let boxfg = ctx.state.config.get_theme_color("box-fg");
 
-        for y in 0..size.row {
-            content.push(" ".repeat(size.column as usize));
-            spans.push(StyledRegion {
-                from: Position::new(0, y as i32),
-                to: Position::new(size.column as i32, y as i32),
-                style: Style {
-                    background_color: Some(ACCENT),
-                    ..Default::default()
-                },
-                priority: 1,
-            });
-        }
+        let mut back_panel = decorated_rectangle(
+            self.rect.top_left(),
+            self.rect.size(),
+            Style {
+                background_color: boxbg,
+                foreground_color: boxfg,
+                ..Default::default()
+            },
+        );
+        separator_h(2, &mut back_panel.content);
 
         let mut editor = Editor::with_view(view_handle);
         let editor_rect = Rect::from_positions(self.rect.top_left(), self.rect.top_right())
@@ -59,16 +58,7 @@ impl FilePicker {
             .grown(-3, -1, -2, -2);
         let list_panel = render_file_list(ctx, list_rect);
 
-        vec![
-            UiPanel {
-                position: self.rect.top_left(),
-                size,
-                content: content,
-                spans,
-            },
-            editor_panel,
-            list_panel,
-        ]
+        vec![back_panel, editor_panel, list_panel]
     }
 }
 

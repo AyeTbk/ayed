@@ -2,7 +2,6 @@ use crate::{
     position::Position,
     ui::{
         Rect, Size, Style,
-        theme::colors::{ACCENT, ACCENT_BRIGHT},
         ui_state::{StyledRegion, UiPanel},
     },
 };
@@ -82,16 +81,16 @@ impl Suggestions {
             content.push(s);
 
             let color = if ctx.state.suggestions.selected_item == (i as i32 + 1) {
-                ACCENT_BRIGHT
+                ctx.state.config.get_theme_color("accent-bright")
             } else {
-                ACCENT
+                ctx.state.config.get_theme_color("accent")
             };
             spans.push(StyledRegion {
                 from: Position::new(0, i as i32),
                 to: Position::new(width as i32, i as i32),
                 style: Style {
                     foreground_color: None,
-                    background_color: Some(color),
+                    background_color: color,
                     ..Default::default()
                 },
                 priority: 0,
@@ -122,16 +121,16 @@ impl Suggestions {
             content.push(s);
 
             let color = if ctx.state.suggestions.selected_item == (i as i32 + 1) {
-                ACCENT_BRIGHT
+                ctx.state.config.get_theme_color("accent-bright")
             } else {
-                ACCENT
+                ctx.state.config.get_theme_color("accent")
             };
             spans.push(StyledRegion {
                 from: Position::new(0, i as i32),
                 to: Position::new(width as i32, i as i32),
                 style: Style {
                     foreground_color: None,
-                    background_color: Some(color),
+                    background_color: color,
                     ..Default::default()
                 },
                 priority: 0,

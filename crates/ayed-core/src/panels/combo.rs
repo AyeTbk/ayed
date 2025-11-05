@@ -67,8 +67,8 @@ impl Combo {
         let position = (column, line).into();
 
         let border_style = Style {
-            foreground_color: Some(crate::ui::theme::colors::MODELINE_TEXT),
-            background_color: Some(crate::ui::theme::colors::ACCENT),
+            foreground_color: state.config.get_theme_color("modeline-text"),
+            background_color: state.config.get_theme_color("accent"),
             ..Default::default()
         };
 

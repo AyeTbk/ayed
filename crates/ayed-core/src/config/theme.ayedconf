@@ -1,0 +1,13 @@
+theme {
+    accent          #322346
+    accent-dark     #201928
+    accent-bright   #6020dc
+
+    box-fg          #dddddd
+    box-bg          #333333
+
+    error           #301010
+    error-dark      #180808
+
+    modeline-text   #d2d200
+}

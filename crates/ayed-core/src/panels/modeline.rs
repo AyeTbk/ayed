@@ -1,16 +1,14 @@
 use crate::{
+    config::Config,
     position::Position,
     ui::{
-        Color, Rect, Style, theme,
+        Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::line_builder::LineBuilder,
 };
 
 use super::{Editor, FocusedPanel, RenderPanelContext};
-
-pub const FG_COLOR: Color = theme::colors::MODELINE_TEXT;
-pub const BG_COLOR: Color = theme::colors::ACCENT;
 
 #[derive(Default)]
 pub struct Modeline {
@@ -61,7 +59,7 @@ impl Modeline {
                 to: Position::ZERO.offset((0, 1)),
                 style: Style {
                     foreground_color: None,
-                    background_color: Some(theme::colors::ACCENT_BRIGHT),
+                    background_color: ctx.state.config.get_theme_color("accent-bright"),
                     ..Default::default()
                 },
                 priority: 1,
@@ -80,13 +78,13 @@ impl Modeline {
         let mut bottom_line_builder = LineBuilder::new_with_length(size.column as _);
 
         let mut top_style = Style {
-            foreground_color: Some(FG_COLOR),
-            background_color: Some(BG_COLOR),
+            foreground_color: ctx.state.config.get_theme_color("modeline-text"),
+            background_color: ctx.state.config.get_theme_color("accent"),
             ..Default::default()
         };
         let mut bottom_style = Style {
             foreground_color: None,
-            background_color: Some(theme::colors::ACCENT_DARK),
+            background_color: ctx.state.config.get_theme_color("accent-dark"),
             ..Default::default()
         };
 
@@ -165,17 +163,17 @@ impl ModelineState {
         });
     }
 
-    pub fn set_error(&mut self, text: String) {
+    pub fn set_error(&mut self, text: String, config: &Config) {
         self.content_override = Some(ContentOverride {
             text,
             top_style: Some(Style {
-                foreground_color: Some(theme::colors::MODELINE_TEXT),
-                background_color: Some(theme::colors::ERROR),
+                foreground_color: config.get_theme_color("modeline-text"),
+                background_color: config.get_theme_color("error"),
                 ..Default::default()
             }),
             bottom_style: Some(Style {
-                foreground_color: Some(theme::colors::MODELINE_TEXT),
-                background_color: Some(theme::colors::ERROR_DARK),
+                foreground_color: config.get_theme_color("modeline-text"),
+                background_color: config.get_theme_color("error-dark"),
                 ..Default::default()
             }),
         });

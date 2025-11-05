@@ -5,6 +5,7 @@ use regex::Regex;
 use crate::{
     config::applied_config::{AppliedConfig, EditorConfig},
     input::Input,
+    ui::Color,
 };
 
 mod applied_config;
@@ -80,6 +81,14 @@ impl Config {
 
     pub fn get_editor(&self) -> &EditorConfig {
         &self.current_config.editor
+    }
+
+    pub fn get_theme(&self) -> &HashMap<String, Color> {
+        &self.current_config.theme
+    }
+
+    pub fn get_theme_color(&self, name: &str) -> Option<Color> {
+        self.current_config.theme.get(name).copied()
     }
 
     pub fn get_keybind_else(&self) -> Option<&[String]> {
@@ -168,6 +177,7 @@ impl ConfigState {
 pub fn make_builtin_config() -> Config {
     let mut conf = Config::default();
     conf.add_module(include_str!("./builtin.ayedconf")).unwrap();
+    conf.add_module(include_str!("./theme.ayedconf")).unwrap();
     conf
 }
 

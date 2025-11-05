@@ -2,13 +2,17 @@ use std::collections::{BTreeMap, HashMap};
 
 use regex::Regex;
 
-use crate::config::{ConditionalMapping, ConfigModule, ConfigState};
+use crate::{
+    config::{ConditionalMapping, ConfigModule, ConfigState},
+    ui::Color,
+};
 
 #[derive(Debug, Default)]
 pub struct AppliedConfig {
     pub mappings: HashMap<String, HashMap<String, Vec<String>>>,
     pub syntax: HashMap<String, Vec<Regex>>,
     pub editor: EditorConfig,
+    pub theme: HashMap<String, Color>,
 }
 
 impl AppliedConfig {
@@ -127,10 +131,21 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
         }
     }
 
+    let theme = mappings
+        .get("theme")
+        .unwrap_or(&HashMap::new())
+        .iter()
+        .flat_map(|(rule_name, values)| {
+            let color = Color::from_hex(values.first()?).ok()?;
+            Some((rule_name.to_string(), color))
+        })
+        .collect();
+
     AppliedConfig {
         mappings,
         syntax,
         editor,
+        theme,
     }
 }
 

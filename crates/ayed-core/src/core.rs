@@ -93,12 +93,12 @@ impl Core {
                     self.queue.clear();
                     let (command_name, _) = parse_command(&command);
                     let err_msg = format!("{command_name}: {cmd_err}");
-                    self.state.modeline.set_error(err_msg);
+                    self.state.modeline.set_error(err_msg, &self.state.config);
                     return;
                 }
                 Err(exec_err) => {
                     self.queue.clear();
-                    self.state.modeline.set_error(exec_err);
+                    self.state.modeline.set_error(exec_err, &self.state.config);
                     return;
                 }
                 _ => (),
