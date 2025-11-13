@@ -1,7 +1,7 @@
 use crate::{
-    position::{Column, Position, Row},
+    position::{Position, Row},
     ui::{
-        Color, Rect, Style,
+        Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
 };
@@ -50,14 +50,26 @@ impl LineNumbers {
         let view = ctx.resources.views.get(view_handle);
         let buffer = ctx.resources.buffers.get(view.buffer);
 
-        let width: Column = self.rect.width.try_into().unwrap();
+        let foreground_color = ctx.state.config.get_theme_color("linenumbers-fg");
+        let background_color = ctx.state.config.get_theme_color("linenumbers-bg");
+        let curr_line_color = ctx.state.config.get_theme_color("linenumbers-current");
+        let last_line_color = ctx.state.config.get_theme_color("linenumbers-last");
+
+        let width = self.rect.width;
+        let height = self.rect.height;
+
+        spans.push(StyledRegion {
+            from: Position::ZERO,
+            to: Position::new(width, height),
+            style: Style {
+                background_color,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
         let mut previous_number = 0;
-        let line_count: Row = ctx
-            .state
-            .active_editor_view_rect(&ctx.resources)
-            .height
-            .try_into()
-            .unwrap();
+        let line_count: Row = ctx.state.active_editor_view_rect(&ctx.resources).height;
         for i in 0..line_count {
             let Some(line_number) = view.map_view_line_idx_to_line_number(i) else {
                 content.push(" ".repeat(width as usize));
@@ -92,18 +104,20 @@ impl LineNumbers {
                 let selections = buffer.view_selections(view_handle).unwrap();
                 selections.primary().cursor.row
             };
+            // TODO theme
             let color = if current_row + 1 == line_number {
-                Color::rgb(230, 230, 230)
+                curr_line_color
             } else if line_number == buffer.line_count() {
-                Color::rgb(81, 81, 81)
+                last_line_color
             } else {
-                Color::rgb(140, 140, 140)
+                foreground_color
             };
             spans.push(StyledRegion {
                 from: Position::new(0, i),
                 to: Position::new(width, i),
                 style: Style {
-                    foreground_color: Some(color),
+                    foreground_color: color,
+                    background_color,
                     ..Default::default()
                 },
                 ..Default::default()

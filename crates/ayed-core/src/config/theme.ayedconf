@@ -1,13 +1,26 @@
 theme {
-    accent          #322346
-    accent-dark     #201928
-    accent-bright   #6020dc
+    accent              #393d49
+    accent-dark         #22242a
+    accent-bright       #393d49
 
-    box-fg          #dddddd
-    box-bg          #333333
+    box-fg              #696e7c
+    box-bg              #22242a
 
-    error           #301010
-    error-dark      #180808
+    editor-fg           #dddddd
+    editor-bg           #22242a
+    editor-nil-line     #586d90
 
-    modeline-text   #d2d200
+    linenumbers-fg      #7f7f88
+    linenumbers-bg      #22242a
+    linenumbers-current #eeeeee
+    linenumbers-last    #565665
+
+    warpdrive-fg        #888888
+    warpdrive-bg        #22242a
+    warpdrive-code      #fa8484
+
+    error               #301010
+    error-dark          #180808
+
+    modeline-text       #cccccc
 }

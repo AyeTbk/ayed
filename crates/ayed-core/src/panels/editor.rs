@@ -23,8 +23,6 @@ const SECONDARY_SELECTION_ALT_COLOR: Color = Color::rgb(80, 26, 76);
 
 const SELECTION_TEXT_COLOR: Color = Color::rgb(200, 200, 200);
 
-const NIL_LINE_COLOR: Color = Color::rgb(155, 100, 200);
-
 const PRIMARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(155, 100, 200);
 const SECONDARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(110, 70, 150);
 const PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(220, 90, 120);
@@ -75,8 +73,25 @@ impl Editor {
         let mut content: Vec<String> = Vec::new();
         let mut spans: Vec<StyledRegion> = Vec::new();
 
-        let mut buf = String::new();
         let line_count = size.row.try_into().unwrap();
+
+        let foreground_color = ctx.state.config.get_theme_color("editor-fg");
+        let background_color = ctx.state.config.get_theme_color("editor-bg");
+        let nil_line_fg = ctx.state.config.get_theme_color("editor-nil-line");
+        for i in 0..line_count {
+            spans.push(StyledRegion {
+                from: Position::new(0, i),
+                to: Position::new(Column::MAX, i),
+                style: Style {
+                    foreground_color,
+                    background_color,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+        }
+
+        let mut buf = String::new();
         for i in 0..line_count {
             if view
                 .render_view_line(i, &mut buf, &ctx.resources.buffers, &ctx.state.config)
@@ -94,9 +109,11 @@ impl Editor {
                     from: Position::new(0, i),
                     to: Position::new(0, i),
                     style: Style {
-                        foreground_color: Some(NIL_LINE_COLOR),
+                        foreground_color: nil_line_fg,
+                        bold: true,
                         ..Default::default()
                     },
+                    priority: 1,
                     ..Default::default()
                 });
                 content.push(nil_line);

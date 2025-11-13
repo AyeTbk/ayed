@@ -9,14 +9,11 @@ use crate::{
     slotmap::Handle,
     state::View,
     ui::{
-        Color, Rect, Style,
+        Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::char_count,
 };
-
-const FOREGROUND_COLOR: Color = Color::rgb(128, 128, 128);
-const CODE_FOREGROUND_COLOR: Color = Color::rgb(250, 120, 120);
 
 #[derive(Default)]
 pub struct Warpdrive {
@@ -37,7 +34,11 @@ impl Warpdrive {
         self.state = None;
     }
 
-    pub fn render(&self, _ctx: &RenderPanelContext) -> Option<UiPanel> {
+    pub fn render(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+        let foreground_color = ctx.state.config.get_theme_color("warpdrive-fg");
+        let background_color = ctx.state.config.get_theme_color("warpdrive-bg");
+        let code_color = ctx.state.config.get_theme_color("warpdrive-code");
+
         let position = self.rect.top_left();
         let size = self.rect.size();
         let mut spans: Vec<StyledRegion> = (0..size.row)
@@ -46,8 +47,8 @@ impl Warpdrive {
                 to: Position::new(size.column as _, row as _),
                 priority: 1,
                 style: Style {
-                    foreground_color: Some(FOREGROUND_COLOR),
-                    background_color: None,
+                    foreground_color,
+                    background_color,
                     ..Default::default()
                 },
             })
@@ -61,8 +62,8 @@ impl Warpdrive {
                     .offset(((jump_point.code.len() - 1) as _, 0)),
                 priority: 56,
                 style: Style {
-                    foreground_color: Some(CODE_FOREGROUND_COLOR),
-                    background_color: None,
+                    foreground_color: code_color,
+                    background_color,
                     ..Default::default()
                 },
             });

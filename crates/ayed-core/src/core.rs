@@ -146,7 +146,7 @@ impl Core {
         let mode = self.state.config.state_value("mode");
         let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
         if show_combo {
-            panels.push(self.panels.combo.render(&self.state));
+            panels.extend(self.panels.combo.render(&self.state));
         }
 
         UiState { panels }

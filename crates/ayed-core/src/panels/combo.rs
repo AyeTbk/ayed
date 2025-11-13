@@ -1,11 +1,14 @@
 use crate::{
-    position::{Column, Position},
+    position::Position,
     state::State,
     ui::{
         Rect, Size, Style,
         ui_state::{StyledRegion, UiPanel},
     },
-    utils::string_utils::grid_string_builder::{Cell, GridStringBuilder},
+    utils::{
+        render_utils::{BORDER_ALL, decorated_rectangle},
+        string_utils::grid_string_builder::{Cell, GridStringBuilder},
+    },
 };
 
 #[derive(Default)]
@@ -22,87 +25,49 @@ impl Combo {
         self.rect = rect;
     }
 
-    pub fn render(&self, state: &State) -> UiPanel {
+    pub fn render(&self, state: &State) -> Vec<UiPanel> {
         let mut grid = GridStringBuilder::new();
-
-        // let header_title = state.config.state_value("combo").unwrap_or_default();
-        let header_title = "";
-        let header_text = format!("╌ {header_title}");
-        grid.set_cell_span((1, 0), (2, 0));
-        grid.set_cell((1, 0), Cell::new(header_text));
 
         if let Some(keybinds_doc) = state.config.get("keybinds-doc") {
             for (i, (keybind, doc)) in keybinds_doc.iter().enumerate() {
-                // let mut serialized_input = String::new();
-                // serialized_input.clear();
-                // info.input.serialize(&mut serialized_input);
-                // serialized_input.push_str(": ");
-                let y = (i + 1) as _;
-                grid.set_cell((1, y), Cell::new(format!("{keybind}: ")));
+                let y = i as _;
+                grid.set_cell((0, y), Cell::new(format!("{keybind}: ")));
                 // FIXME unecessary clone
-                grid.set_cell((2, y), Cell::new(doc.first().cloned().unwrap_or_default()));
+                grid.set_cell((1, y), Cell::new(doc.first().cloned().unwrap_or_default()));
             }
         }
 
-        // left and right padding
-        grid.set_cell((0, 0), Cell::new("╭─"));
-        grid.set_cell((3, 0), Cell::new("─╮"));
-
-        let (size, content) = grid.build();
-        let size: Size = size.into();
-        let column = self
-            .rect
-            .size()
-            .column
-            .saturating_sub(size.column)
-            .try_into()
-            .unwrap();
-        let line = self
-            .rect
-            .size()
-            .row
-            .saturating_sub(size.row)
-            .try_into()
-            .unwrap();
-        let position = (column, line).into();
+        let (inner_size, content) = grid.build();
+        let size: Size = Size::new(inner_size.0 + 4, inner_size.1 + 2);
+        let column = self.rect.width - size.column;
+        let row = self.rect.height - size.row;
+        let position = (column, row).into();
 
         let border_style = Style {
-            foreground_color: state.config.get_theme_color("modeline-text"),
-            background_color: state.config.get_theme_color("accent"),
+            foreground_color: state.config.get_theme_color("box-fg"),
+            background_color: state.config.get_theme_color("box-bg"),
+            ..Default::default()
+        };
+        let border_panel = decorated_rectangle(position, size, border_style, BORDER_ALL);
+
+        let inner_style = Style {
+            foreground_color: state.config.get_theme_color("editor-fg"),
+            background_color: state.config.get_theme_color("box-bg"),
             ..Default::default()
         };
 
-        let mut spans = vec![StyledRegion {
-            from: Position::ZERO,
-            to: Position::new(size.column.try_into().unwrap(), 0),
-            priority: 1,
-            style: border_style,
-        }];
-
-        for row in 1..=size.row.try_into().unwrap() {
-            let size_column: Column = size.column.try_into().unwrap();
-            let right_column = size_column - 1;
-            spans.extend([
-                StyledRegion {
-                    from: Position::new(0, row),
-                    to: Position::new(0, row),
-                    priority: 1,
-                    style: border_style,
-                },
-                StyledRegion {
-                    from: Position::new(right_column, row),
-                    to: Position::new(right_column, row),
-                    priority: 1,
-                    style: border_style,
-                },
-            ]);
-        }
-
-        UiPanel {
-            position,
-            size,
+        let inner_panel = UiPanel {
+            position: position.offset((2, 1)),
+            size: inner_size.into(),
             content,
-            spans,
-        }
+            spans: vec![StyledRegion {
+                from: Position::ZERO,
+                to: Position::new(size.column, size.row),
+                priority: 2,
+                style: inner_style,
+            }],
+        };
+
+        vec![border_panel, inner_panel]
     }
 }

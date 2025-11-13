@@ -354,10 +354,12 @@ mode combo-user {
     keybinds {
         e panel-focus file-picker
         f set mode combo-file
+        n message nothing
     }
     keybinds-doc {
         e File picker
         f File management
+        n Nothing
     }
 }
 

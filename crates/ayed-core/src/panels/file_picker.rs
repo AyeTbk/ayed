@@ -7,7 +7,7 @@ use crate::{
         ui_state::{StyledRegion, UiPanel},
     },
     utils::{
-        render_utils::{decorated_rectangle, separator_h},
+        render_utils::{BORDER_ALL, decorated_rectangle, separator_h},
         string_utils::line_clamped_filled,
     },
 };
@@ -33,17 +33,21 @@ impl FilePicker {
             return Vec::new();
         };
 
-        let boxbg = ctx.state.config.get_theme_color("box-bg");
         let boxfg = ctx.state.config.get_theme_color("box-fg");
+        let boxbg = ctx.state.config.get_theme_color("box-bg");
+        let text_color = ctx.state.config.get_theme_color("editor-fg");
+
+        let default_style = Style {
+            background_color: boxbg,
+            foreground_color: boxfg,
+            ..Default::default()
+        };
 
         let mut back_panel = decorated_rectangle(
             self.rect.top_left(),
             self.rect.size(),
-            Style {
-                background_color: boxbg,
-                foreground_color: boxfg,
-                ..Default::default()
-            },
+            default_style,
+            BORDER_ALL,
         );
         separator_h(2, &mut back_panel.content);
 
@@ -56,13 +60,18 @@ impl FilePicker {
 
         let list_rect = Rect::from_positions(self.rect.top_left(), self.rect.bottom_right())
             .grown(-3, -1, -2, -2);
-        let list_panel = render_file_list(ctx, list_rect);
+        let list_panel = render_file_list(ctx, list_rect, default_style, text_color);
 
         vec![back_panel, editor_panel, list_panel]
     }
 }
 
-fn render_file_list(ctx: &RenderPanelContext, rect: Rect) -> UiPanel {
+fn render_file_list(
+    ctx: &RenderPanelContext,
+    rect: Rect,
+    default_style: Style,
+    text_color: Option<Color>,
+) -> UiPanel {
     let size = rect.size();
     let mut content = Vec::new();
     let mut spans = Vec::new();
@@ -70,7 +79,7 @@ fn render_file_list(ctx: &RenderPanelContext, rect: Rect) -> UiPanel {
     let file_list_is_empty = ctx.state.file_picker.list_items.is_empty();
 
     for y in 0..size.row {
-        let mut style = Style::default();
+        let mut style = default_style;
         if !file_list_is_empty && y as usize == ctx.state.file_picker.selected_item {
             style.invert = true;
         }
@@ -81,6 +90,8 @@ fn render_file_list(ctx: &RenderPanelContext, rect: Rect) -> UiPanel {
             if matches!(item, FileListItem::Section { .. }) {
                 style.foreground_color = Some(Color::rgb(112, 112, 112));
                 style.bold = true;
+            } else {
+                style.foreground_color = text_color;
             }
 
             item.text()

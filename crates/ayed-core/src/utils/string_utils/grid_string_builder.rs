@@ -32,6 +32,7 @@ impl GridStringBuilder {
         self.cells.insert(id.into(), cell);
     }
 
+    #[expect(unused)]
     pub fn set_cell_span(&mut self, from: impl Into<CellId>, to: impl Into<CellId>) {
         let from = from.into();
         let to = to.into();
@@ -50,7 +51,7 @@ impl GridStringBuilder {
         })
     }
 
-    pub fn build(self) -> ((u32, u32), Vec<String>) {
+    pub fn build(self) -> ((i32, i32), Vec<String>) {
         let grid_char_height = self.max_cell_id.y as usize + 1;
         let column_char_widths: Vec<usize> = self
             .columns()
