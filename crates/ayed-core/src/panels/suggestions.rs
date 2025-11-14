@@ -41,7 +41,7 @@ impl Suggestions {
         let width = i32::max(10, width.unwrap_or(0) as _);
         let width = width + 2; // There is one cell padding on either side of the text.
         let height = ctx.state.suggestions.items.len() as i32;
-        let size = Size::new(width as u32, height as u32);
+        let size = Size::new(width, height);
 
         // let position_in_buffer = selections.primary().cursor();
         let position_in_buffer = ctx.state.suggestions.original_symbol_start;
@@ -108,7 +108,7 @@ impl Suggestions {
     fn render_at_modeline(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
         let width = ctx.state.modeline_rect.width;
         let height = ctx.state.suggestions.items.len() as i32;
-        let size = Size::new(width, height as u32);
+        let size = Size::new(width, height);
 
         let position = ctx.state.modeline_rect.top_left().offset((0, -height));
 

@@ -18,7 +18,7 @@ pub struct Modeline {
 }
 
 impl Modeline {
-    pub const HEIGHT: u32 = 2;
+    pub const HEIGHT: i32 = 2;
     pub fn rect(&self) -> Rect {
         self.rect
     }

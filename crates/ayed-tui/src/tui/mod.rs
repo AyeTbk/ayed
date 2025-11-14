@@ -179,7 +179,7 @@ impl Tui {
 
     fn viewport_size(&self) -> Size {
         let (width, height) = crossterm::terminal::size().unwrap();
-        ((width) as _, (height) as _).into()
+        (width as i32, height as i32).into()
     }
 }
 
