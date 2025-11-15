@@ -3,7 +3,7 @@ use crate::{
     slotmap::Handle,
     state::View,
     ui::{
-        Color, Rect, Style,
+        Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
     utils::string_utils::{
@@ -13,21 +13,6 @@ use crate::{
 };
 
 use super::RenderPanelContext;
-
-const PRIMARY_CURSOR_COLOR: Color = Color::WHITE;
-const PRIMARY_SELECTION_COLOR: Color = Color::rgb(18, 72, 150);
-const SECONDARY_CURSOR_COLOR: Color = Color::rgb(180, 180, 180);
-const SECONDARY_SELECTION_COLOR: Color = Color::rgb(12, 52, 100);
-
-const PRIMARY_CURSOR_ALT_COLOR: Color = Color::rgb(230, 30, 30);
-const PRIMARY_SELECTION_ALT_COLOR: Color = Color::rgb(100, 32, 96);
-const SECONDARY_CURSOR_ALT_COLOR: Color = Color::rgb(160, 15, 15);
-const SECONDARY_SELECTION_ALT_COLOR: Color = Color::rgb(80, 26, 76);
-
-const PRIMARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(155, 100, 200);
-const SECONDARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(110, 70, 150);
-const PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(220, 90, 120);
-const SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR: Color = Color::rgb(160, 60, 90);
 
 #[derive(Default)]
 pub struct Editor {
@@ -76,9 +61,19 @@ impl Editor {
 
         let line_count = size.row.try_into().unwrap();
 
-        let foreground_color = ctx.state.config.get_theme_color("editor-fg");
-        let background_color = ctx.state.config.get_theme_color("editor-bg");
-        let nil_line_fg = ctx.state.config.get_theme_color("editor-nil-line");
+        let clr = |name| ctx.state.config.get_theme_color(name);
+        let foreground_color = clr("editor-fg");
+        let background_color = clr("editor-bg");
+        let nil_line_fg = clr("editor-nil-line");
+
+        let clr_cursor = clr("cursor");
+        let clr_cursor_extra = clr("cursor-extra").or(clr_cursor);
+        let clr_cursor_eol = clr("cursor-eol").or(clr_cursor);
+        let clr_cursor_extra_eol = clr("cursor-extra-eol").or(clr_cursor_eol);
+
+        let clr_selection = clr("selection");
+        let clr_selection_extra = clr("selection-extra").or(clr_selection);
+
         for i in 0..line_count {
             spans.push(StyledRegion {
                 from: Position::new(0, i),
@@ -126,40 +121,22 @@ impl Editor {
         let selections = buffer.view_selections(view_handle).unwrap();
         for (i, selection) in selections.iter().enumerate() {
             let is_primary = i == 0;
-            // FIXME dont hardcode insert/append here, make this configurable in the config somehow
-            let use_alt_style = matches!(
-                ctx.state.config.state_value("mode"),
-                Some("insert" | "insert-append")
-            );
-
-            let cursor_color = match (is_primary, use_alt_style) {
-                (true, false) => PRIMARY_CURSOR_COLOR,
-                (true, true) => PRIMARY_CURSOR_ALT_COLOR,
-                (false, false) => SECONDARY_CURSOR_COLOR,
-                (false, true) => SECONDARY_CURSOR_ALT_COLOR,
-            };
-            let selection_color = match (is_primary, use_alt_style) {
-                (true, false) => PRIMARY_SELECTION_COLOR,
-                (true, true) => PRIMARY_SELECTION_ALT_COLOR,
-                (false, false) => SECONDARY_SELECTION_COLOR,
-                (false, true) => SECONDARY_SELECTION_ALT_COLOR,
-            };
-
             let is_end_of_line = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 buffer
                     .line_char_count(selection.cursor.row)
                     .is_some_and(|count| count == selection.cursor.column)
             };
-            let cursor_color = if is_end_of_line {
-                match (is_primary, use_alt_style) {
-                    (true, false) => PRIMARY_CURSOR_END_OF_LINE_COLOR,
-                    (true, true) => PRIMARY_CURSOR_END_OF_LINE_ALT_COLOR,
-                    (false, false) => SECONDARY_CURSOR_END_OF_LINE_COLOR,
-                    (false, true) => SECONDARY_CURSOR_END_OF_LINE_ALT_COLOR,
-                }
-            } else {
-                cursor_color
+
+            let cursor_color = match (is_primary, is_end_of_line) {
+                (true, false) => clr_cursor,
+                (true, true) => clr_cursor_eol,
+                (false, false) => clr_cursor_extra,
+                (false, true) => clr_cursor_extra_eol,
+            };
+            let selection_color = match is_primary {
+                true => clr_selection,
+                false => clr_selection_extra,
             };
 
             // Cursor style
@@ -178,7 +155,7 @@ impl Editor {
                 from: cursor,
                 to: cursor_end,
                 style: Style {
-                    foreground_color: Some(cursor_color),
+                    foreground_color: cursor_color,
                     invert: true,
                     ..Default::default()
                 },
@@ -200,7 +177,7 @@ impl Editor {
                     to,
                     style: Style {
                         foreground_color: None,
-                        background_color: Some(selection_color),
+                        background_color: selection_color,
                         ..Default::default()
                     },
                     priority: 254,

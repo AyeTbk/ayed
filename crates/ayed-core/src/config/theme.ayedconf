@@ -11,6 +11,14 @@ theme {
     editor-nil-line     #586d90
     editor-indent       #2f323b
 
+    cursor              #dfdfdf
+    cursor-extra        #b0b0b0
+    cursor-eol          #8d95b0
+    cursor-extra-eol    #5c677d
+
+    selection           #3b5675
+    selection-extra     #313f4e
+
     linenumbers-fg      #7f7f88
     linenumbers-bg      #22242a
     linenumbers-current #eeeeee
@@ -24,4 +32,16 @@ theme {
     error-dark          #180808
 
     modeline-text       #cccccc
+}
+
+mode insert.* {
+    theme {
+        cursor              #d43737
+        cursor-extra        #8c2929
+        cursor-eol          #b87777
+        cursor-extra-eol    #7d5c5c
+
+        selection           #753b3b
+        selection-extra     #593636
+    }
 }
