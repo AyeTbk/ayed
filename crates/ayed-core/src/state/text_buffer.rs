@@ -5,7 +5,7 @@ use crate::{
     position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
     slotmap::Handle,
-    utils::string_utils::{char_count, char_index_to_byte_index},
+    utils::string_utils::{char_count, char_index_to_byte_index, char_index_to_byte_index_end},
 };
 
 use super::View;
@@ -213,27 +213,30 @@ impl TextBuffer {
             .map(|line| char_count(line).try_into().unwrap())
     }
 
-    pub fn selection_text(&self, selection: &Selection) -> String {
+    pub fn selection_text(&self, selection: &Selection) -> Option<String> {
         let mut text = String::new();
+
         for line_sel in selection.split_lines() {
             let sel = self.limit_selection_to_content(&line_sel);
             let line = self.line(sel.cursor.row).unwrap();
             let line_char_count = self.line_char_count(sel.cursor.row).unwrap();
 
-            let start: usize = sel.start().column as _;
-            let end: usize = sel.end().column as _;
+            let start_byte: usize = char_index_to_byte_index(line, sel.start().column as _)?;
+            let end = sel.end().column;
+            let end_byte: usize = char_index_to_byte_index_end(line, end as _)?;
+            let end_start_byte: usize = char_index_to_byte_index(line, end as _)?;
             let ends_on_last_line = sel.end().row == self.last_row();
 
-            if end >= line_char_count as _ {
-                text.push_str(&line[start..end]);
+            if end >= line_char_count {
+                text.push_str(&line[start_byte..end_start_byte]);
                 if !ends_on_last_line {
                     text.push('\n');
                 }
             } else {
-                text.push_str(&line[start..=end]);
+                text.push_str(&line[start_byte..end_byte]);
             }
         }
-        text
+        Some(text)
     }
 
     pub fn selection_char_count(&self, selection: &Selection) -> usize {

@@ -148,8 +148,8 @@ impl Editor {
             let is_end_of_line = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 buffer
-                    .line(selection.cursor.row)
-                    .is_some_and(|line| line.len() as Column == selection.cursor.column)
+                    .line_char_count(selection.cursor.row)
+                    .is_some_and(|count| count == selection.cursor.column)
             };
             let cursor_color = if is_end_of_line {
                 match (is_primary, use_alt_style) {

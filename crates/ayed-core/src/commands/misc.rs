@@ -67,12 +67,14 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let selections = buffer.view_selections(view_handle).unwrap();
         let register = &mut ctx.state.register;
 
-        register.content = buffer.selection_text(&selections.primary_selection);
+        register.content = buffer
+            .selection_text(&selections.primary_selection)
+            .unwrap();
         register.extra_content.clear();
         for selection in selections.extra_selections.iter() {
             register
                 .extra_content
-                .push(buffer.selection_text(selection));
+                .push(buffer.selection_text(selection).unwrap());
         }
 
         let sel_count = register.extra_content.len() + 1;
@@ -185,7 +187,10 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 let sel = selections.get(sel_idx).unwrap();
                 let original_sel = sel.with_end(sel.end().offset((-1, 0)));
                 let original = buffer.selection_text(&original_sel);
-                ctx.state.suggestions.original_symbols.push(original);
+                ctx.state
+                    .suggestions
+                    .original_symbols
+                    .push(original.unwrap());
             }
         }
 

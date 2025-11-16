@@ -16,6 +16,7 @@ pub fn line_clamped_filled(line: &str, start: usize, char_count: usize, fill: ch
     s
 }
 
+// FIXME 'char index' is really Column, or i32. Use that instead...
 pub fn char_index_to_byte_index(s: &str, ch_idx: usize) -> Option<usize> {
     if ch_idx == 0 {
         Some(0)
@@ -28,14 +29,11 @@ pub fn char_index_to_byte_index(s: &str, ch_idx: usize) -> Option<usize> {
     }
 }
 
-#[expect(dead_code)]
 pub fn char_index_to_byte_index_end(s: &str, ch_idx: usize) -> Option<usize> {
     s.char_indices()
         .chain(Some((s.len(), '\n')))
-        .chain(Some((s.len() + 1, '\0')))
         .skip(ch_idx as _)
-        .skip(1)
-        .map(|(idx, _)| idx)
+        .map(|(idx, c)| idx + c.len_utf8())
         .next()
 }
 
