@@ -9,6 +9,10 @@ pub struct Position {
 
 impl Position {
     pub const ZERO: Self = Self { column: 0, row: 0 };
+    pub const MAX: Self = Self {
+        column: i32::MAX,
+        row: i32::MAX,
+    };
 
     pub fn new(column: Column, row: Row) -> Self {
         Self { column, row }

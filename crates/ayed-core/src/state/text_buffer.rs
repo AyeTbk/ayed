@@ -141,7 +141,7 @@ impl TextBuffer {
     pub fn logical_line(&self, row_index: Row, config: &Config) -> Option<String> {
         self.lines
             .get(row_index as usize)
-            .map(|s| s.replace('\t', &" ".repeat(config.get_editor().indent_size as usize))) // TODO get from config
+            .map(|s| s.replace('\t', &" ".repeat(config.get_editor().indent_size as usize)))
     }
 
     pub fn logical_line_char_count(&self, row: Row, config: &Config) -> Option<i32> {

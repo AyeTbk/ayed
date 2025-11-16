@@ -95,7 +95,7 @@ impl WarpdriveState {
             state: ctx.state,
             resources: ctx.resources,
         };
-        let mut content = ctx.panels.editor.render(render_ctx).content;
+        let mut content = ctx.panels.editor.render(render_ctx).remove(0).content;
 
         // Gather jump points
         let mut jump_points = Vec::new();

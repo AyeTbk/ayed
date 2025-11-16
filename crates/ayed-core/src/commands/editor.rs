@@ -12,7 +12,10 @@ use crate::{
     position::{Column, Offset, Position},
     selection::{Selection, Selections},
     state::View,
-    utils::string_utils::{byte_index_to_char_index, char_count, ops::take_while},
+    utils::string_utils::{
+        byte_index_to_char_index, char_count,
+        ops::{is_whitespace, take_while},
+    },
 };
 
 pub fn register_editor_commands(cr: &mut CommandRegistry) {
@@ -731,9 +734,4 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
-}
-
-// TODO This should probably be put somewhere in crate::utils or something
-fn is_whitespace(c: char) -> bool {
-    c.is_ascii_whitespace()
 }

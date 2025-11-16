@@ -42,7 +42,7 @@ impl Modeline {
                 self.rect.bottom_right(),
             ));
 
-            let mut editor_panel = editor.render(ctx);
+            let mut editor_panel = editor.render(ctx).remove(0);
 
             for line in &mut editor_panel.content {
                 line.insert(0, '›');

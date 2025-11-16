@@ -1,12 +1,15 @@
 use crate::{
-    position::{Column, Position},
+    position::{Column, Position, Row},
     slotmap::Handle,
     state::View,
     ui::{
         Color, Rect, Style,
         ui_state::{StyledRegion, UiPanel},
     },
-    utils::string_utils::line_clamped_filled,
+    utils::string_utils::{
+        line_clamped_filled,
+        ops::{is_whitespace, take_while},
+    },
 };
 
 use super::RenderPanelContext;
@@ -20,8 +23,6 @@ const PRIMARY_CURSOR_ALT_COLOR: Color = Color::rgb(230, 30, 30);
 const PRIMARY_SELECTION_ALT_COLOR: Color = Color::rgb(100, 32, 96);
 const SECONDARY_CURSOR_ALT_COLOR: Color = Color::rgb(160, 15, 15);
 const SECONDARY_SELECTION_ALT_COLOR: Color = Color::rgb(80, 26, 76);
-
-const SELECTION_TEXT_COLOR: Color = Color::rgb(200, 200, 200);
 
 const PRIMARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(155, 100, 200);
 const SECONDARY_CURSOR_END_OF_LINE_COLOR: Color = Color::rgb(110, 70, 150);
@@ -50,7 +51,7 @@ impl Editor {
         self.rect = rect;
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> UiPanel {
+    pub fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
         let size = self.rect.size();
 
         let Some(view_handle) = self.view.or(ctx.state.active_editor_view) else {
@@ -60,12 +61,12 @@ impl Editor {
                     + "[no view]"
                     + &(" ".repeat((size.column.saturating_sub(7)) as _));
             }
-            return UiPanel {
+            return vec![UiPanel {
                 position: Position::ZERO,
                 size,
                 content,
                 spans: Vec::new(),
-            };
+            }];
         };
 
         let view = ctx.resources.views.get(view_handle);
@@ -91,6 +92,7 @@ impl Editor {
             });
         }
 
+        let view_line_start = view.top_left.column as usize;
         let mut buf = String::new();
         for i in 0..line_count {
             if view
@@ -99,7 +101,7 @@ impl Editor {
             {
                 content.push(line_clamped_filled(
                     &buf,
-                    view.top_left.column as usize,
+                    view_line_start,
                     size.column as usize,
                     ' ',
                 ));
@@ -197,7 +199,7 @@ impl Editor {
                     from,
                     to,
                     style: Style {
-                        foreground_color: Some(SELECTION_TEXT_COLOR),
+                        foreground_color: None,
                         background_color: Some(selection_color),
                         ..Default::default()
                     },
@@ -220,11 +222,60 @@ impl Editor {
             }));
         }
 
-        UiPanel {
+        let mut editor_panel = UiPanel {
             position: self.rect.top_left(),
             size,
             content,
             spans,
+        };
+        self.render_idents(&mut editor_panel, view_line_start, ctx);
+        vec![editor_panel]
+    }
+
+    fn render_idents(
+        &self,
+        editor_panel: &mut UiPanel,
+        view_line_start: usize,
+        ctx: &RenderPanelContext,
+    ) {
+        let foreground_color = ctx.state.config.get_theme_color("editor-indent");
+        let background_color = ctx.state.config.get_theme_color("editor-bg");
+        let indent_size = ctx.state.config.get_editor().indent_size;
+
+        // NOTE: editor's view lines are logical lines, so all indent should be normalized to spaces already, and so we can assume 1 byte == 1 char.
+
+        let mut indents: Vec<(Row, usize)> = Vec::new();
+        let mut prev_max = 0;
+        for (y, line) in editor_panel.content.iter().enumerate() {
+            let row = y as i32;
+            let (indent_str, _) = take_while(line, is_whitespace);
+            let mut max = indent_str.len();
+            if indent_str.len() == line.len() {
+                // Skip empty lines
+                max = prev_max;
+            }
+            prev_max = max;
+            for idx in view_line_start..max {
+                if idx % indent_size as usize == 0 {
+                    indents.push((row, idx));
+                }
+            }
+        }
+
+        for (row, idx) in indents.into_iter().rev() {
+            let pos = Position::new(idx as i32, row);
+            editor_panel.spans.push(StyledRegion {
+                from: pos,
+                to: pos,
+                style: Style {
+                    foreground_color,
+                    background_color,
+                    ..Default::default()
+                },
+                priority: 1,
+                ..Default::default()
+            });
+            editor_panel.content[row as usize].replace_range(idx..idx + 1, "▏");
         }
     }
 }

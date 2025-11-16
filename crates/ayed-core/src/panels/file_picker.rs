@@ -56,7 +56,7 @@ impl FilePicker {
             .grown(0, 0, -2, -2)
             .offset((0, 1));
         editor.set_rect(editor_rect);
-        let editor_panel = editor.render(ctx);
+        let editor_panel = editor.render(ctx).remove(0);
 
         let list_rect = Rect::from_positions(self.rect.top_left(), self.rect.bottom_right())
             .grown(-3, -1, -2, -2);

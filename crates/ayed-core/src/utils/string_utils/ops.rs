@@ -10,3 +10,7 @@ pub fn take_while(s: &str, mut f: impl FnMut(char) -> bool) -> (&str, &str) {
     let rest = &s[end..];
     (prefix, rest)
 }
+
+pub fn is_whitespace(c: char) -> bool {
+    c.is_ascii_whitespace()
+}

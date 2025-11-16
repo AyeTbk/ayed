@@ -311,6 +311,7 @@ hooks {
     buffer-modified  generate-highlights
 }
 
+# When unspecified, style's default priority is 10.
 syntax-style {
     keyword             #4488cf
     keyword-statement   #aa77cc

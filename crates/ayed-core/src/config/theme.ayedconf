@@ -9,6 +9,7 @@ theme {
     editor-fg           #dddddd
     editor-bg           #22242a
     editor-nil-line     #586d90
+    editor-indent       #2f323b
 
     linenumbers-fg      #7f7f88
     linenumbers-bg      #22242a

@@ -127,11 +127,11 @@ impl Core {
             resources: &self.resources,
         };
 
-        let mut panels = vec![
-            self.panels.editor.render(&render_ctx),
-            self.panels.line_numbers.render(&render_ctx),
-            self.panels.modeline.render(&render_ctx),
-        ];
+        let mut panels = Vec::new();
+
+        panels.extend(self.panels.editor.render(&render_ctx));
+        panels.push(self.panels.line_numbers.render(&render_ctx));
+        panels.push(self.panels.modeline.render(&render_ctx));
 
         panels.extend(self.panels.file_picker.render(&render_ctx));
 
