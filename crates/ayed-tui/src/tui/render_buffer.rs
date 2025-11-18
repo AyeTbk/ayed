@@ -20,8 +20,8 @@ impl RenderBuffer {
         };
         let mut buffer = vec![vec![empty_cell; viewport_width as usize]; viewport_height as usize];
 
-        for mut panel in ui_state.panels.into_iter() {
-            panel.prepare_for_render();
+        for panel in ui_state.panels.into_iter() {
+            let panel = panel.prepare_for_render();
 
             let start_y = panel.position.row;
             let after_end_y = start_y + panel.size.row as i32;

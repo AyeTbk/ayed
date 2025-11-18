@@ -10,12 +10,14 @@ use crossterm::{
     ExecutableCommand,
     cursor::MoveTo,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
-    style::{SetBackgroundColor, SetForegroundColor},
+    style::{Attribute, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{
         BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
         disable_raw_mode, enable_raw_mode,
     },
 };
+
+use crate::tui::render_buffer::RenderBufferCell;
 
 mod render_buffer;
 
@@ -78,36 +80,6 @@ impl Tui {
     }
 
     fn render(&mut self) -> io::Result<()> {
-        fn cleanup_style(screen: &mut impl Write) -> io::Result<()> {
-            write!(
-                screen,
-                "{}{}",
-                crossterm::style::ResetColor,
-                crossterm::style::Attribute::Reset
-            )
-        }
-        fn prepare_style(style: &Style, screen: &mut impl Write) -> io::Result<()> {
-            cleanup_style(screen)?;
-            if let Some(foreground_color) = style.foreground_color {
-                let fg = convert_color_to_crossterm(foreground_color);
-                screen.execute(SetForegroundColor(fg))?;
-            }
-            if let Some(background_color) = style.background_color {
-                let bg = convert_color_to_crossterm(background_color);
-                screen.execute(SetBackgroundColor(bg))?;
-            }
-            if style.invert {
-                write!(screen, "{}", crossterm::style::Attribute::Reverse)?;
-            }
-            if style.bold {
-                write!(screen, "{}", crossterm::style::Attribute::Bold)?;
-            }
-            if style.underlined {
-                write!(screen, "{}", crossterm::style::Attribute::Underlined)?;
-            }
-            Ok(())
-        }
-
         self.update_viewport_size_if_needed();
 
         let ui_state = self.core.render();
@@ -115,15 +87,14 @@ impl Tui {
 
         self.screen.execute(BeginSynchronizedUpdate)?;
 
+        write!(self.screen, "{}{}", ResetColor, Attribute::Reset)?;
+
         for (y, line) in rbuf.buffer.into_iter().enumerate() {
-            self.screen.execute(MoveTo(0 as _, y as _))?;
+            write!(self.screen, "{}", MoveTo(0 as _, y as _))?;
 
-            let mut char_buf = [0; 4];
+            let mut style = Style::default();
             for cell in line {
-                prepare_style(&cell.style, &mut self.screen)?;
-
-                let bytes = cell.data.encode_utf8(&mut char_buf).as_bytes();
-                self.screen.write(bytes)?;
+                self.render_cell(&cell, &mut style)?
             }
         }
 
@@ -132,6 +103,50 @@ impl Tui {
         self.screen.execute(EndSynchronizedUpdate)?;
 
         self.screen.flush()?;
+        Ok(())
+    }
+
+    fn render_cell(&mut self, cell: &RenderBufferCell, style: &mut Style) -> io::Result<()> {
+        // Prepare the style
+        if style.foreground_color != cell.style.foreground_color {
+            style.foreground_color = cell.style.foreground_color;
+            let cmd = SetForegroundColor(convert_color_to_crossterm(style.foreground_color));
+            write!(self.screen, "{}", cmd)?;
+        }
+        if style.background_color != cell.style.background_color {
+            style.background_color = cell.style.background_color;
+            let cmd = SetBackgroundColor(convert_color_to_crossterm(style.background_color));
+            write!(self.screen, "{}", cmd)?;
+        }
+        if style.invert != cell.style.invert {
+            style.invert = cell.style.invert;
+            if style.invert {
+                write!(self.screen, "{}", Attribute::Reverse)?;
+            } else {
+                write!(self.screen, "{}", Attribute::NoReverse)?;
+            }
+        }
+        if style.bold != cell.style.bold {
+            style.bold = cell.style.bold;
+            if style.bold {
+                write!(self.screen, "{}", Attribute::Bold)?;
+            } else {
+                write!(self.screen, "{}", Attribute::NormalIntensity)?;
+            }
+        }
+        if style.underlined != cell.style.underlined {
+            style.underlined = cell.style.underlined;
+            if style.underlined {
+                write!(self.screen, "{}", Attribute::Underlined)?;
+            } else {
+                write!(self.screen, "{}", Attribute::NoUnderline)?;
+            }
+        }
+        // Write out char
+        let mut char_buf = [0; 4];
+        let bytes = cell.data.encode_utf8(&mut char_buf).as_bytes();
+        self.screen.write(bytes)?;
+
         Ok(())
     }
 
@@ -183,11 +198,15 @@ impl Tui {
     }
 }
 
-fn convert_color_to_crossterm(color: Color) -> crossterm::style::Color {
-    crossterm::style::Color::Rgb {
-        r: color.r,
-        g: color.g,
-        b: color.b,
+fn convert_color_to_crossterm(color: impl Into<Option<Color>>) -> crossterm::style::Color {
+    if let Some(color) = color.into() {
+        crossterm::style::Color::Rgb {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+        }
+    } else {
+        crossterm::style::Color::Reset
     }
 }
 

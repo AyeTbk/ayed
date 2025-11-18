@@ -8,4 +8,4 @@ edition = "2024"
 [dependencies]
 ayed-core = { path = "../ayed-core/" }
 
-crossterm = "0.26"
+crossterm = "0.28"

@@ -1,4 +1,7 @@
-use crate::{position::Position, ui::Rect};
+use crate::{
+    position::{Position, Row},
+    ui::Rect,
+};
 
 use super::{Style, layout::Size};
 
@@ -14,11 +17,47 @@ pub struct UiPanel {
 }
 
 impl UiPanel {
-    pub fn prepare_for_render(&mut self) {
+    pub fn prepare_for_render(mut self) -> PreparedUiPanel {
         self.fixup_weird_chars();
         self.spans.sort_by_key(|sr| -(sr.priority as i16));
+
+        let max_row = self.content.len();
+        let mut styled_regions_per_line = vec![Vec::new(); max_row + 1];
+        for (i, span) in self.spans.iter().enumerate() {
+            let from = span.from.row.clamp(0, max_row as Row);
+            let to = span.to.row.clamp(0, max_row as Row);
+            for row in from..=to {
+                styled_regions_per_line[row as usize].push(i);
+            }
+        }
+
+        PreparedUiPanel {
+            position: self.position,
+            size: self.size,
+            content: self.content,
+            styled_regions: self.spans,
+            styled_regions_per_line,
+        }
     }
 
+    fn fixup_weird_chars(&mut self) {
+        for line in &mut self.content {
+            // Tabs render in a special way in terminals, which doesn't match what the editor wants to show.
+            // Tabs should be rendered as an appropriate amount of space by renderers.
+            *line = line.replace('\t', "⬸");
+        }
+    }
+}
+
+pub struct PreparedUiPanel {
+    pub position: Position,
+    pub size: Size,
+    pub content: Vec<String>,
+    pub styled_regions: Vec<StyledRegion>,
+    styled_regions_per_line: Vec<Vec<usize>>,
+}
+
+impl PreparedUiPanel {
     pub fn style_for_pos(&self, pos: Position) -> Style {
         let mut style = Style::default();
         for sr in self.styled_regions_for_pos(pos) {
@@ -42,17 +81,16 @@ impl UiPanel {
     }
 
     fn styled_regions_for_pos(&self, pos: Position) -> impl Iterator<Item = &StyledRegion> {
-        self.spans
+        let row: usize = pos.row.try_into().unwrap();
+        let regions_for_row: &[usize] = self
+            .styled_regions_per_line
+            .get(row)
+            .map(|v| &v[..])
+            .unwrap_or_default();
+        regions_for_row
             .iter()
+            .flat_map(|&idx| self.styled_regions.get(idx))
             .filter(move |sr| Rect::from_positions(sr.from, sr.to).contains_position(pos))
-    }
-
-    fn fixup_weird_chars(&mut self) {
-        for line in &mut self.content {
-            // Tabs render in a special way in terminals, which doesn't match what the editor wants to show.
-            // Tabs should be rendered as an appropriate amount of space by renderers.
-            *line = line.replace('\t', "⬸");
-        }
     }
 }
 
