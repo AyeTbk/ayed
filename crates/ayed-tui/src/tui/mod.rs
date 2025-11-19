@@ -85,67 +85,72 @@ impl Tui {
         let ui_state = self.core.render();
         let rbuf = render_buffer::RenderBuffer::render(self.viewport_size(), ui_state);
 
-        self.screen.execute(BeginSynchronizedUpdate)?;
+        let mut screen = self.screen.lock();
+        screen.execute(BeginSynchronizedUpdate)?;
 
-        write!(self.screen, "{}{}", ResetColor, Attribute::Reset)?;
+        write!(screen, "{}{}", ResetColor, Attribute::Reset)?;
 
         for (y, line) in rbuf.buffer.into_iter().enumerate() {
-            write!(self.screen, "{}", MoveTo(0 as _, y as _))?;
+            write!(screen, "{}", MoveTo(0 as _, y as _))?;
 
             let mut style = Style::default();
             for cell in line {
-                self.render_cell(&cell, &mut style)?
+                Self::render_cell(&mut screen, &cell, &mut style)?
             }
         }
 
         self.render_error_message()?;
 
-        self.screen.execute(EndSynchronizedUpdate)?;
+        screen.execute(EndSynchronizedUpdate)?;
+        screen.flush()?;
 
-        self.screen.flush()?;
         Ok(())
     }
 
-    fn render_cell(&mut self, cell: &RenderBufferCell, style: &mut Style) -> io::Result<()> {
+    fn render_cell(
+        screen: &mut impl Write,
+        cell: &RenderBufferCell,
+        style: &mut Style,
+    ) -> io::Result<()> {
         // Prepare the style
         if style.foreground_color != cell.style.foreground_color {
             style.foreground_color = cell.style.foreground_color;
             let cmd = SetForegroundColor(convert_color_to_crossterm(style.foreground_color));
-            write!(self.screen, "{}", cmd)?;
+            write!(screen, "{}", cmd)?;
         }
         if style.background_color != cell.style.background_color {
             style.background_color = cell.style.background_color;
             let cmd = SetBackgroundColor(convert_color_to_crossterm(style.background_color));
-            write!(self.screen, "{}", cmd)?;
+            write!(screen, "{}", cmd)?;
         }
         if style.invert != cell.style.invert {
             style.invert = cell.style.invert;
             if style.invert {
-                write!(self.screen, "{}", Attribute::Reverse)?;
+                write!(screen, "{}", Attribute::Reverse)?;
             } else {
-                write!(self.screen, "{}", Attribute::NoReverse)?;
+                write!(screen, "{}", Attribute::NoReverse)?;
             }
         }
         if style.bold != cell.style.bold {
             style.bold = cell.style.bold;
             if style.bold {
-                write!(self.screen, "{}", Attribute::Bold)?;
+                write!(screen, "{}", Attribute::Bold)?;
             } else {
-                write!(self.screen, "{}", Attribute::NormalIntensity)?;
+                write!(screen, "{}", Attribute::NormalIntensity)?;
             }
         }
         if style.underlined != cell.style.underlined {
             style.underlined = cell.style.underlined;
             if style.underlined {
-                write!(self.screen, "{}", Attribute::Underlined)?;
+                write!(screen, "{}", Attribute::Underlined)?;
             } else {
-                write!(self.screen, "{}", Attribute::NoUnderline)?;
+                write!(screen, "{}", Attribute::NoUnderline)?;
             }
         }
         // Write out char
         let mut char_buf = [0; 4];
         let bytes = cell.data.encode_utf8(&mut char_buf).as_bytes();
-        self.screen.write(bytes)?;
+        screen.write(bytes)?;
 
         Ok(())
     }
