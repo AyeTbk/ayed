@@ -132,7 +132,7 @@ impl std::fmt::Display for Position {
     }
 }
 
-// TODO maybe this is superfluous now that positions are using i32. Remove this?
+// FIXME this is superfluous now that positions are using i32. Remove this
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Offset {
     pub column: i32,
@@ -188,6 +188,15 @@ impl From<(i32, i32)> for Offset {
         Self {
             column: value.0,
             row: value.1,
+        }
+    }
+}
+
+impl From<Position> for Offset {
+    fn from(value: Position) -> Self {
+        Self {
+            column: value.column,
+            row: value.row,
         }
     }
 }

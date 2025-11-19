@@ -112,6 +112,8 @@ impl Tui {
         cell: &RenderBufferCell,
         style: &mut Style,
     ) -> io::Result<()> {
+        // PERF see if these write!(...)s couldnt be faster, ie dont use formatting.
+
         // Prepare the style
         if style.foreground_color != cell.style.foreground_color {
             style.foreground_color = cell.style.foreground_color;

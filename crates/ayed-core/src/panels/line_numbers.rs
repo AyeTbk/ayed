@@ -40,7 +40,7 @@ impl LineNumbers {
 
         let Some(view_handle) = ctx.state.active_editor_view else {
             return UiPanel {
-                position: Position::ZERO,
+                position: self.rect.top_left(),
                 size: self.rect.size(),
                 content: Vec::new(),
                 spans,
@@ -125,7 +125,7 @@ impl LineNumbers {
         }
 
         UiPanel {
-            position: Position::ZERO,
+            position: self.rect.top_left(),
             size: self.rect.size(),
             content,
             spans,

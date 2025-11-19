@@ -83,10 +83,10 @@ impl Rect {
     }
 
     pub fn contains_position(&self, position: Position) -> bool {
-        self.left() as i32 <= position.column
-            && position.column <= self.right() as i32
-            && self.top() as i32 <= position.row
-            && position.row <= self.bottom() as i32
+        self.left() <= position.column
+            && position.column <= self.right()
+            && self.top() <= position.row
+            && position.row <= self.bottom()
     }
 
     pub fn intersection(&self, other: Rect) -> Option<Rect> {
@@ -136,6 +136,26 @@ impl Rect {
             width: self.width.saturating_add(right + left),
             height: self.height.saturating_add(bottom + top),
         }
+    }
+
+    pub fn cells(&self) -> impl Iterator<Item = Position> {
+        let (start_y, end_y) = (self.y, self.bottom());
+        let (start_x, end_x) = (self.x, self.right());
+        let mut y = start_y;
+        let mut x = start_x;
+        std::iter::from_fn(move || {
+            if y > end_y {
+                return None;
+            }
+            let cell_x = x;
+            let cell_y = y;
+            x += 1;
+            if x > end_x {
+                x = start_x;
+                y += 1
+            }
+            return Some(Position::new(cell_x, cell_y));
+        })
     }
 }
 
