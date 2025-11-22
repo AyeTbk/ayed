@@ -50,3 +50,18 @@ pub fn focused_buffer_command(
         f(opt, args)
     }
 }
+
+pub trait ErrorExt {
+    type Inner;
+    fn or_strerr(self) -> Result<Self::Inner, String>;
+}
+
+impl<T, E> ErrorExt for Result<T, E>
+where
+    E: ToString,
+{
+    type Inner = T;
+    fn or_strerr(self) -> Result<Self::Inner, String> {
+        self.map_err(|e| e.to_string())
+    }
+}

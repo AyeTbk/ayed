@@ -5,7 +5,10 @@ use crate::{
     position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
     slotmap::Handle,
-    utils::string_utils::{char_count, char_index_to_byte_index, char_index_to_byte_index_end},
+    utils::string_utils::{
+        byte_index_to_char_index, char_count, char_index_to_byte_index,
+        char_index_to_byte_index_end,
+    },
 };
 
 use super::View;
@@ -17,7 +20,7 @@ use super::View;
 // #4. A position with  column == line's char count  is allowed. It can be thought of as the
 //     position of the line terminator (also allowed for the last line even though there is
 //     no implied line terminator).
-// #5. When inserting text, the character '\n' represents a line terminator.
+// #5. For general processing, line terminators are represented by a linefeed '\n'.
 pub struct TextBuffer {
     pub lines: Vec<String>,
     pub selections: HashMap<Handle<View>, Selections>,
@@ -190,6 +193,49 @@ impl TextBuffer {
             char_count += 1;
         }
         logpos.with_column(char_count)
+    }
+
+    /// Maps byte index into the buffer to a position.
+    pub fn map_byte_index_to_position(&self, idx: usize, byte_index_end: bool) -> Option<Position> {
+        let mut line_start_bytes = 0;
+        let mut row = 0;
+        while row < self.line_count() {
+            let line_terminator_size = 1;
+            let line = self.line(row).unwrap();
+            let line_end_bytes = line_start_bytes + line.len() + line_terminator_size;
+            if line_end_bytes <= idx {
+                line_start_bytes = line_end_bytes;
+                row += 1;
+                continue;
+            }
+            let mut byte_idx = idx - line_start_bytes;
+            if byte_index_end {
+                byte_idx = byte_idx.saturating_sub(1);
+            }
+            let column = byte_index_to_char_index(line, byte_idx).unwrap();
+            return Some(Position::new(column as Column, row));
+        }
+        None
+    }
+
+    pub fn map_position_to_byte_index(&self, pos: Position) -> Option<usize> {
+        if !(pos.row < self.line_count()) {
+            return None;
+        }
+
+        let line_terminator_size = 1;
+        let mut bytes = self
+            .lines
+            .iter()
+            .map(|s| s.len() + line_terminator_size)
+            .take(pos.row as usize)
+            .sum();
+
+        let line = self.line(pos.row)?;
+        let more_bytes = char_index_to_byte_index(line, pos.column as usize)?;
+        bytes += more_bytes;
+
+        Some(bytes)
     }
 
     pub fn line_mut(&mut self, row_index: Row) -> Option<&mut String> {

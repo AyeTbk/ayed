@@ -239,6 +239,8 @@ mode normal {
 
         % $[ move-to-edge buffer-start ; move-to-edge --anchored buffer-end ]
 
+        _ select-regex [^\s][\S\s]*[^\s]|[^\s]
+
         <lt> indent --less
         <gt> indent --more
         <a-lt> indent --reindent
@@ -247,6 +249,7 @@ mode normal {
         y yank
         p paste
         <s-p> paste --before
+        <s-r> $[ set mode insert ; delete ; paste --before ; set mode normal ]
 
         : panel-focus modeline
 

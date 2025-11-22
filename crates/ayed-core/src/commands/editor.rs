@@ -5,7 +5,7 @@ use regex::Regex;
 use crate::{
     command::{
         CommandRegistry,
-        helpers::{alias, focused_buffer_command},
+        helpers::{ErrorExt, alias, focused_buffer_command},
         options::Options,
     },
     config::ConfigState,
@@ -408,6 +408,53 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+
+    cr.register(
+        "select-regex",
+        focused_buffer_command(|opt, ctx| {
+            // TODO Design a command to execute another command with modeline written args
+
+            // For every selection, find matches to the regex pattern to make new selections out of.
+            // If this results in no selections, don't overwrite the selections and err out,
+
+            let pattern = opt;
+            let re_pattern = Regex::new(pattern).or_strerr()?;
+
+            let mut new_selections = Vec::new();
+            for sel in ctx.selections.iter() {
+                let start_idx = ctx.buffer.map_position_to_byte_index(sel.start()).unwrap();
+                let Some(text) = ctx.buffer.selection_text(sel) else { continue };
+                for matsh in re_pattern.find_iter(&text) {
+                    let start = ctx
+                        .buffer
+                        .map_byte_index_to_position(start_idx + matsh.start(), false)
+                        .unwrap();
+                    let end = ctx
+                        .buffer
+                        .map_byte_index_to_position(start_idx + matsh.end(), true)
+                        .unwrap();
+
+                    let new_sel = if sel.is_forward() {
+                        Selection::new().with_anchor(start).with_cursor(end)
+                    } else {
+                        Selection::new().with_cursor(start).with_anchor(end)
+                    };
+                    new_selections.push(new_sel);
+                }
+            }
+
+            if new_selections.is_empty() {
+                return Err("no selections left".to_string());
+            }
+            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            sels.primary_selection = new_selections.remove(0);
+            sels.extra_selections = new_selections;
+
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
 
     cr.register(
         "insert-char",
