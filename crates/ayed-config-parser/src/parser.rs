@@ -2,7 +2,10 @@ use crate::{
     Error, ErrorKind,
     ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
     error::Expected,
-    token::{Token, TokenKind, next_entry_value, next_token},
+    token::{
+        Token, TokenKind, is_whitespace, next_entry_name, next_entry_value, next_token,
+        take_while0_nofail,
+    },
 };
 
 pub struct Parser<'a> {
@@ -45,25 +48,25 @@ impl<'a> Parser<'a> {
             todo!()
         }
 
-        let name = self.expect(TokenKind::CharSoup)?;
+        let name = self.expect(TokenKind::Identifier)?;
 
         let kind = match name.slice {
             "mixin" => BlockKind::Mixin(self.parse_mixin_block()?),
             "use" => {
-                let mixin_name = self.expect(TokenKind::CharSoup)?.slice;
+                let mixin_name = self.expect(TokenKind::Identifier)?.slice;
                 BlockKind::Use(Span::from(mixin_name))
             }
             _ => {
                 let lookahead = self.peek_token();
                 match lookahead.kind {
-                    TokenKind::CharSoup => BlockKind::Selector(self.parse_selector_block(name)?),
                     TokenKind::Delimiter => BlockKind::Mapping(self.parse_mapping_block(name)?),
-                    token_kind => {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected(token_kind.into()),
-                            lookahead.slice,
-                        ));
-                    }
+                    _ => BlockKind::Selector(self.parse_selector_block(name)?),
+                    // token_kind => {
+                    //     return Err(Error::new(
+                    //         ErrorKind::Unexpected(token_kind.into()),
+                    //         lookahead.slice,
+                    //     ));
+                    // }
                 }
             }
         };
@@ -85,11 +88,14 @@ impl<'a> Parser<'a> {
         Ok(annotations)
     }
 
-    fn parse_selector_block(&mut self, name: Token<'a>) -> Result<SelectorBlock<'a>, Error<'a>> {
-        let pattern = self.expect(TokenKind::CharSoup)?;
+    fn parse_selector_block(
+        &mut self,
+        state_name: Token<'a>,
+    ) -> Result<SelectorBlock<'a>, Error<'a>> {
+        let pattern = self.parse_pattern()?;
         let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
         Ok(SelectorBlock {
-            state_name: name.slice.into(),
+            state_name: state_name.slice.into(),
             pattern: pattern.slice.into(),
             children,
         })
@@ -104,8 +110,15 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_mapping_entry(&mut self) -> Result<MappingEntry<'a>, Error<'a>> {
-        let name = self.expect(TokenKind::CharSoup)?;
-        let (i, value) = next_entry_value(&self.src);
+        let Some((i, name)) = next_entry_name(self.src) else {
+            return Err(Error::new(
+                ErrorKind::Unexpected(Expected::TokenKind(TokenKind::EntryName)),
+                self.src,
+            ));
+        };
+        self.src = i;
+
+        let (i, value) = next_entry_value(self.src);
         self.src = i;
 
         let values = if value.slice.starts_with("$[") {
@@ -130,12 +143,20 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_mixin_block(&mut self) -> Result<MixinBlock<'a>, Error<'a>> {
-        let name = self.expect(TokenKind::CharSoup)?;
+        let name = self.expect(TokenKind::Identifier)?;
         let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
         Ok(MixinBlock {
             name: name.slice.into(),
             children,
         })
+    }
+
+    fn parse_pattern(&mut self) -> Result<Span<'a>, Error<'a>> {
+        let (j, _) = take_while0_nofail(is_whitespace)(self.src);
+        let (k, pattern) = take_while0_nofail(|c| !is_whitespace(c) && c != '{')(j);
+        // let (l, _) = take_while0_nofail(is_whitespace)(k); // I think this shouldnt be needed
+        self.src = k;
+        Ok(Span { slice: pattern })
     }
 
     fn parse_delimited_list<T>(

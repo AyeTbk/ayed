@@ -6,16 +6,18 @@ pub struct Token<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenKind {
-    CharSoup,
+    Identifier,
     Delimiter,
+    EntryName,
     EntryValue,
+    Invalid,
     Eof,
 }
 
 pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     // The loop only exist to allow skipping comments.
     loop {
-        let (j, _) = take_while0(is_whitespace)(i);
+        let (j, _) = take_while0_nofail(is_whitespace)(i);
         if j.is_empty() {
             return (
                 j,
@@ -27,7 +29,7 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
         }
 
         if let Some((l, _)) = any_of(&["#"])(j) {
-            let (m, _comment) = take_while0(|ch| ch != '\n')(l);
+            let (m, _comment) = take_while0_nofail(|ch| ch != '\n')(l);
             i = m;
             continue;
         }
@@ -42,12 +44,22 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
             );
         }
 
-        if let Some((l, soup)) = take_while(|ch| !is_whitespace(ch))(j) {
+        if let Some((l, identifier)) = take_while1(|ch| is_identifier(ch))(j) {
             return (
                 l,
                 Token {
-                    kind: TokenKind::CharSoup,
-                    slice: soup,
+                    kind: TokenKind::Identifier,
+                    slice: identifier,
+                },
+            );
+        }
+
+        if let Some((l, invalid)) = take_while0(|ch| !is_whitespace(ch))(j) {
+            return (
+                l,
+                Token {
+                    kind: TokenKind::Invalid,
+                    slice: invalid,
                 },
             );
         }
@@ -56,9 +68,21 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     }
 }
 
+pub fn next_entry_name<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let (i, _) = take_while0_nofail(is_whitespace)(i);
+    let (i, value) = take_while1(|ch| !is_whitespace(ch))(i)?;
+    Some((
+        i,
+        Token {
+            kind: TokenKind::EntryName,
+            slice: value,
+        },
+    ))
+}
+
 pub fn next_entry_value<'a>(i: &'a str) -> (&'a str, Token<'a>) {
-    let (i, _) = take_while0(is_whitespace)(i);
-    let (i, value) = take_while0(|ch| ch != '\n')(i);
+    let (i, _) = take_while0_nofail(is_whitespace)(i);
+    let (i, value) = take_while0_nofail(|ch| ch != '\n')(i);
     (
         i,
         Token {
@@ -80,7 +104,7 @@ fn any_of(tags: &'static [&'static str]) -> impl Fn(&str) -> Option<(&str, &str)
     }
 }
 
-fn take_while(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
+pub fn take_while0(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
     move |i| {
         let mut end_idx = None;
         for (idx, ch) in i.char_indices() {
@@ -94,10 +118,21 @@ fn take_while(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
     }
 }
 
-fn take_while0(pred: fn(char) -> bool) -> impl Fn(&str) -> (&str, &str) {
-    move |i| take_while(pred)(i).unwrap_or((i, &i[..0]))
+pub fn take_while0_nofail(pred: fn(char) -> bool) -> impl Fn(&str) -> (&str, &str) {
+    move |i| take_while0(pred)(i).unwrap_or((i, &i[..0]))
 }
 
-fn is_whitespace(ch: char) -> bool {
+pub fn take_while1(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
+    move |i| {
+        let (j, o) = take_while0(pred)(i)?;
+        if o.is_empty() { None } else { Some((j, o)) }
+    }
+}
+
+pub fn is_whitespace(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch == '\n'
+}
+
+fn is_identifier(ch: char) -> bool {
+    matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-')
 }
