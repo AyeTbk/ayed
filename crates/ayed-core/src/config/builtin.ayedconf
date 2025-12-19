@@ -241,6 +241,10 @@ mode normal {
 
         _ select-regex [^\s][\S\s]*[^\s]|[^\s]
 
+        # This doesn't work because I would need to be able to express a space at the end of a value,
+        # but such a space gets trimmed rn...
+        s $[ panel-focus modeline ; insert-str select-regex ]
+
         <lt> indent --less
         <gt> indent --more
         <a-lt> indent --reindent

@@ -489,6 +489,32 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register(
+        "insert-str",
+        focused_buffer_command(|opt, ctx| {
+            let the_str = opt.replace(r"\n", "\n");
+
+            let sel_count = ctx.selections.count();
+
+            for sel_idx in 0..sel_count {
+                let Some(sel) = ctx
+                    .buffer
+                    .view_selections(ctx.view_handle)
+                    .unwrap()
+                    .get(sel_idx)
+                else {
+                    continue;
+                };
+                ctx.buffer.insert_str_at(sel.cursor, &the_str)?;
+            }
+
+            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
         "delete",
         focused_buffer_command(|opt, ctx| {
             let contains_cursor = opt.contains("-c");
