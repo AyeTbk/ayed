@@ -8,6 +8,12 @@ pub fn main() {
                     # hello there!
                     keyword \b(pub|use|mod)\b
                     literal \b(4)\b
+                    list  $[ wow ]
+                    list2 $[ a ; amazing ; ]
+                    list3 $[
+                            a ;
+                            amazing ;
+                        ]
                 }
             }
         "#

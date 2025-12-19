@@ -34,7 +34,7 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
             continue;
         }
 
-        if let Some((l, delimiter)) = any_of(&["{", "}"])(j) {
+        if let Some((l, delimiter)) = any_of(&["{", "}", "$[", "]"])(j) {
             return (
                 l,
                 Token {
@@ -85,6 +85,41 @@ pub fn next_entry_value<'a>(i: &'a str) -> (&'a str, Token<'a>) {
     let (i, value) = take_while0_nofail(|ch| ch != '\n')(i);
     (
         i,
+        Token {
+            kind: TokenKind::EntryValue,
+            slice: value,
+        },
+    )
+}
+
+pub fn next_entry_value_in_list<'a>(i: &'a str) -> (&'a str, Token<'a>) {
+    let (i, _) = take_while0_nofail(is_whitespace)(i);
+    // Keep grabbing, until whitespace delimited ';' or ']'
+    let mut end_idx = None;
+    let mut prev_ch_was_whitespace = false;
+    let mut check_if_next_ch_is_whitespace = false;
+    for (idx, ch) in i.char_indices() {
+        if check_if_next_ch_is_whitespace {
+            check_if_next_ch_is_whitespace = false;
+            let next_ch_is_whitespace = is_whitespace(ch);
+            if next_ch_is_whitespace {
+                break;
+            }
+        }
+        let curr_ch_is_whitespace = is_whitespace(ch);
+        if matches!(ch, ';' | ']') && prev_ch_was_whitespace {
+            check_if_next_ch_is_whitespace = true;
+        } else {
+            if !curr_ch_is_whitespace {
+                end_idx = Some(idx + ch.len_utf8());
+            }
+        }
+        prev_ch_was_whitespace = curr_ch_is_whitespace;
+    }
+    let end_idx = end_idx.unwrap_or(i.len());
+    let (j, value) = (&i[end_idx..], &i[..end_idx]);
+    (
+        j,
         Token {
             kind: TokenKind::EntryValue,
             slice: value,

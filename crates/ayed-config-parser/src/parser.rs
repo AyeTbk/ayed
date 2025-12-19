@@ -3,8 +3,8 @@ use crate::{
     ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
     error::Expected,
     token::{
-        Token, TokenKind, is_whitespace, next_entry_name, next_entry_value, next_token,
-        take_while0_nofail,
+        Token, TokenKind, is_whitespace, next_entry_name, next_entry_value,
+        next_entry_value_in_list, next_token, take_while0_nofail,
     },
 };
 
@@ -109,39 +109,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_mapping_entry(&mut self) -> Result<MappingEntry<'a>, Error<'a>> {
-        let Some((i, name)) = next_entry_name(self.src) else {
-            return Err(Error::new(
-                ErrorKind::Unexpected(Expected::TokenKind(TokenKind::EntryName)),
-                self.src,
-            ));
-        };
-        self.src = i;
-
-        let (i, value) = next_entry_value(self.src);
-        self.src = i;
-
-        let values = if value.slice.starts_with("$[") {
-            if !value.slice.ends_with("]") {
-                todo!("error handling: bad entry value list");
-            }
-            let s = value
-                .slice
-                .strip_prefix("$[")
-                .unwrap()
-                .strip_suffix("]")
-                .unwrap();
-            s.split(';').map(str::trim).map(Span::from).collect()
-        } else {
-            vec![value.slice.into()]
-        };
-
-        Ok(MappingEntry {
-            name: name.slice.into(),
-            values,
-        })
-    }
-
     fn parse_mixin_block(&mut self) -> Result<MixinBlock<'a>, Error<'a>> {
         let name = self.expect(TokenKind::Identifier)?;
         let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
@@ -151,12 +118,106 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_mapping_entry(&mut self) -> Result<MappingEntry<'a>, Error<'a>> {
+        let name = self.parse_entry_name()?;
+        let values = self.parse_entry_values()?;
+        Ok(MappingEntry {
+            name: name.slice.into(),
+            values,
+        })
+    }
+
+    fn parse_entry_name(&mut self) -> Result<Span<'a>, Error<'a>> {
+        let Some((i, name)) = next_entry_name(self.src) else {
+            return Err(Error::new(
+                ErrorKind::Unexpected(Expected::TokenKind(TokenKind::EntryName)),
+                self.src,
+            ));
+        };
+        self.src = i;
+        Ok(name.slice.into())
+    }
+
+    fn parse_entry_values(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
+        let lookahead = self.peek_token();
+        if lookahead.slice != "$[" {
+            let value = self.parse_entry_value(false)?;
+            return Ok(vec![value]);
+        }
+
+        let values = self.parse_delimited_separated_list(
+            |this| this.parse_entry_value(true),
+            "$[",
+            ";",
+            "]",
+        )?;
+        Ok(values)
+    }
+
+    fn parse_entry_value(&mut self, in_list: bool) -> Result<Span<'a>, Error<'a>> {
+        let (i, value) = if in_list {
+            next_entry_value_in_list(self.src)
+        } else {
+            next_entry_value(self.src)
+        };
+        self.src = i;
+        return Ok(value.slice.into());
+    }
+
     fn parse_pattern(&mut self) -> Result<Span<'a>, Error<'a>> {
         let (j, _) = take_while0_nofail(is_whitespace)(self.src);
         let (k, pattern) = take_while0_nofail(|c| !is_whitespace(c) && c != '{')(j);
         // let (l, _) = take_while0_nofail(is_whitespace)(k); // I think this shouldnt be needed
         self.src = k;
         Ok(Span { slice: pattern })
+    }
+
+    fn parse_delimited_separated_list<T>(
+        &mut self,
+        parse_fn: impl Fn(&mut Self) -> Result<T, Error<'a>>,
+        open: &'static str,
+        sep: &'static str,
+        close: &'static str,
+    ) -> Result<Vec<T>, Error<'a>> {
+        self.expect_delimiter(open)?;
+
+        let mut items = Vec::new();
+        'goto_end: {
+            'looop: loop {
+                match parse_fn(self) {
+                    Ok(item) => {
+                        items.push(item);
+                    }
+                    Err(err) => {
+                        let can_recover = err.is_recoverable();
+                        self.add_error(err);
+                        if !can_recover {
+                            break 'goto_end;
+                        }
+                        self.recover_delimited(open, close, 1);
+                    }
+                }
+
+                let mut lookahead = self.peek_token().slice;
+                if lookahead == sep {
+                    self.read_token();
+                    lookahead = self.peek_token().slice;
+                }
+                if lookahead == close {
+                    break 'looop;
+                }
+            }
+
+            match self.expect_delimiter(close) {
+                Err(_) => {
+                    unreachable!(
+                        "cant leave above loop without the token being the close delimiter"
+                    );
+                }
+                _ => (),
+            }
+        }
+        Ok(items)
     }
 
     fn parse_delimited_list<T>(
