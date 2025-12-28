@@ -1,6 +1,7 @@
 use crate::{
     Error, ErrorKind,
     ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
+    entry_value_parser::EntryValueParser,
     error::Expected,
     token::{
         Token, TokenKind, is_whitespace, next_entry_name, next_entry_value,

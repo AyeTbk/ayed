@@ -4,6 +4,8 @@ use ast::Ast;
 mod parser;
 use parser::Parser;
 
+mod entry_value_parser;
+
 mod token;
 
 mod error;
