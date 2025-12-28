@@ -17,7 +17,7 @@ pub enum TokenKind {
 pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     // The loop only exist to allow skipping comments.
     loop {
-        let (j, _) = take_while0_nofail(is_whitespace)(i);
+        let (j, _) = take_while0(is_whitespace)(i);
         if j.is_empty() {
             return (
                 j,
@@ -28,9 +28,8 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
             );
         }
 
-        if let Some((l, _)) = any_of(&["#"])(j) {
-            let (m, _comment) = take_while0_nofail(|ch| ch != '\n')(l);
-            i = m;
+        if let Some((l, _)) = comment(j) {
+            i = l;
             continue;
         }
 
@@ -54,7 +53,7 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
             );
         }
 
-        if let Some((l, invalid)) = take_while0(|ch| !is_whitespace(ch))(j) {
+        if let Some((l, invalid)) = take_while(|ch| !is_whitespace(ch))(j) {
             return (
                 l,
                 Token {
@@ -68,37 +67,23 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     }
 }
 
-pub fn next_entry_name<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
-    let (i, _) = take_while0_nofail(is_whitespace)(i);
-    let (i, value) = take_while1(|ch| !is_whitespace(ch))(i)?;
-    Some((
-        i,
-        Token {
-            kind: TokenKind::EntryName,
-            slice: value,
-        },
-    ))
+pub fn next_token_entry_value<'a>(i: &'a str, in_list: bool) -> Option<(&'a str, &'a str)> {
+    next_token_entry_value_verbatim(i, in_list)
 }
 
-pub fn next_entry_value<'a>(i: &'a str) -> (&'a str, Token<'a>) {
-    let (i, _) = take_while0_nofail(is_whitespace)(i);
-    let (i, value) = take_while0_nofail(|ch| ch != '\n')(i);
-    (
-        i,
-        Token {
-            kind: TokenKind::EntryValue,
-            slice: value,
-        },
-    )
-}
-
-pub fn next_entry_value_in_list<'a>(i: &'a str) -> (&'a str, Token<'a>) {
-    let (i, _) = take_while0_nofail(is_whitespace)(i);
-    // Keep grabbing, until whitespace delimited ';' or ']'
+pub fn next_token_entry_value_verbatim<'a>(
+    i: &'a str,
+    in_list: bool,
+) -> Option<(&'a str, &'a str)> {
     let mut end_idx = None;
     let mut prev_ch_was_whitespace = false;
     let mut check_if_next_ch_is_whitespace = false;
     for (idx, ch) in i.char_indices() {
+        if !in_list && ch == '\n' {
+            end_idx = Some(idx);
+            break;
+        }
+
         if check_if_next_ch_is_whitespace {
             check_if_next_ch_is_whitespace = false;
             let next_ch_is_whitespace = is_whitespace(ch);
@@ -118,13 +103,51 @@ pub fn next_entry_value_in_list<'a>(i: &'a str) -> (&'a str, Token<'a>) {
     }
     let end_idx = end_idx.unwrap_or(i.len());
     let (j, value) = (&i[end_idx..], &i[..end_idx]);
-    (
-        j,
-        Token {
-            kind: TokenKind::EntryValue,
-            slice: value,
-        },
-    )
+    if !value.is_empty() {
+        Some((j, value))
+    } else {
+        None
+    }
+}
+
+pub fn next_entry_name<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let mut i = i;
+    loop {
+        let (j, _) = take_while0(is_whitespace)(i);
+        i = j;
+
+        if let Some((j, _)) = comment(i) {
+            i = j;
+            continue;
+        }
+
+        let (j, value) = take_while1(|ch| !is_whitespace(ch))(i)?;
+        break Some((
+            j,
+            Token {
+                kind: TokenKind::EntryName,
+                slice: value,
+            },
+        ));
+    }
+}
+
+fn comment(i: &str) -> Option<(&str, &str)> {
+    let (j, tagstr) = tag("#")(i)?;
+    let (k, commentstr) = take_while0(|ch| ch != '\n')(j);
+    let len = tagstr.len() + commentstr.len();
+    Some((k, &i[..len]))
+}
+
+pub fn tag(tag: &'static str) -> impl Fn(&str) -> Option<(&str, &str)> {
+    move |i| {
+        if i.starts_with(tag) {
+            let idx = tag.len();
+            Some((&i[idx..], &i[..idx]))
+        } else {
+            None
+        }
+    }
 }
 
 fn any_of(tags: &'static [&'static str]) -> impl Fn(&str) -> Option<(&str, &str)> {
@@ -139,7 +162,18 @@ fn any_of(tags: &'static [&'static str]) -> impl Fn(&str) -> Option<(&str, &str)
     }
 }
 
-pub fn take_while0(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
+pub fn take_while0(pred: fn(char) -> bool) -> impl Fn(&str) -> (&str, &str) {
+    move |i| take_while(pred)(i).unwrap_or((i, &i[..0]))
+}
+
+pub fn take_while1(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
+    move |i| {
+        let (j, o) = take_while(pred)(i)?;
+        if o.is_empty() { None } else { Some((j, o)) }
+    }
+}
+
+fn take_while(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
     move |i| {
         let mut end_idx = None;
         for (idx, ch) in i.char_indices() {
@@ -150,17 +184,6 @@ pub fn take_while0(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &st
         }
         let end_idx = end_idx.unwrap_or(i.len());
         Some((&i[end_idx..], &i[..end_idx]))
-    }
-}
-
-pub fn take_while0_nofail(pred: fn(char) -> bool) -> impl Fn(&str) -> (&str, &str) {
-    move |i| take_while0(pred)(i).unwrap_or((i, &i[..0]))
-}
-
-pub fn take_while1(pred: fn(char) -> bool) -> impl Fn(&str) -> Option<(&str, &str)> {
-    move |i| {
-        let (j, o) = take_while0(pred)(i)?;
-        if o.is_empty() { None } else { Some((j, o)) }
     }
 }
 

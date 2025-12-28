@@ -3,8 +3,8 @@ use crate::{
     ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
     error::Expected,
     token::{
-        Token, TokenKind, is_whitespace, next_entry_name, next_entry_value,
-        next_entry_value_in_list, next_token, take_while0_nofail,
+        Token, TokenKind, is_whitespace, next_entry_name, next_token, next_token_entry_value,
+        take_while0,
     },
 };
 
@@ -93,7 +93,7 @@ impl<'a> Parser<'a> {
         state_name: Token<'a>,
     ) -> Result<SelectorBlock<'a>, Error<'a>> {
         let pattern = self.parse_pattern()?;
-        let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
+        let children = self.parse_delimited_list(Self::parse_block, "{", "}", None)?;
         Ok(SelectorBlock {
             state_name: state_name.slice.into(),
             pattern: pattern.slice.into(),
@@ -102,7 +102,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_mapping_block(&mut self, name: Token<'a>) -> Result<MappingBlock<'a>, Error<'a>> {
-        let entries = self.parse_delimited_list(Self::parse_mapping_entry, "{", "}")?;
+        let entries = self.parse_delimited_list(Self::parse_mapping_entry, "{", "}", None)?;
         Ok(MappingBlock {
             name: name.slice.into(),
             entries,
@@ -111,7 +111,7 @@ impl<'a> Parser<'a> {
 
     fn parse_mixin_block(&mut self) -> Result<MixinBlock<'a>, Error<'a>> {
         let name = self.expect(TokenKind::Identifier)?;
-        let children = self.parse_delimited_list(Self::parse_block, "{", "}")?;
+        let children = self.parse_delimited_list(Self::parse_block, "{", "}", None)?;
         Ok(MixinBlock {
             name: name.slice.into(),
             children,
@@ -139,85 +139,39 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_entry_values(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
-        let lookahead = self.peek_token();
-        if lookahead.slice != "$[" {
-            let value = self.parse_entry_value(false)?;
-            return Ok(vec![value]);
+        let is_list = self.peek_token().slice == "$[";
+        if is_list {
+            return self.parse_entry_value_list();
         }
 
-        let values = self.parse_delimited_separated_list(
-            |this| this.parse_entry_value(true),
-            "$[",
-            ";",
-            "]",
-        )?;
+        let value = self.parse_entry_value(false)?;
+        Ok(vec![value])
+    }
+
+    fn parse_entry_value_list(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
+        let values =
+            self.parse_delimited_list(|this| this.parse_entry_value(true), "$[", "]", Some(";"))?;
         Ok(values)
     }
 
     fn parse_entry_value(&mut self, in_list: bool) -> Result<Span<'a>, Error<'a>> {
-        let (i, value) = if in_list {
-            next_entry_value_in_list(self.src)
-        } else {
-            next_entry_value(self.src)
-        };
-        self.src = i;
-        return Ok(value.slice.into());
+        let (j, _) = take_while0(is_whitespace)(self.src);
+        let (k, value) = next_token_entry_value(j, in_list).ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected(Expected::TokenKind(TokenKind::EntryValue)),
+                self.src,
+            )
+        })?;
+        self.src = k;
+        Ok(value.into())
     }
 
     fn parse_pattern(&mut self) -> Result<Span<'a>, Error<'a>> {
-        let (j, _) = take_while0_nofail(is_whitespace)(self.src);
-        let (k, pattern) = take_while0_nofail(|c| !is_whitespace(c) && c != '{')(j);
-        // let (l, _) = take_while0_nofail(is_whitespace)(k); // I think this shouldnt be needed
+        let (j, _) = take_while0(is_whitespace)(self.src);
+        let (k, pattern) = take_while0(|c| !is_whitespace(c) && c != '{')(j);
+        // let (l, _) = take_while0(is_whitespace)(k); // I think this shouldnt be needed
         self.src = k;
         Ok(Span { slice: pattern })
-    }
-
-    fn parse_delimited_separated_list<T>(
-        &mut self,
-        parse_fn: impl Fn(&mut Self) -> Result<T, Error<'a>>,
-        open: &'static str,
-        sep: &'static str,
-        close: &'static str,
-    ) -> Result<Vec<T>, Error<'a>> {
-        self.expect_delimiter(open)?;
-
-        let mut items = Vec::new();
-        'goto_end: {
-            'looop: loop {
-                match parse_fn(self) {
-                    Ok(item) => {
-                        items.push(item);
-                    }
-                    Err(err) => {
-                        let can_recover = err.is_recoverable();
-                        self.add_error(err);
-                        if !can_recover {
-                            break 'goto_end;
-                        }
-                        self.recover_delimited(open, close, 1);
-                    }
-                }
-
-                let mut lookahead = self.peek_token().slice;
-                if lookahead == sep {
-                    self.read_token();
-                    lookahead = self.peek_token().slice;
-                }
-                if lookahead == close {
-                    break 'looop;
-                }
-            }
-
-            match self.expect_delimiter(close) {
-                Err(_) => {
-                    unreachable!(
-                        "cant leave above loop without the token being the close delimiter"
-                    );
-                }
-                _ => (),
-            }
-        }
-        Ok(items)
     }
 
     fn parse_delimited_list<T>(
@@ -225,6 +179,7 @@ impl<'a> Parser<'a> {
         parse_fn: impl Fn(&mut Self) -> Result<T, Error<'a>>,
         open: &'static str,
         close: &'static str,
+        sep: Option<&'static str>,
     ) -> Result<Vec<T>, Error<'a>> {
         self.expect_delimiter(open)?;
 
@@ -245,8 +200,23 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                if self.peek_token().slice == close {
+                let mut peek = self.peek_token();
+                let mut must_close = false;
+                if let Some(sep) = sep {
+                    if peek.slice == sep {
+                        self.read_token();
+                        peek = self.peek_token();
+                    } else {
+                        must_close = true;
+                    }
+                }
+                if peek.slice == close {
                     break 'looop;
+                } else if must_close {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected(Expected::Tag(close)),
+                        self.src,
+                    ));
                 }
             }
 

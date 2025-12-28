@@ -11,7 +11,7 @@ pub fn main() {
                     list  $[ wow ]
                     list2 $[ a ; amazing ; ]
                     list3 $[
-                            a ;
+                            a funny dog ;
                             amazing ;
                         ]
                 }
