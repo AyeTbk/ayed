@@ -9,7 +9,8 @@ pub enum TokenKind {
     Identifier,
     Delimiter,
     EntryName,
-    EntryValue,
+    Escape,
+    Verbatim,
     Invalid,
     Eof,
 }
@@ -67,19 +68,70 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     }
 }
 
-pub fn next_token_entry_value<'a>(i: &'a str, in_list: bool) -> Option<(&'a str, &'a str)> {
-    next_token_entry_value_verbatim(i, in_list)
+pub fn next_token_in_entry_value<'a>(i: &'a str, in_list: bool) -> Option<(&'a str, Token<'a>)> {
+    let string_start = tag("$\"");
+    let line_terminator = tag("\n");
+
+    if let Some((j, slice)) = string_start(i) {
+        return Some((
+            j,
+            Token {
+                kind: TokenKind::Delimiter,
+                slice,
+            },
+        ));
+    }
+    if let Some((j, slice)) = line_terminator(i) {
+        return Some((
+            j,
+            Token {
+                kind: TokenKind::Delimiter,
+                slice,
+            },
+        ));
+    }
+    if in_list {
+        let list_end = whitespace_delimited(tag("]"));
+        let list_sep = whitespace_delimited(tag(";"));
+        if let Some((j, slice)) = list_end(i) {
+            return Some((
+                j,
+                Token {
+                    kind: TokenKind::Delimiter,
+                    slice,
+                },
+            ));
+        }
+        if let Some((j, slice)) = list_sep(i) {
+            return Some((
+                j,
+                Token {
+                    kind: TokenKind::Delimiter,
+                    slice,
+                },
+            ));
+        }
+    }
+    if let Some((j, tok)) = escape_sequence(i) {
+        return Some((j, tok));
+    }
+    next_token_in_entry_value_verbatim(i, in_list)
 }
 
-pub fn next_token_entry_value_verbatim<'a>(
+fn next_token_in_entry_value_verbatim<'a>(
     i: &'a str,
     in_list: bool,
-) -> Option<(&'a str, &'a str)> {
+) -> Option<(&'a str, Token<'a>)> {
     let mut end_idx = None;
     let mut prev_ch_was_whitespace = false;
     let mut check_if_next_ch_is_whitespace = false;
     for (idx, ch) in i.char_indices() {
         if !in_list && ch == '\n' {
+            end_idx = Some(idx);
+            break;
+        }
+
+        if ch == '$' {
             end_idx = Some(idx);
             break;
         }
@@ -104,7 +156,54 @@ pub fn next_token_entry_value_verbatim<'a>(
     let end_idx = end_idx.unwrap_or(i.len());
     let (j, value) = (&i[end_idx..], &i[..end_idx]);
     if !value.is_empty() {
-        Some((j, value))
+        Some((
+            j,
+            Token {
+                kind: TokenKind::Verbatim,
+                slice: value,
+            },
+        ))
+    } else {
+        None
+    }
+}
+
+pub fn next_token_in_string<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let string_end = tag("\"");
+
+    if let Some((j, slice)) = string_end(i) {
+        return Some((
+            j,
+            Token {
+                kind: TokenKind::Delimiter,
+                slice,
+            },
+        ));
+    }
+    if let Some((j, tok)) = escape_sequence(i) {
+        return Some((j, tok));
+    }
+    next_token_in_string_verbatim(i)
+}
+
+fn next_token_in_string_verbatim<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let mut end_idx = None;
+    for (idx, ch) in i.char_indices() {
+        if ch == '$' || ch == '"' {
+            end_idx = Some(idx);
+            break;
+        }
+    }
+    let end_idx = end_idx.unwrap_or(i.len());
+    let (j, value) = (&i[end_idx..], &i[..end_idx]);
+    if !value.is_empty() {
+        Some((
+            j,
+            Token {
+                kind: TokenKind::Verbatim,
+                slice: value,
+            },
+        ))
     } else {
         None
     }
@@ -132,6 +231,26 @@ pub fn next_entry_name<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
     }
 }
 
+fn escape_sequence<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let mut chars_indices = i.char_indices();
+    let (idx, dollar_sign) = chars_indices.next()?;
+    if dollar_sign != '$' {
+        return None;
+    }
+    let mut end_idx = idx + dollar_sign.len_utf8();
+
+    if let Some((idx, ch)) = chars_indices.next() {
+        end_idx = idx + ch.len_utf8();
+    }
+
+    let (j, slice) = (&i[end_idx..], &i[..end_idx]);
+    let token = Token {
+        kind: TokenKind::Escape,
+        slice,
+    };
+    Some((j, token))
+}
+
 fn comment(i: &str) -> Option<(&str, &str)> {
     let (j, tagstr) = tag("#")(i)?;
     let (k, commentstr) = take_while0(|ch| ch != '\n')(j);
@@ -147,6 +266,17 @@ pub fn tag(tag: &'static str) -> impl Fn(&str) -> Option<(&str, &str)> {
         } else {
             None
         }
+    }
+}
+
+fn whitespace_delimited(
+    f: impl Fn(&str) -> Option<(&str, &str)>,
+) -> impl Fn(&str) -> Option<(&str, &str)> {
+    move |i| {
+        let (j, _) = take_while1(is_whitespace)(i)?;
+        let (k, o) = f(j)?;
+        let (l, _) = take_while1(is_whitespace)(k)?;
+        Some((l, o))
     }
 }
 

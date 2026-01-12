@@ -49,13 +49,14 @@ pub struct MappingBlock<'a> {
 #[derive(Debug)]
 pub struct MappingEntry<'a> {
     pub name: Span<'a>,
-    // TODO replace Span<'a> with Template<'a>
-    pub values: Vec<Span<'a>>,
+    pub values: Vec<Template<'a>>,
 }
 
 #[derive(Debug)]
 pub struct Template<'a> {
-    pub parts: Vec<TemplatePart<'a>>,
+    // TODO replace Span<'a> with TemplatePart<'a>
+    pub parts: Vec<Span<'a>>,
+    // pub parts: Vec<TemplatePart<'a>>,
 }
 
 #[derive(Debug)]

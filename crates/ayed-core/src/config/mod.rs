@@ -219,7 +219,13 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                     mapping
                         .entry(entry.name.to_string()) // FIXME unecessary allocation
                         .or_default()
-                        .extend(entry.values.iter().map(|s| s.slice.to_string()));
+                        .extend(entry.values.iter().map(|template| {
+                            let mut buf = String::new();
+                            for part in &template.parts {
+                                buf.push_str(part.slice);
+                            }
+                            buf
+                        }));
                 }
                 mappings.push(ConditionalMapping {
                     name: name.to_string(),

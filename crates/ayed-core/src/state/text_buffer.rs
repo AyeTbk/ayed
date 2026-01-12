@@ -68,7 +68,7 @@ impl TextBuffer {
     /// Write the content of this buffer to the given path.
     /// The write operation is performed atomically.
     pub fn write_to(&self, path: &str) -> Result<(), String> {
-        // Find unique name for tmp file.
+        // Find unique name for tmp file.  (// TODO !)
         // Write to new tmp file with unique name.
         // Rename tmp file to intended name.
 

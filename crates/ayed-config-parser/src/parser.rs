@@ -1,10 +1,9 @@
 use crate::{
     Error, ErrorKind,
-    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span},
+    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span, Template},
     error::Expected,
     token::{
-        Token, TokenKind, is_whitespace, next_entry_name, next_token, next_token_entry_value,
-        take_while0,
+        Token, TokenKind, is_whitespace, next_entry_name, next_token, next_token_in_entry_value, next_token_in_string, take_while0
     },
 };
 
@@ -138,7 +137,7 @@ impl<'a> Parser<'a> {
         Ok(name.slice.into())
     }
 
-    fn parse_entry_values(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
+    fn parse_entry_values(&mut self) -> Result<Vec<Template<'a>>, Error<'a>> {
         let is_list = self.peek_token().slice == "$[";
         if is_list {
             return self.parse_entry_value_list();
@@ -148,22 +147,67 @@ impl<'a> Parser<'a> {
         Ok(vec![value])
     }
 
-    fn parse_entry_value_list(&mut self) -> Result<Vec<Span<'a>>, Error<'a>> {
+    fn parse_entry_value_list(&mut self) -> Result<Vec<Template<'a>>, Error<'a>> {
         let values =
             self.parse_delimited_list(|this| this.parse_entry_value(true), "$[", "]", Some(";"))?;
         Ok(values)
     }
 
-    fn parse_entry_value(&mut self, in_list: bool) -> Result<Span<'a>, Error<'a>> {
-        let (j, _) = take_while0(is_whitespace)(self.src);
-        let (k, value) = next_token_entry_value(j, in_list).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected(Expected::TokenKind(TokenKind::EntryValue)),
+    fn parse_entry_value(&mut self, in_list: bool) -> Result<Template<'a>, Error<'a>> {
+        let (mut i, _) = take_while0(is_whitespace)(self.src);
+        let mut parts = Vec::new();
+        while let Some((j, token)) = next_token_in_entry_value(i, in_list) {
+            if token.kind == TokenKind::Escape {
+                todo!("properly handle escapes");
+            }
+
+            if token.kind == TokenKind::Delimiter && token.slice != "$\"" {
+                break;
+            }
+
+            i = j;
+
+            if token.slice == "$\"" {
+                self.src = i;
+                let str_template = self.parse_entry_value_string()?;
+                i = self.src;
+                parts.extend(str_template.parts);
+            } else {
+                parts.push(token.slice.into());
+            }
+        }
+        self.src = i;
+        if parts.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected(Expected::EntryValue),
                 self.src,
-            )
-        })?;
-        self.src = k;
-        Ok(value.into())
+            ));
+        }
+        Ok(Template { parts })
+    }
+
+    fn parse_entry_value_string(&mut self) -> Result<Template<'a>, Error<'a>> {
+        let mut i = self.src;
+        let mut parts = Vec::new();
+        while let Some((j, token)) = next_token_in_string(i) {
+            if token.kind == TokenKind::Escape {
+                todo!("properly handle escapes");
+            }
+
+            i = j;
+            if token.slice == "\"" {
+                break;
+            }
+            parts.push(token.slice.into());
+        }
+        self.src = i;
+        if parts.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected(Expected::String),
+                self.src,
+            ));
+        }
+        Ok(Template { parts })
     }
 
     fn parse_pattern(&mut self) -> Result<Span<'a>, Error<'a>> {

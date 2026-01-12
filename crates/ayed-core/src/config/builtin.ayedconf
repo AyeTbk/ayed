@@ -243,7 +243,7 @@ mode normal {
 
         # This doesn't work because I would need to be able to express a space at the end of a value,
         # but such a space gets trimmed rn...
-        s $[ panel-focus modeline ; insert-str select-regex ]
+        s $[ panel-focus modeline ; insert-str $"select-regex " ]
 
         <lt> indent --less
         <gt> indent --more
@@ -349,7 +349,7 @@ file .*\.rs {
         lifetime $[ (r?'.) ]
         function \b([a-z0-9_][a-zA-Z0-9_]*)\(
         namespace \b([a-zA-Z0-9_]+)::
-        comment (//.*)$
+        comment (//.*)
     }
 }
 

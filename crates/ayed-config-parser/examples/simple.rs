@@ -14,6 +14,12 @@ pub fn main() {
                             a funny dog ;
                             amazing ;
                         ]
+                    #esc   ive got 5$$
+                    str $"hello!  "
+                    str2 what$" are "you
+                    str3 what $" are " you
+                    #strlist $[ $"$1" ; tw$"o" ; $"thr
+                    #                                ee" ]
                 }
             }
         "#

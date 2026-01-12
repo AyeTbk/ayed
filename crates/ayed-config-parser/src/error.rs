@@ -38,6 +38,8 @@ pub enum ErrorKind {
 pub enum Expected {
     TokenKind(TokenKind),
     Tag(&'static str),
+    EntryValue,
+    String,
 }
 
 impl From<TokenKind> for Expected {
