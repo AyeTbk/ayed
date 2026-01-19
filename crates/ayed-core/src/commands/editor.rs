@@ -229,7 +229,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 .flag("reanchored")
                 .parse(opt)?;
             let anchored = opts.contains("anchored");
-            let reanchored = opts.contains("reanchored");
+            let reanchored = opts.contains("reanchored"); // Behaves like kakoune
 
             let edge = match opts.remainder().trim() {
                 "line-start" => Edge::LineStart,
