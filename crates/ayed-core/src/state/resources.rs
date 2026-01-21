@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::slotmap::{Handle, SlotMap};
 
 use super::{TextBuffer, View};
@@ -9,7 +11,7 @@ pub struct Resources {
 }
 
 impl Resources {
-    pub fn open_file(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
+    pub fn open_file(&mut self, path: &Path) -> Result<Handle<TextBuffer>, String> {
         Ok(self.buffers.insert(TextBuffer::new_from_path(path)?))
     }
 
@@ -17,17 +19,17 @@ impl Resources {
         self.buffers.insert(TextBuffer::new_empty())
     }
 
-    pub fn open_file_or_scratch(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
+    pub fn open_file_or_scratch(&mut self, path: &Path) -> Result<Handle<TextBuffer>, String> {
         if let Ok(true) = std::fs::exists(path) {
             self.open_file(path)
         } else {
             let mut buffer = TextBuffer::new_empty();
-            buffer.set_path(path);
+            buffer.set_path(Some(path.to_path_buf()));
             Ok(self.buffers.insert(buffer))
         }
     }
 
-    pub fn buffer_with_path(&self, path: &str) -> Option<Handle<TextBuffer>> {
+    pub fn buffer_with_path(&self, path: &Path) -> Option<Handle<TextBuffer>> {
         self.buffers
             .iter()
             .find(|(_, buf)| buf.path() == Some(path))

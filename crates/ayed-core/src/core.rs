@@ -29,6 +29,8 @@ impl Core {
         panels::warpdrive::commands::register_warpdrive_commands(&mut this.commands);
         panels::file_picker::commands::register_file_picker_commands(&mut this.commands);
 
+        this.state.working_directory = std::env::current_dir().unwrap();
+
         this.queue_command("started".to_string());
         this.tick();
 

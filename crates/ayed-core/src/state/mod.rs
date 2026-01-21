@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
 use crate::{
     config::Config,
@@ -50,6 +50,7 @@ pub struct State {
     pub modeline_rect: Rect,
     pub file_picker_rect: Rect,
     pub last_input: Option<Input>,
+    pub working_directory: PathBuf,
 }
 
 impl State {
@@ -112,7 +113,7 @@ impl State {
         if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
             let buffer = resources.buffers.get(active_editor_buffer_handle);
             // Path info
-            let mut path_text = buffer.path().unwrap_or("<scratch>").to_string();
+            let mut path_text = buffer.path().unwrap_or(Path::new("<scratch>")).to_string_lossy().to_string();
             if buffer.is_dirty() {
                 path_text.push_str("*");
             }
@@ -142,5 +143,36 @@ impl State {
         }
 
         self.modeline.infos = infos;
+    }
+
+    /// Convert path to an absolute path.
+    /// If path was already absolute, the returned value is unchanged.
+    /// If path was relative, the returned value is made absolute, using
+    /// `state.working_directory`` as base.
+    pub fn normalize_path(&self, path: &str) -> PathBuf {
+        let ppath = Path::new(path);
+        if ppath.is_absolute() {
+            ppath.to_path_buf()
+        } else {
+            let absolute_path = self.working_directory.join(path);
+            absolute_path
+        }
+    }
+
+    /// Converts path to a relative path, if it is a descendant of
+    /// `state.working_directory``, else returns the path unchanged.
+    pub fn denormalize_path(&self, path: &str) -> PathBuf {
+        let mut is_descendant_of_working_directory = false;
+        let mut new_path = PathBuf::new();
+        for part in Path::new(path).iter() {
+            if !is_descendant_of_working_directory && new_path == self.working_directory {
+                is_descendant_of_working_directory = true;
+                new_path.clear();
+            }
+
+            new_path.push(part);
+        }
+
+        new_path
     }
 }

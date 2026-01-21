@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::Path};
 
 use regex::Regex;
 
@@ -25,15 +25,17 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let path = if opt.is_empty() { None } else { Some(opt) };
 
             if let Some(path) = path {
-                ctx.buffer.set_path(path);
+                let normalized_path = ctx.state.normalize_path(path);
+                ctx.buffer.set_path(normalized_path);
             }
 
             ctx.buffer.write()?;
 
-            ctx.queue.push(format!(
-                "message written to {}",
-                ctx.buffer.path().unwrap_or_default()
-            ));
+            if let Some(path) = ctx.buffer.path() {
+                ctx.queue.push(format!(
+                    "message written to {path:?}",
+                ));
+            }
 
             Ok(())
         }),
@@ -48,11 +50,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register("edit", |opt, ctx| {
         let opts = Options::new().flag("scratch").parse(opt)?;
         let scratch = opts.contains("scratch");
-        let path = opts.remainder();
+        let path = Path::new(opts.remainder());
 
         let buffer_handle;
-        let buffer_opened_path: Option<&str>;
-        if path.is_empty() && scratch {
+        let buffer_opened_path: Option<&Path>;
+        if path.as_os_str().is_empty() && scratch {
             buffer_handle = ctx.resources.open_scratch();
             buffer_opened_path = Some(path);
             ctx.queue.emit("buffer-opened", "");
@@ -90,7 +92,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         // The state must be updated before 'buffer-opened' is emitted so that
         // hooked commands may behave correctly.
-        ctx.queue.set_state(ConfigState::FILE, path);
+        ctx.queue.set_state(ConfigState::FILE, path); TODO fix this here@!!
 
         if let Some(path) = buffer_opened_path {
             ctx.queue.emit("buffer-opened", path);
