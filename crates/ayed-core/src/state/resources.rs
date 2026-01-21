@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::slotmap::{Handle, SlotMap};
 
 use super::{TextBuffer, View};
@@ -9,28 +11,31 @@ pub struct Resources {
 }
 
 impl Resources {
-    pub fn open_file(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
-        Ok(self.buffers.insert(TextBuffer::new_from_path(path)?))
+    pub fn open_file(&mut self, absolute_path: &Path) -> Result<Handle<TextBuffer>, String> {
+        debug_assert!(absolute_path.is_absolute());
+        Ok(self.buffers.insert(TextBuffer::new_from_path(absolute_path)?))
     }
 
     pub fn open_scratch(&mut self) -> Handle<TextBuffer> {
         self.buffers.insert(TextBuffer::new_empty())
     }
 
-    pub fn open_file_or_scratch(&mut self, path: &str) -> Result<Handle<TextBuffer>, String> {
-        if let Ok(true) = std::fs::exists(path) {
-            self.open_file(path)
+    pub fn open_file_or_scratch(&mut self, absolute_path: &Path) -> Result<Handle<TextBuffer>, String> {
+        debug_assert!(absolute_path.is_absolute());
+        if let Ok(true) = std::fs::exists(absolute_path) {
+            self.open_file(absolute_path)
         } else {
             let mut buffer = TextBuffer::new_empty();
-            buffer.set_path(path);
+            buffer.set_path(Some(absolute_path.to_path_buf()));
             Ok(self.buffers.insert(buffer))
         }
     }
 
-    pub fn buffer_with_path(&self, path: &str) -> Option<Handle<TextBuffer>> {
+    pub fn buffer_with_path(&self, absolute_path: &Path) -> Option<Handle<TextBuffer>> {
+        debug_assert!(absolute_path.is_absolute());
         self.buffers
             .iter()
-            .find(|(_, buf)| buf.path() == Some(path))
+            .find(|(_, buf)| buf.path() == Some(absolute_path))
             .map(|(handle, _)| handle)
     }
 

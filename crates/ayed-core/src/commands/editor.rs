@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::Path};
 
 use regex::Regex;
 
@@ -12,17 +12,20 @@ use crate::{
     position::{Column, Offset, Position},
     selection::{Selection, Selections},
     state::View,
-    utils::string_utils::{
+    utils::{path_ext::PathExt, string_utils::{
         byte_index_to_char_index, char_count,
         ops::{is_whitespace, take_while},
-    },
+    }},
 };
 
 pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register(
         "buffer-write",
         focused_buffer_command(|opt, ctx| {
-            let path = if opt.is_empty() { None } else { Some(opt) };
+            let path = if opt.is_empty() { None } else {
+                let normalized_path = ctx.state.normalize_path(Path::new(opt));
+                Some(normalized_path)
+            };
 
             if let Some(path) = path {
                 ctx.buffer.set_path(path);
@@ -30,10 +33,12 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             ctx.buffer.write()?;
 
-            ctx.queue.push(format!(
-                "message written to {}",
-                ctx.buffer.path().unwrap_or_default()
-            ));
+            if let Some(path) = ctx.buffer.path() {
+                let denormalized_path = ctx.state.denormalize_path(path);
+                ctx.queue.push(format!(
+                    "message written to {denormalized_path:?}",
+                ));
+            }
 
             Ok(())
         }),
@@ -48,23 +53,23 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register("edit", |opt, ctx| {
         let opts = Options::new().flag("scratch").parse(opt)?;
         let scratch = opts.contains("scratch");
-        let path = opts.remainder();
+        let path = ctx.state.normalize_path(Path::new(opts.remainder()));
 
         let buffer_handle;
-        let buffer_opened_path: Option<&str>;
-        if path.is_empty() && scratch {
+        let buffer_opened_path: Option<&Path>;
+        if path.as_os_str().is_empty() && scratch {
             buffer_handle = ctx.resources.open_scratch();
-            buffer_opened_path = Some(path);
+            buffer_opened_path = Some(&path);
             ctx.queue.emit("buffer-opened", "");
         } else {
-            match ctx.resources.buffer_with_path(path) {
+            match ctx.resources.buffer_with_path(&path) {
                 Some(handle) => {
                     buffer_handle = handle;
                     buffer_opened_path = None;
                 }
                 None => {
-                    buffer_handle = ctx.resources.open_file_or_scratch(path)?;
-                    buffer_opened_path = Some(path);
+                    buffer_handle = ctx.resources.open_file_or_scratch(&path)?;
+                    buffer_opened_path = Some(&path);
                 }
             }
         }
@@ -90,10 +95,10 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         // The state must be updated before 'buffer-opened' is emitted so that
         // hooked commands may behave correctly.
-        ctx.queue.set_state(ConfigState::FILE, path);
+        ctx.queue.set_state(ConfigState::FILE, path.to_str_or_err()?);
 
         if let Some(path) = buffer_opened_path {
-            ctx.queue.emit("buffer-opened", path);
+            ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
         }
 
         Ok(())

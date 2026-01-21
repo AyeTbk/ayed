@@ -1,4 +1,4 @@
-use std::{cell::Cell, collections::HashMap};
+use std::{cell::Cell, collections::HashMap, path::{Path, PathBuf}};
 
 use crate::{
     config::Config,
@@ -24,7 +24,7 @@ use super::View;
 pub struct TextBuffer {
     pub lines: Vec<String>,
     pub selections: HashMap<Handle<View>, Selections>,
-    pub path: Option<String>,
+    pub path: Option<PathBuf>,
     pub dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
     pub history_dirty: Cell<bool>, // Used to prevent saving changes to the undo/redo stack when there is none.
 }
@@ -40,14 +40,15 @@ impl TextBuffer {
         }
     }
 
-    pub fn new_from_path(path: &str) -> Result<Self, String> {
+    pub fn new_from_path(path: impl AsRef<Path>) -> Result<Self, String> {
+        let path = path.as_ref();
         let content =
-            std::fs::read_to_string(path).map_err(|err| format!("can't read '{path}': {err}"))?;
+            std::fs::read_to_string(path).map_err(|err| format!("can't read '{path:?}': {err}"))?;
         let lines = content.split('\n').map(str::to_string).collect();
         Ok(Self {
             lines,
             selections: Default::default(),
-            path: Some(path.to_string()),
+            path: Some(path.to_path_buf()),
             dirty: Default::default(),
             history_dirty: Default::default(),
         })
@@ -67,12 +68,12 @@ impl TextBuffer {
 
     /// Write the content of this buffer to the given path.
     /// The write operation is performed atomically.
-    pub fn write_to(&self, path: &str) -> Result<(), String> {
+    fn write_to(&self, path: &Path) -> Result<(), String> {
         // Find unique name for tmp file.  (// TODO !)
         // Write to new tmp file with unique name.
         // Rename tmp file to intended name.
 
-        let tmp_path = format!("{path}.ayed-tmp");
+        let tmp_path = path.with_added_extension(".ayed-tmp");
         let tmp_file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -126,12 +127,12 @@ impl TextBuffer {
         self.selections.get_mut(&view)
     }
 
-    pub fn path(&self) -> Option<&str> {
-        self.path.as_ref().map(String::as_str)
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_ref().map(PathBuf::as_path)
     }
 
-    pub fn set_path<P: Into<String>>(&mut self, path: impl Into<Option<P>>) {
-        self.path = path.into().map(Into::into);
+    pub fn set_path(&mut self, path: impl Into<Option<PathBuf>>) {
+        self.path = path.into();
     }
 
     pub fn line(&self, row: Row) -> Option<&str> {
