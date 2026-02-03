@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::{Path, PathBuf}};
 
 use crate::{
     position::Position,
@@ -119,7 +119,7 @@ fn render_file_list(
 
 pub enum FileListItem {
     Section { text: String },
-    File { text: String, path: String },
+    File { text: String, path: PathBuf },
 }
 
 impl FileListItem {
@@ -130,7 +130,7 @@ impl FileListItem {
         }
     }
 
-    pub fn path(&self) -> Option<&str> {
+    pub fn path(&self) -> Option<&Path> {
         match self {
             Self::Section { .. } => None,
             Self::File { path, .. } => Some(path),
@@ -188,6 +188,8 @@ impl FilePickerState {
 }
 
 pub mod commands {
+    use std::path::Path;
+
     use crate::{
         command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
         panels::file_picker::{FileListItem, file_list_to_file_tree},
@@ -202,11 +204,12 @@ pub mod commands {
                     return Ok(());
                 };
                 let Some(path) = item.path() else { return Ok(()) };
-                if path.trim() == "" {
+                if path.to_str().unwrap().trim() == "" {
                     return Ok(());
                 }
 
-                ctx.queue.push(format!("edit {path}"));
+                let path_str = path.to_str().unwrap();
+                ctx.queue.push(format!("edit {path_str}"));
                 ctx.queue.push("panel-focus editor");
 
                 Ok(())
@@ -232,7 +235,7 @@ pub mod commands {
             "file-picker-fill-list",
             focused_buffer_command(|_opt, ctx| {
                 let filter = ctx.buffer.line(0).unwrap_or_default();
-                match file_picker_fill_list(filter) {
+                match file_picker_fill_list(&ctx.state.working_directory, filter) {
                     Ok(list) => ctx.state.file_picker.list_items = file_list_to_file_tree(list),
                     Err(err) => return Err(err.to_string()),
                 }
@@ -242,10 +245,10 @@ pub mod commands {
         );
     }
 
-    fn file_picker_fill_list(filter: &str) -> std::io::Result<Vec<FileListItem>> {
+    fn file_picker_fill_list(working_directory: &Path, filter: &str) -> std::io::Result<Vec<FileListItem>> {
         fn aux(
             filters: &[&str],
-            dir_path: &str,
+            dir_path: &Path,
             list: &mut Vec<FileListItem>,
         ) -> std::io::Result<()> {
             if list.len() > 200 {
@@ -255,7 +258,7 @@ pub mod commands {
                 let Ok(entry) = maybe_entry else { continue };
                 let path = entry.path().to_str().unwrap().to_string();
                 if entry.file_type()?.is_dir() {
-                    aux(filters, &path, list)?;
+                    aux(filters, &entry.path(), list)?;
                 } else {
                     for filter in filters {
                         // TODO FEAT case insensitivity
@@ -265,7 +268,7 @@ pub mod commands {
                     }
                     list.push(FileListItem::File {
                         text: path.clone(),
-                        path: path,
+                        path: Path::new(&path).to_path_buf(),
                     });
                 }
             }
@@ -274,7 +277,7 @@ pub mod commands {
 
         let mut list = Vec::new();
         let filters = filter.split(' ').collect::<Vec<&str>>();
-        aux(&filters, ".", &mut list)?;
+        aux(&filters, working_directory, &mut list)?;
         Ok(list)
     }
 }
@@ -295,6 +298,7 @@ fn file_list_to_file_tree(list: Vec<FileListItem>) -> Vec<FileListItem> {
 
     for item in &list {
         let path = item.path().expect("there should only be Files");
+        let path = path.to_str().unwrap();
 
         let mut parts = path.split('/').peekable();
         let mut curr_node_id = 0;
@@ -343,7 +347,7 @@ fn file_list_to_file_tree(list: Vec<FileListItem>) -> Vec<FileListItem> {
             let indent = " ".repeat((next_level * IDENT_SIZE) as _);
             out.push(FileListItem::File {
                 text: format!("{indent}{part}"),
-                path: item.path().unwrap().to_string(),
+                path: item.path().unwrap().to_path_buf(),
             });
         }
 
