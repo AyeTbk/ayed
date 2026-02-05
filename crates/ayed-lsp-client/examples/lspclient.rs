@@ -1,4 +1,4 @@
-use ayed_lsp_client::{File, LspClient, Position, Request, ServerMessage};
+use ayed_lsp_client::{File, LspClient, Position, Request};
 use serde_json::json;
 
 fn main() {
@@ -27,17 +27,19 @@ fn main() {
     loop {
         i += 1;
         if i % 120 == 0 {
-            client.request(Request::Hover {
+            client.queue_request(Request::Hover {
                 file: File("/home/simon/workspaces/rust/ayed/crates/ayed-tui/src/main.rs".into()),
                 position: Position(6, 15),
             });
         }
 
         client.tick();
-        for response in client.recv_messages() {
-            if let ServerMessage::Response(response) = response {
-                println!("{:?}", response);
-            }
+        let (resps, notifs) = client.recv_server_messages();
+        for response in resps {
+            println!("response: {:?}", response);
+        }
+        for notification in notifs {
+            println!("notification: {:?}", notification);
         }
         std::thread::sleep(std::time::Duration::from_millis(16));
     }

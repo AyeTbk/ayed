@@ -1,4 +1,7 @@
-use std::io::{self, Stdout, Write, stdout};
+use std::{
+    io::{self, Stdout, Write, stdout},
+    time::Duration,
+};
 
 use ayed_core::{
     core::Core,
@@ -42,9 +45,11 @@ impl Tui {
 
         self.render().unwrap();
 
+        const POLL_TIMEOUT_MS: u64 = 124;
+        const DELTA_TIME: f32 = (POLL_TIMEOUT_MS as f32) / 1000.0;
+
         while !self.core.quit_requested() {
-            // if crossterm::event::poll(Duration::from_millis(50)).unwrap() {
-            if true {
+            if crossterm::event::poll(Duration::from_millis(POLL_TIMEOUT_MS)).unwrap() {
                 let event = crossterm::event::read().unwrap();
 
                 match event {
@@ -65,6 +70,8 @@ impl Tui {
                     }
                 }
             }
+
+            self.core.time_tick(DELTA_TIME);
 
             self.core.tick();
 

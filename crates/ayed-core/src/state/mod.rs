@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     config::Config,
@@ -13,6 +16,7 @@ use crate::{
 };
 
 mod text_buffer_history;
+use ayed_lsp_client::LspClient;
 pub use text_buffer_history::TextBufferHistory;
 
 mod text_buffer;
@@ -42,6 +46,7 @@ pub struct State {
     pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,
+    pub hover_info: Option<String>,
     pub file_picker: FilePickerState,
     pub focused_panel: FocusedPanel,
     pub quit_requested: bool,
@@ -50,7 +55,9 @@ pub struct State {
     pub modeline_rect: Rect,
     pub file_picker_rect: Rect,
     pub last_input: Option<Input>,
+    pub delta_time: f32,
     pub working_directory: PathBuf,
+    pub lsp_client: Option<LspClient>, // TODO Should be one per server type / configured file extension, i guess?
 }
 
 impl State {
@@ -113,7 +120,8 @@ impl State {
         if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
             let buffer = resources.buffers.get(active_editor_buffer_handle);
             // Path info
-            let display_path = self.denormalize_path(buffer.path().unwrap_or(Path::new("<scratch>")));
+            let display_path =
+                self.denormalize_path(buffer.path().unwrap_or(Path::new("<scratch>")));
             let mut path_text = display_path.to_string_lossy().to_string();
             if buffer.is_dirty() {
                 path_text.push_str("*");
@@ -141,6 +149,16 @@ impl State {
                 align: Align::Right,
             };
             infos.push(cursor_info);
+        }
+
+        if let Some(lsp_client) = &self.lsp_client
+            && !lsp_client.is_online()
+        {
+            infos.push(ModelineInfo {
+                text: "⧖".to_string(),
+                align: Align::Left,
+                style: Style::default(),
+            });
         }
 
         self.modeline.infos = infos;

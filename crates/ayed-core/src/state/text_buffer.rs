@@ -1,4 +1,8 @@
-use std::{cell::Cell, collections::HashMap, path::{Path, PathBuf}};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     config::Config,

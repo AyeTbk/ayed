@@ -14,6 +14,7 @@ pub struct Core {
     pub state: State,
     pub resources: Resources,
     pub panels: Panels,
+    pub delta_time_acc: f32,
 }
 
 impl Core {
@@ -61,11 +62,17 @@ impl Core {
         self.tick();
     }
 
-    pub fn tick(&mut self) {
-        if !self.queue.is_empty() {
-            self.state.modeline.clear_content_override();
+    pub fn time_tick(&mut self, delta_time: f32) {
+        const TICK_EVENT_DELAY: f32 = 0.06;
+        self.delta_time_acc += delta_time;
+        if self.delta_time_acc >= TICK_EVENT_DELAY {
+            self.state.delta_time = self.delta_time_acc;
+            self.delta_time_acc = 0.0;
+            self.queue_command(format!("time-tick {delta_time}"));
         }
+    }
 
+    pub fn tick(&mut self) {
         loop {
             let Some(command) = self.queue.pop() else {
                 break;
@@ -90,10 +97,16 @@ impl Core {
                 self.queue.extend(hooks);
             }
 
+            let (command_name, _) = parse_command(&command);
+
+            if command_name == "input" {
+                self.state.modeline.clear_content_override();
+                self.state.hover_info = None;
+            }
+
             match res {
                 Ok(Err(cmd_err)) => {
                     self.queue.clear();
-                    let (command_name, _) = parse_command(&command);
                     let err_msg = format!("{command_name}: {cmd_err}");
                     self.state.modeline.set_error(err_msg, &self.state.config);
                     return;
@@ -135,6 +148,7 @@ impl Core {
         panels.push(self.panels.line_numbers.render(&render_ctx));
         panels.push(self.panels.modeline.render(&render_ctx));
 
+        panels.extend(self.panels.hover_info.render(&render_ctx));
         panels.extend(self.panels.file_picker.render(&render_ctx));
 
         if let Some(panel) = self.panels.warpdrive.render(&render_ctx) {
@@ -158,6 +172,7 @@ impl Core {
         self.commands.register_event("started");
         self.commands.register_event("resized");
         self.commands.register_event("input");
+        self.commands.register_event("time-tick");
         self.commands.register_event("buffer-opened");
         self.commands.register_event("buffer-modified");
         self.commands.register_event("selections-modified");
@@ -236,5 +251,15 @@ impl Core {
             .grown(-1, -(Modeline::HEIGHT as i32 + 1), -4, -4),
         );
         self.state.file_picker_rect = self.panels.file_picker.rect();
+
+        self.panels.hover_info.set_rect(
+            Rect::new(
+                0,
+                self.state.viewport_size.row / 2,
+                self.state.viewport_size.column,
+                self.state.viewport_size.row / 2,
+            )
+            .grown(-1, -(Modeline::HEIGHT as i32), -4, -4),
+        );
     }
 }

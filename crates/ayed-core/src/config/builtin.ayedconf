@@ -57,6 +57,33 @@ panel modeline {
 }
 
 
+# Essential for LSP
+hooks {
+    time-tick lsp-poll
+}
+# DEBUG help for LSP
+mode combo-user {
+    keybinds {
+        l set mode combo-lsp
+    }
+    keybinds-doc {
+        l LSP
+    }
+}
+mode combo-lsp {
+    keybinds {
+        s lsp-start
+        e lsp-stop
+        h lsp-hover
+    }
+    keybinds-doc {
+        s Initialize LSP client
+        e Shutdown LSP client
+        h Hover information
+    }
+}
+
+
 # Default config
 
 editor {

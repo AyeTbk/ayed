@@ -13,6 +13,9 @@ pub use self::modeline::Modeline;
 pub mod file_picker;
 pub use self::file_picker::FilePicker;
 
+pub mod hover_info;
+pub use self::hover_info::HoverInfo;
+
 pub mod warpdrive;
 pub use self::warpdrive::Warpdrive;
 
@@ -28,6 +31,7 @@ pub struct Panels {
     pub line_numbers: LineNumbers,
     pub modeline: Modeline,
     pub file_picker: FilePicker,
+    pub hover_info: HoverInfo,
     pub warpdrive: Warpdrive,
     pub combo: Combo,
     pub suggestion: Suggestions,

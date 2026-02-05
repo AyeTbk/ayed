@@ -1,8 +1,23 @@
 use crate::lsp;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RequestType {
+    SuggestCompletion,
+    Hover,
+}
+
 pub enum Request {
     SuggestCompletion { file: File, position: Position },
     Hover { file: File, position: Position },
+}
+
+impl Request {
+    pub fn typ(&self) -> RequestType {
+        match self {
+            Self::SuggestCompletion { .. } => RequestType::SuggestCompletion,
+            Self::Hover { .. } => RequestType::Hover,
+        }
+    }
 }
 
 /// Absolute path to a file
