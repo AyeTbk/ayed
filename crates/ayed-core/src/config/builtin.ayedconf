@@ -32,27 +32,27 @@ mode normal {
 }
 
 
-# Essential for suggestions
-suggestions {
+# Essential for completions
+completions {
     placement cursor
     source active-buffer
 }
 mode insert.* {
     hooks {
-        selections-modified suggestions-gather
-        state-before-modified:mode suggestions-clear
+        selections-modified completions-gather
+        state-before-modified:mode completions-clear
     }
 }
 @override
 panel modeline {
-    suggestions {
+    completions {
         placement modeline
         source commands
     }
 }
 panel modeline {
     hooks {
-        suggestions-select move r anchored
+        completions-select move r anchored
     }
 }
 
@@ -138,13 +138,13 @@ mixin basic-deletion {
     }
 }
 
-mixin suggestions {
+mixin completions {
     keybinds {
-        <a-down> suggestions-select --next
-        <c-n> suggestions-select --next
+        <a-down> completions-select --next
+        <c-n> completions-select --next
 
-        <a-up> suggestions-select --previous
-        <c-p> suggestions-select --previous
+        <a-up> completions-select --previous
+        <c-p> completions-select --previous
     }
 }
 
@@ -152,7 +152,7 @@ mixin suggestions {
 panel modeline {
     use basic-movement
     use basic-deletion
-    use suggestions
+    use completions
 
     keybinds {
         <esc> panel-focus editor
@@ -215,7 +215,7 @@ hooks {
 
 mode normal {
     use basic-movement
-    use suggestions
+    use completions
 
     keybinds {
         <del> delete -c
@@ -301,7 +301,7 @@ mode normal {
 mixin mode-insert-append-common {
     use basic-movement
     use basic-deletion
-    use suggestions
+    use completions
 
     keybinds {
         <c-space> set mode normal

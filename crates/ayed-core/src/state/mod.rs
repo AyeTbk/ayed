@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{
+    commands::completions::CompletionsState,
     config::Config,
     input::Input,
     panels::{
@@ -34,15 +35,12 @@ pub use register::Register;
 mod resources;
 pub use resources::Resources;
 
-mod suggestions;
-pub use suggestions::Suggestions;
-
 #[derive(Default)]
 pub struct State {
     pub active_editor_view: Option<Handle<View>>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
-    pub suggestions: Suggestions,
+    pub completions: CompletionsState,
     pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,

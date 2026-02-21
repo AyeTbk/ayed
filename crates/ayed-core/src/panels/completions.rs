@@ -9,11 +9,11 @@ use crate::{
 use super::RenderPanelContext;
 
 #[derive(Default)]
-pub struct Suggestions {
+pub struct Completions {
     rect: Rect,
 }
 
-impl Suggestions {
+impl Completions {
     pub fn rect(&self) -> Rect {
         self.rect
     }
@@ -23,11 +23,11 @@ impl Suggestions {
     }
 
     pub fn render(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
-        if ctx.state.suggestions.items.is_empty() {
+        if ctx.state.completions.items.is_empty() {
             return None;
         }
 
-        let placement = ctx.state.config.get_entry_value("suggestions", "placement");
+        let placement = ctx.state.config.get_entry_value("completions", "placement");
         let placement = placement.ok()?;
         match placement {
             "cursor" => self.render_at_cursor(ctx),
@@ -37,14 +37,14 @@ impl Suggestions {
     }
 
     fn render_at_cursor(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
-        let width = ctx.state.suggestions.items.iter().map(String::len).max();
+        let width = ctx.state.completions.items.iter().map(String::len).max();
         let width = i32::max(10, width.unwrap_or(0) as _);
         let width = width + 2; // There is one cell padding on either side of the text.
-        let height = ctx.state.suggestions.items.len() as i32;
+        let height = ctx.state.completions.items.len() as i32;
         let size = Size::new(width, height);
 
         // let position_in_buffer = selections.primary().cursor();
-        let position_in_buffer = ctx.state.suggestions.original_symbol_start;
+        let position_in_buffer = ctx.state.completions.original_symbol_start;
         let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
         let target_position =
             position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
@@ -72,7 +72,7 @@ impl Suggestions {
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
-        for (i, item) in ctx.state.suggestions.items.iter().enumerate() {
+        for (i, item) in ctx.state.completions.items.iter().enumerate() {
             let mut s = String::from(" ");
             let pad_len = (width as usize).saturating_sub(item.len());
             let pad = " ".repeat(pad_len);
@@ -80,7 +80,7 @@ impl Suggestions {
             s.push_str(&pad);
             content.push(s);
 
-            let color = if ctx.state.suggestions.selected_item == (i as i32 + 1) {
+            let color = if ctx.state.completions.selected_item == (i as i32 + 1) {
                 ctx.state.config.get_theme_color("accent-bright")
             } else {
                 ctx.state.config.get_theme_color("accent")
@@ -107,20 +107,20 @@ impl Suggestions {
 
     fn render_at_modeline(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
         let width = ctx.state.modeline_rect.width;
-        let height = ctx.state.suggestions.items.len() as i32;
+        let height = ctx.state.completions.items.len() as i32;
         let size = Size::new(width, height);
 
         let position = ctx.state.modeline_rect.top_left().offset((0, -height));
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
-        for (i, item) in ctx.state.suggestions.items.iter().enumerate() {
+        for (i, item) in ctx.state.completions.items.iter().enumerate() {
             let mut s = item.clone();
             let pad = " ".repeat(width as usize - s.len());
             s.push_str(&pad);
             content.push(s);
 
-            let color = if ctx.state.suggestions.selected_item == (i as i32 + 1) {
+            let color = if ctx.state.completions.selected_item == (i as i32 + 1) {
                 ctx.state.config.get_theme_color("accent-bright")
             } else {
                 ctx.state.config.get_theme_color("accent")

@@ -22,8 +22,8 @@ pub use self::warpdrive::Warpdrive;
 mod combo;
 pub use self::combo::Combo;
 
-mod suggestions;
-pub use self::suggestions::Suggestions;
+mod completions;
+pub use self::completions::Completions;
 
 #[derive(Default)]
 pub struct Panels {
@@ -34,7 +34,7 @@ pub struct Panels {
     pub hover_info: HoverInfo,
     pub warpdrive: Warpdrive,
     pub combo: Combo,
-    pub suggestion: Suggestions,
+    pub completions: Completions,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
