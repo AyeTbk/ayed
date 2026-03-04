@@ -1,4 +1,5 @@
 use crate::{
+    commands::completions::CompletionsState,
     position::Position,
     ui::{
         Rect, Size, Style,
@@ -7,6 +8,8 @@ use crate::{
 };
 
 use super::RenderPanelContext;
+
+const MAX_VISIBLE_ITEMS: usize = 12;
 
 #[derive(Default)]
 pub struct Completions {
@@ -37,10 +40,11 @@ impl Completions {
     }
 
     fn render_at_cursor(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
-        let width = ctx.state.completions.items.iter().map(String::len).max();
+        let visible_items = get_visible_items(&ctx.state.completions);
+        let width = visible_items.iter().map(String::len).max();
         let width = i32::max(10, width.unwrap_or(0) as _);
         let width = width + 2; // There is one cell padding on either side of the text.
-        let height = ctx.state.completions.items.len() as i32;
+        let height = visible_items.len() as i32;
         let size = Size::new(width, height);
 
         // let position_in_buffer = selections.primary().cursor();
@@ -72,7 +76,8 @@ impl Completions {
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
-        for (i, item) in ctx.state.completions.items.iter().enumerate() {
+        let visible_items = get_visible_items(&ctx.state.completions);
+        for (i, item) in visible_items.iter().enumerate() {
             let mut s = String::from(" ");
             let pad_len = (width as usize).saturating_sub(item.len());
             let pad = " ".repeat(pad_len);
@@ -85,6 +90,7 @@ impl Completions {
             } else {
                 ctx.state.config.get_theme_color("accent")
             };
+
             spans.push(StyledRegion {
                 from: Position::new(0, i as i32),
                 to: Position::new(width as i32, i as i32),
@@ -93,7 +99,7 @@ impl Completions {
                     background_color: color,
                     ..Default::default()
                 },
-                priority: 0,
+                priority: 20,
             });
         }
 
@@ -114,7 +120,8 @@ impl Completions {
 
         let mut content = Vec::new();
         let mut spans = Vec::new();
-        for (i, item) in ctx.state.completions.items.iter().enumerate() {
+        let visible_items = get_visible_items(&ctx.state.completions);
+        for (i, item) in visible_items.iter().enumerate() {
             let mut s = item.clone();
             let pad = " ".repeat(width as usize - s.len());
             s.push_str(&pad);
@@ -144,4 +151,9 @@ impl Completions {
             spans,
         })
     }
+}
+
+pub fn get_visible_items(completions_state: &CompletionsState) -> &[String] {
+    let end = usize::min(MAX_VISIBLE_ITEMS, completions_state.items.len());
+    &completions_state.items[0..end]
 }

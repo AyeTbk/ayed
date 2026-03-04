@@ -10,7 +10,7 @@ use crate::{
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
-static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+|[^\s\w]+").unwrap());
+static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\w+|[^\s\w\.]+)!?").unwrap()); // NOTE exclamation point is there to support Rust macros
 
 // Should be per editor, cleared on changing which buffer is edited
 #[derive(Default)]
@@ -55,6 +55,9 @@ pub fn register_completions_commands(cr: &mut CommandRegistry) {
         if ctx.state.completions.items.is_empty() {
             return Ok(());
         }
+
+        TODO figure out how LSP handles inserting imports and snippets
+            and etc
 
         let opts = Options::new().flag("next").flag("previous").parse(opt)?;
         let next = opts.contains("next");
@@ -104,8 +107,10 @@ pub fn register_completions_commands(cr: &mut CommandRegistry) {
             let selections = buffer.view_selections(view_handle).unwrap();
             let sel = selections.get(sel_idx).unwrap();
 
-            let delete_sel = sel.with_end(sel.end().offset((-1, 0)));
-            buffer.delete_selection(&delete_sel)?;
+            if !sel.is_shrunk() {
+                let delete_sel = sel.with_end(sel.end().offset((-1, 0)));
+                buffer.delete_selection(&delete_sel)?;
+            }
 
             let text_to_insert;
             if cycling_to_original {
@@ -218,6 +223,7 @@ fn selection_from_symbol_prefix_under_cursor(buffer: &TextBuffer, cursor: Positi
             let start_column = byte_index_to_char_index(line, matsh.start()).unwrap() as Column;
             // let end_column = byte_index_to_char_index(line, matsh.end()).unwrap() as Column;
             let end_column = cursor_byte_idx as Column;
+
             maybe_selection = Some(
                 Selection::new()
                     .with_anchor((start_column, row).into())

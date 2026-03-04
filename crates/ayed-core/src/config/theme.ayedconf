@@ -1,7 +1,7 @@
 theme {
     accent              #393d49
     accent-dark         #22242a
-    accent-bright       #393d49
+    accent-bright       #525662
 
     box-fg              #696e7c
     box-bg              #22242a

@@ -41,6 +41,8 @@ mode insert.* {
     hooks {
         selections-modified completions-gather
         state-before-modified:mode completions-clear
+
+        completions-gather lsp-completion
     }
 }
 @override

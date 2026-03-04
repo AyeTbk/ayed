@@ -38,8 +38,8 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                 Response::HoverInfo { text } => {
                     ctx.state.hover_info = Some(text);
                 }
-                _ => {
-                    dbg!(response);
+                Response::CompletionSuggestions { items } => {
+                    ctx.state.completions.items.extend(items);
                 }
             }
         }
@@ -62,6 +62,29 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             let cursor = ctx.selections.primary().cursor;
 
             client.queue_request(Request::Hover {
+                file: File(filepath),
+                position: Position(cursor.column, cursor.row),
+            });
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "lsp-completion",
+        focused_buffer_command(|_opt, ctx| {
+            let Some(client) = &mut ctx.state.lsp_client else {
+                return Err("lsp client not started".into());
+            };
+
+            let Some(path) = ctx.buffer.path() else {
+                return Err("save the file before you can ask a completion".into());
+            };
+
+            let filepath = path.to_str_or_err()?.to_string();
+            let cursor = ctx.selections.primary().cursor;
+
+            client.queue_request(Request::SuggestCompletion {
                 file: File(filepath),
                 position: Position(cursor.column, cursor.row),
             });

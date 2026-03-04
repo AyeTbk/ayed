@@ -145,6 +145,38 @@ impl LspClient {
     }
 
     pub fn receive_responses(&mut self) -> Vec<Response> {
+        use serde_json::Value;
+
+        let get_completion_result = |result: &mut Value| -> Option<Vec<String>> {
+            let items = result.pointer_mut("/items")?.take();
+            let Value::Array(items_arr) = items else {
+                return None;
+            };
+            let labels = items_arr
+                .into_iter()
+                .filter_map(|mut item| {
+                    let mut pointer = item.pointer_mut("/textEdit/newText");
+                    if pointer.is_none() {
+                        pointer = item.pointer_mut("/label");
+                    }
+                    let value = pointer?.take();
+                    if let Value::String(label) = value {
+                        Some(label)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            Some(labels)
+        };
+        let get_hover_result = |result: &mut Value| -> Option<String> {
+            if let Value::String(text) = result.pointer_mut("/contents/value")?.take() {
+                Some(text)
+            } else {
+                None
+            }
+        };
+
         let (resps, notifs) = self.recv_server_messages();
 
         for notif in notifs {
@@ -158,22 +190,18 @@ impl LspClient {
                 continue;
             };
 
-            use serde_json::Value;
-
-            let get_hover_result = |result: &mut Value| -> Option<String> {
-                if let Value::String(text) = result.pointer_mut("/contents/value")?.take() {
-                    Some(text)
-                } else {
-                    None
-                }
-            };
-
             let Some(request_type) = self.request_type_per_id.remove(&resp.id) else {
                 eprintln!("lsp response without associated request. id {}", resp.id);
                 continue;
             };
             match request_type {
-                RequestType::SuggestCompletion => unimplemented!(),
+                RequestType::SuggestCompletion => {
+                    if let Some(items) = get_completion_result(&mut resp_result) {
+                        responses.push(Response::CompletionSuggestions { items });
+                    } else {
+                        unimplemented!("{resp_result:?}");
+                    }
+                }
                 RequestType::Hover => {
                     if let Some(text) = get_hover_result(&mut resp_result) {
                         responses.push(Response::HoverInfo { text });

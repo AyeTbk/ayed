@@ -235,6 +235,10 @@ impl Selection {
         this
     }
 
+    pub fn is_shrunk(&self) -> bool {
+        self.cursor == self.anchor
+    }
+
     pub fn flipped(&self) -> Self {
         Self {
             cursor: self.anchor,
