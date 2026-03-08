@@ -65,6 +65,9 @@ panel modeline {
 # Essential for LSP
 hooks {
     time-tick lsp-poll
+    buffer-opened lsp-doc-sync-open
+    buffer-modified lsp-doc-sync-change
+    buffer-closed lsp-doc-sync-close
 }
 # DEBUG help for LSP
 mode combo-user {
@@ -251,7 +254,7 @@ mode normal {
 
         C selections-duplicate --down
         <a-C> selections-duplicate --up
-        ; selection-shrink
+        ; selections-shrink
         <a-;> selections-flip
         , selections-dismiss-extras
 

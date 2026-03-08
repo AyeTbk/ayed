@@ -766,7 +766,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selection-shrink", |_opt, ctx| {
+    cr.register("selections-shrink", |_opt, ctx| {
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
         };

@@ -31,6 +31,9 @@ pub struct TextBuffer {
     pub path: Option<PathBuf>,
     pub dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
     pub history_dirty: Cell<bool>, // Used to prevent saving changes to the undo/redo stack when there is none.
+
+    /// Version for the buffer's content. Must increment for every change, including undos. For LSP.
+    pub content_version: Cell<i32>,
 }
 
 impl TextBuffer {
@@ -41,6 +44,7 @@ impl TextBuffer {
             path: None,
             dirty: Default::default(),
             history_dirty: Default::default(),
+            content_version: Default::default(),
         }
     }
 
@@ -55,6 +59,7 @@ impl TextBuffer {
             path: Some(path.to_path_buf()),
             dirty: Default::default(),
             history_dirty: Default::default(),
+            content_version: Default::default(),
         })
     }
 
@@ -94,6 +99,12 @@ impl TextBuffer {
         Ok(())
     }
 
+    pub fn content_to_string(&self) -> String {
+        let mut buf = Vec::new();
+        self.write_content(&mut buf).unwrap();
+        String::from_utf8(buf).unwrap()
+    }
+
     fn write_content<W: std::io::Write>(&self, w: &mut W) -> Result<(), std::io::Error> {
         for (i, line) in self.lines.iter().enumerate() {
             if i != 0 {
@@ -111,6 +122,7 @@ impl TextBuffer {
     fn mark_dirty(&self) {
         self.dirty.set(true);
         self.history_dirty.set(true);
+        self.content_version.update(|n| n + 1);
     }
 
     pub fn take_history_dirty(&self) -> bool {
@@ -243,7 +255,9 @@ impl TextBuffer {
         Some(bytes)
     }
 
+    #[deprecated = "todo replace with line(...) and set_line(...)"]
     pub fn line_mut(&mut self, row_index: Row) -> Option<&mut String> {
+        self.mark_dirty();
         self.lines.get_mut(row_index as usize)
     }
 
@@ -451,7 +465,7 @@ impl TextBuffer {
             self.adjust_selections_after_delete_at(at);
         }
 
-        self.mark_dirty();
+        // self.mark_dirty(); // Done in the above .line_mut(...)
 
         Ok(())
     }
@@ -484,7 +498,7 @@ impl TextBuffer {
 
         self.adjust_selections_after_join_line_with_next(row, original_line_char_count);
 
-        self.mark_dirty();
+        // self.mark_dirty(); // Done in the above .line_mut(...)
 
         Ok(())
     }

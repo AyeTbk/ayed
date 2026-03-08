@@ -5,17 +5,24 @@ pub use event::Event;
 
 pub mod lsp;
 
+pub mod types;
+
+mod notification;
+pub use notification::Notification;
+
 mod request;
-pub use request::{File, Position, Request};
+pub use request::Request;
 
 mod response;
 pub use response::Response;
 
 mod transport;
+use serde_json::Value;
 use transport::SubprocessTransport;
 
-use crate::request::{
-    RequestType, convert_request_to_lsp, make_lsp_notification, make_lsp_request,
+use crate::{
+    notification::convert_notification_to_json,
+    request::{RequestType, convert_request_to_json},
 };
 
 const INITIALIZE_REQUEST_ID: i32 = 1;
@@ -24,6 +31,7 @@ pub struct LspClient {
     transport: SubprocessTransport,
     state: State,
     pending_requests: Vec<Request>,
+    pending_notifications: Vec<Notification>,
     request_counter: i32,
     request_type_per_id: HashMap<i32, RequestType>,
 }
@@ -35,6 +43,7 @@ impl LspClient {
             transport,
             state: State::Offline,
             pending_requests: Vec::new(),
+            pending_notifications: Vec::new(),
             request_counter: INITIALIZE_REQUEST_ID,
             request_type_per_id: HashMap::new(),
         }
@@ -43,7 +52,7 @@ impl LspClient {
     pub fn initialize(&mut self) {
         assert!(self.state == State::Offline);
 
-        self.send_request(&make_initialize_request());
+        self.send_request(Request::Initialize);
 
         self.state = State::Initializing;
     }
@@ -54,6 +63,10 @@ impl LspClient {
 
     pub fn queue_request(&mut self, req: Request) {
         self.pending_requests.push(req);
+    }
+
+    pub fn queue_notification(&mut self, notif: Notification) {
+        self.pending_notifications.push(notif);
     }
 
     pub fn take_events(&mut self) -> Vec<Event> {
@@ -77,7 +90,7 @@ impl LspClient {
         for response in resps {
             match response {
                 lsp::Response { id, .. } if id == INITIALIZE_REQUEST_ID => {
-                    self.send_notification(&make_initialized_notification());
+                    self.send_notification(Notification::Initialized);
                     self.state = State::Online;
                 }
                 _ => {
@@ -93,26 +106,32 @@ impl LspClient {
     }
 
     fn tick_online(&mut self) {
-        for request in std::mem::take(&mut self.pending_requests) {
-            let request_type = request.typ();
-            let mut lsp_request = convert_request_to_lsp(request);
-            self.request_counter += 1;
-            lsp_request.id = self.request_counter;
-            self.request_type_per_id
-                .insert(lsp_request.id, request_type);
-
-            self.send_request(&lsp_request);
+        for notif in std::mem::take(&mut self.pending_notifications) {
+            self.send_notification(notif);
+        }
+        for req in std::mem::take(&mut self.pending_requests) {
+            self.send_request(req);
         }
     }
 
-    fn send_request(&mut self, request: &lsp::Request) {
-        let content = serde_json::to_string(request).unwrap();
-        self.send_message(content)
+    fn send_json(&mut self, content: &Value) {
+        let json_string = serde_json::to_string(content).unwrap();
+        self.send_message(json_string);
     }
 
-    pub fn send_notification(&mut self, notification: &lsp::Notification) {
-        let content = serde_json::to_string(notification).unwrap();
-        self.send_message(content)
+    fn send_request(&mut self, req: Request) {
+        let request_type = req.typ();
+        let id = self.request_counter;
+        self.request_counter += 1;
+        let lsp_request = convert_request_to_json(req, id);
+        self.request_type_per_id.insert(id, request_type);
+        let req_string = serde_json::to_string(&lsp_request).unwrap();
+        self.send_message(req_string);
+    }
+
+    fn send_notification(&mut self, notif: Notification) {
+        let notif_json = convert_notification_to_json(notif);
+        self.send_json(&notif_json);
     }
 
     fn send_message(&mut self, content: String) {
@@ -173,6 +192,7 @@ impl LspClient {
                 continue;
             };
             match request_type {
+                RequestType::Initialize => unimplemented!(),
                 RequestType::SuggestCompletion => unimplemented!(),
                 RequestType::Hover => {
                     if let Some(text) = get_hover_result(&mut resp_result) {
@@ -194,30 +214,4 @@ pub enum State {
     Initializing,
     Online,
     ShuttingDown,
-}
-
-fn make_initialize_request() -> lsp::Request {
-    make_lsp_request(
-        INITIALIZE_REQUEST_ID,
-        "initialize",
-        Some(lsp::RequestParams::Initialize(lsp::InitializeParams {
-            process_id: None,
-            capabilities: lsp::ClientCapabilities {
-                general: None,
-                workspace: None,
-                text_document: None,
-            },
-            root_uri: None, //"file:///home/simon/workspaces/rust/ayed".into(),
-            workspace_folders: vec![
-                // lsp::WorkspaceFolder {
-                //     name: "ayed".into(),
-                //     uri: "file:///home/simon/workspaces/rust/ayed".into(),
-                // }
-            ],
-        })),
-    )
-}
-
-fn make_initialized_notification() -> lsp::Notification {
-    make_lsp_notification("initialized", Some(lsp::NotificationParams::Initialized {}))
 }
