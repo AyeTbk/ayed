@@ -13,6 +13,11 @@ use crate::{
 static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+|[^\s\w]+").unwrap());
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
+    cr.register("stderr", |opt, _ctx| {
+        eprintln!("{opt}");
+        Ok(())
+    });
+
     cr.register("history-save", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());

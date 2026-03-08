@@ -12,17 +12,22 @@ use crate::{
     position::{Column, Offset, Position},
     selection::{Selection, Selections},
     state::View,
-    utils::{path_ext::PathExt, string_utils::{
-        byte_index_to_char_index, char_count,
-        ops::{is_whitespace, take_while},
-    }},
+    utils::{
+        path_ext::PathExt,
+        string_utils::{
+            byte_index_to_char_index, char_count,
+            ops::{is_whitespace, take_while},
+        },
+    },
 };
 
 pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register(
         "buffer-write",
         focused_buffer_command(|opt, ctx| {
-            let path = if opt.is_empty() { None } else {
+            let path = if opt.is_empty() {
+                None
+            } else {
                 let normalized_path = ctx.state.normalize_path(Path::new(opt));
                 Some(normalized_path)
             };
@@ -35,9 +40,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             if let Some(path) = ctx.buffer.path() {
                 let denormalized_path = ctx.state.denormalize_path(path);
-                ctx.queue.push(format!(
-                    "message written to {denormalized_path:?}",
-                ));
+                ctx.queue
+                    .push(format!("message written to {denormalized_path:?}",));
             }
 
             Ok(())
@@ -50,17 +54,64 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("buffer-close", |_opt, ctx| {
+        // Closes active buffer.
+
+        // Validity checks
+        let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
+            return Err("no currently open buffer".into());
+        };
+        let buffer = ctx.resources.buffers.get(buffer_handle);
+        if buffer.is_dirty() {
+            return Err(format!("there are unsaved changes"));
+        }
+        let path = buffer
+            .path()
+            .unwrap_or(Path::new(""))
+            .to_str_or_err()?
+            .to_string();
+
+        // Cleanup buffer resource
+        ctx.resources.buffers.remove(buffer_handle);
+        // TODO clean other buffer related stuff like highlights and
+        // change history.
+
+        // Cleanup views resources
+        let mut views_to_cleanup = Vec::new();
+        for (view_handle, view) in ctx.resources.views.iter() {
+            if view.buffer == buffer_handle {
+                views_to_cleanup.push(view_handle);
+            }
+        }
+        for view_handle in views_to_cleanup {
+            ctx.resources.views.remove(view_handle);
+        }
+
+        ctx.state.active_editor_view = ctx.resources.views.keys().next();
+
+        ctx.queue.emit("buffer-closed", &path);
+
+        if ctx.state.active_editor_view.is_none() {
+            ctx.queue.push("edit --scratch");
+        }
+
+        Ok(())
+    });
+
     cr.register("edit", |opt, ctx| {
         let opts = Options::new().flag("scratch").parse(opt)?;
         let scratch = opts.contains("scratch");
-        let path = ctx.state.normalize_path(Path::new(opts.remainder()));
+        let path = if opts.remainder().is_empty() {
+            "".into()
+        } else {
+            ctx.state.normalize_path(Path::new(opts.remainder()))
+        };
 
         let buffer_handle;
         let buffer_opened_path: Option<&Path>;
         if path.as_os_str().is_empty() && scratch {
             buffer_handle = ctx.resources.open_scratch();
             buffer_opened_path = Some(&path);
-            ctx.queue.emit("buffer-opened", "");
         } else {
             match ctx.resources.buffer_with_path(&path) {
                 Some(handle) => {
@@ -95,7 +146,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         // The state must be updated before 'buffer-opened' is emitted so that
         // hooked commands may behave correctly.
-        ctx.queue.set_state(ConfigState::FILE, path.to_str_or_err()?);
+        ctx.queue
+            .set_state(ConfigState::FILE, path.to_str_or_err()?);
 
         if let Some(path) = buffer_opened_path {
             ctx.queue.emit("buffer-opened", path.to_str_or_err()?);

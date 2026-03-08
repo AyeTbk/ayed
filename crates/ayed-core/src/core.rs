@@ -175,6 +175,7 @@ impl Core {
         self.commands.register_event("time-tick");
         self.commands.register_event("buffer-opened");
         self.commands.register_event("buffer-modified");
+        self.commands.register_event("buffer-closed");
         self.commands.register_event("selections-modified");
     }
 
