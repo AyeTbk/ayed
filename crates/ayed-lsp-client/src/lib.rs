@@ -1,5 +1,5 @@
 mod event;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 pub use event::Event;
 
@@ -77,10 +77,17 @@ impl LspClient {
         self.state == State::Online
     }
 
+    pub fn is_just_initialized(&self) -> bool {
+        self.state == State::Initialized
+    }
+
     pub fn tick(&mut self) {
         match self.state {
             State::Initializing => self.tick_initializing(),
-            State::Online => self.tick_online(),
+            State::Online | State::Initialized => {
+                self.state = State::Online;
+                self.tick_online();
+            }
             _ => todo!(),
         }
     }
@@ -91,7 +98,7 @@ impl LspClient {
             match response {
                 lsp::Response { id, .. } if id == INITIALIZE_REQUEST_ID => {
                     self.send_notification(Notification::Initialized);
-                    self.state = State::Online;
+                    self.state = State::Initialized;
                 }
                 _ => {
                     panic!(
@@ -120,6 +127,7 @@ impl LspClient {
     }
 
     fn send_request(&mut self, req: Request) {
+        dbg!(&req);
         let request_type = req.typ();
         let id = self.request_counter;
         self.request_counter += 1;
@@ -130,6 +138,7 @@ impl LspClient {
     }
 
     fn send_notification(&mut self, notif: Notification) {
+        dbg!(&notif);
         let notif_json = convert_notification_to_json(notif);
         self.send_json(&notif_json);
     }
@@ -140,7 +149,7 @@ impl LspClient {
     }
 
     // FIXME make not pub (currently pub for the example)
-    pub fn recv_server_messages(&mut self) -> (Vec<lsp::Response>, Vec<lsp::Notification>) {
+    pub fn recv_server_messages(&mut self) -> (Vec<lsp::Response>, Vec<Value>) {
         if let Ok(err) = self.transport.recv_server_err.try_recv() {
             eprintln!("lsp server err: {}", String::from_utf8_lossy(&err))
         }
@@ -155,7 +164,7 @@ impl LspClient {
                 let response = serde_json::from_str::<lsp::Response>(&content).unwrap();
                 responses.push(response)
             } else {
-                let notification = serde_json::from_str::<lsp::Notification>(&content).unwrap();
+                let notification = serde_json::Value::from_str(&content).unwrap();
                 notifications.push(notification)
             }
         }
@@ -212,6 +221,7 @@ impl LspClient {
 pub enum State {
     Offline,
     Initializing,
+    Initialized,
     Online,
     ShuttingDown,
 }

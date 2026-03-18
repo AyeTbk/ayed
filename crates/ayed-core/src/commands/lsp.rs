@@ -39,7 +39,20 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
         client.tick();
 
-        // TODO once lsp is initialized: inform server about opened buffers
+        if client.is_just_initialized() {
+            // Inform server of pre-opened buffers
+            for (_, buffer) in ctx.resources.buffers.iter() {
+                let Some(path) = buffer.path() else { continue };
+                client.queue_notification(Notification::TextDocumentDidOpen {
+                    text_document: TextDocumentItem {
+                        uri: DocumentUri::new(path),
+                        language_id: LanguageId::RUST.to_string(),
+                        version: buffer.content_version(),
+                        text: buffer.content_to_string(),
+                    },
+                });
+            }
+        }
 
         for response in client.receive_responses() {
             match response {

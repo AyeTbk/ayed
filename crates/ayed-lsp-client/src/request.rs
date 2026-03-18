@@ -9,6 +9,7 @@ pub enum RequestType {
     Hover,
 }
 
+#[derive(Debug)]
 pub enum Request {
     Initialize,
     SuggestCompletion {

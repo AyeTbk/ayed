@@ -2,6 +2,7 @@ use serde_json::{Value, json};
 
 use crate::types::{TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier};
 
+#[derive(Debug)]
 pub enum Notification {
     Initialized,
     TextDocumentDidOpen {

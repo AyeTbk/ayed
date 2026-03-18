@@ -119,6 +119,10 @@ impl TextBuffer {
         self.dirty.get()
     }
 
+    pub fn content_version(&self) -> i32 {
+        self.content_version.get()
+    }
+
     fn mark_dirty(&self) {
         self.dirty.set(true);
         self.history_dirty.set(true);
