@@ -155,10 +155,6 @@ impl TextBuffer {
         self.path = path.into();
     }
 
-    pub fn line(&self, row: Row) -> Option<&str> {
-        self.lines.get(row as usize).map(String::as_str)
-    }
-
     // I'd document this properly if I knew I to put words together to describe it
     // but basically this is to handle how to display tabs.
     // All code that wants to display a line should use this.
@@ -259,10 +255,19 @@ impl TextBuffer {
         Some(bytes)
     }
 
-    #[deprecated = "todo replace with line(...) and set_line(...)"]
-    pub fn line_mut(&mut self, row_index: Row) -> Option<&mut String> {
-        self.mark_dirty();
-        self.lines.get_mut(row_index as usize)
+    pub fn line(&self, row: Row) -> Option<&str> {
+        self.lines.get(row as usize).map(String::as_str)
+    }
+
+    pub fn set_line(&mut self, row_index: Row, new_content: String) -> Result<(), ()> {
+        // FIXME check that the line upholds the invariants
+        if let Some(line) = self.lines.get_mut(row_index as usize) {
+            *line = new_content;
+            self.mark_dirty();
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 
     pub fn first_line(&self) -> &str {
@@ -455,7 +460,7 @@ impl TextBuffer {
 
     pub fn delete_at(&mut self, at: Position) -> Result<(), String> {
         let line = self
-            .line_mut(at.row)
+            .lines.get_mut(at.row as usize)
             .ok_or_else(|| String::from("bad row"))?;
         let (idx, ch) = line
             .char_indices()
@@ -496,7 +501,7 @@ impl TextBuffer {
         }
 
         let next_line = self.lines.remove(next_row as usize);
-        let line = self.line_mut(row).expect("verified above");
+        let line = self.lines.get_mut(row as usize).expect("verified above");
         let original_line_char_count = char_count(line);
         line.push_str(&next_line);
 

@@ -1,9 +1,7 @@
-mod event;
 use std::{collections::HashMap, str::FromStr};
 
+mod event;
 pub use event::Event;
-
-pub mod lsp;
 
 pub mod types;
 
@@ -17,8 +15,10 @@ mod response;
 pub use response::Response;
 
 mod transport;
-use serde_json::Value;
 use transport::SubprocessTransport;
+
+use serde_json::Value;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::{
     notification::convert_notification_to_json,
@@ -96,7 +96,7 @@ impl LspClient {
         let (resps, notifs) = self.recv_server_messages();
         for response in resps {
             match response {
-                lsp::Response { id, .. } if id == INITIALIZE_REQUEST_ID => {
+                ServerResponse { id, .. } if id == INITIALIZE_REQUEST_ID => {
                     self.send_notification(Notification::Initialized);
                     self.state = State::Initialized;
                 }
@@ -127,7 +127,6 @@ impl LspClient {
     }
 
     fn send_request(&mut self, req: Request) {
-        dbg!(&req);
         let request_type = req.typ();
         let id = self.request_counter;
         self.request_counter += 1;
@@ -138,7 +137,6 @@ impl LspClient {
     }
 
     fn send_notification(&mut self, notif: Notification) {
-        dbg!(&notif);
         let notif_json = convert_notification_to_json(notif);
         self.send_json(&notif_json);
     }
@@ -148,8 +146,7 @@ impl LspClient {
         self.transport.send(full_message.into_bytes())
     }
 
-    // FIXME make not pub (currently pub for the example)
-    pub fn recv_server_messages(&mut self) -> (Vec<lsp::Response>, Vec<Value>) {
+    fn recv_server_messages(&mut self) -> (Vec<ServerResponse>, Vec<Value>) {
         if let Ok(err) = self.transport.recv_server_err.try_recv() {
             eprintln!("lsp server err: {}", String::from_utf8_lossy(&err))
         }
@@ -159,9 +156,9 @@ impl LspClient {
 
         for b in self.transport.recv() {
             let content = String::from_utf8(b).unwrap();
-            let message = serde_json::from_str::<lsp::Message>(&content).unwrap();
+            let message = serde_json::from_str::<ServerMessage>(&content).unwrap();
             if message.id.is_some() {
-                let response = serde_json::from_str::<lsp::Response>(&content).unwrap();
+                let response = serde_json::from_str::<ServerResponse>(&content).unwrap();
                 responses.push(response)
             } else {
                 let notification = serde_json::Value::from_str(&content).unwrap();
@@ -224,4 +221,23 @@ pub enum State {
     Initialized,
     Online,
     ShuttingDown,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ServerMessage {
+    pub id: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ServerResponse {
+    pub id: i32,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<ServerResponseError>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ServerResponseError {
+    pub code: i32,
+    pub message: String,
+    pub data: Option<serde_json::Value>,
 }

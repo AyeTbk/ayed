@@ -159,7 +159,8 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         };
 
         let buffer_handle = ctx.resources.views.get(view_handle).buffer;
-        if let Some(line) = ctx.resources.buffers.get_mut(buffer_handle).line_mut(0) {
+        let buffer = ctx.resources.buffers.get_mut(buffer_handle);
+        if buffer.line(0).is_some() {
             let max = ctx.state.modeline.history.len();
             let item_idx = &mut ctx.state.modeline.history_selected_item;
             if next {
@@ -170,11 +171,10 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
             }
 
             if *item_idx == max {
-                line.clear();
+                buffer.set_line(0, String::new()).unwrap();
             } else {
                 let item = &ctx.state.modeline.history[*item_idx];
-                line.clear();
-                line.push_str(item);
+                buffer.set_line(0, item.clone()).unwrap();
 
                 ctx.queue.push("move-to-edge line-past-end");
             }
