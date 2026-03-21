@@ -151,6 +151,26 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         }),
     );
 
+    cr.register("completions-select", |opt, ctx| {
+        //.
+        Ok(())
+    });
+
+    cr.register("completions-clear", |_opt, ctx| {
+        //.
+        Ok(())
+    });
+
+    cr.register(
+        "completions-gather",
+        focused_buffer_command(|_opt, ctx| {
+            let cursor = ctx.selections.primary().cursor;
+            ctx.state.completions.original_symbol_start = cursor;
+            ctx.state.completions.prompt_suggestion_cursor_position = Some(cursor);
+            Ok(())
+        }),
+    );
+
     cr.register("suggestions-select", |opt, ctx| {
         if ctx.state.suggestions.items.is_empty() {
             return Ok(());

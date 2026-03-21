@@ -17,8 +17,8 @@ pub use response::Response;
 mod transport;
 use transport::SubprocessTransport;
 
-use serde_json::Value;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     notification::convert_notification_to_json,
@@ -185,6 +185,28 @@ impl LspClient {
 
             use serde_json::Value;
 
+            let get_completion_result = |result: &mut Value| -> Option<Vec<String>> {
+                let items = result.pointer_mut("/items")?.take();
+                let Value::Array(items_arr) = items else {
+                    return None;
+                };
+                let labels = items_arr
+                    .into_iter()
+                    .filter_map(|mut item| {
+                        let mut pointer = item.pointer_mut("/textEdit/newText");
+                        if pointer.is_none() {
+                            pointer = item.pointer_mut("/label");
+                        }
+                        let value = pointer?.take();
+                        if let Value::String(label) = value {
+                            Some(label)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Some(labels)
+            };
             let get_hover_result = |result: &mut Value| -> Option<String> {
                 if let Value::String(text) = result.pointer_mut("/contents/value")?.take() {
                     Some(text)
@@ -198,8 +220,14 @@ impl LspClient {
                 continue;
             };
             match request_type {
-                RequestType::Initialize => unimplemented!(),
-                RequestType::SuggestCompletion => unimplemented!(),
+                RequestType::Initialize => unimplemented!("not supposed to happen"),
+                RequestType::SuggestCompletion => {
+                    if let Some(items) = get_completion_result(&mut resp_result) {
+                        responses.push(Response::CompletionSuggestions { items });
+                    } else {
+                        unimplemented!("{resp_result:?}");
+                    }
+                }
                 RequestType::Hover => {
                     if let Some(text) = get_hover_result(&mut resp_result) {
                         responses.push(Response::HoverInfo { text });

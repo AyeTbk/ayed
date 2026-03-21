@@ -1,0 +1,147 @@
+use crate::{
+    position::Position,
+    ui::{
+        Rect, Size, Style,
+        ui_state::{StyledRegion, UiPanel},
+    },
+};
+
+use super::RenderPanelContext;
+
+#[derive(Default)]
+pub struct Completions {
+    rect: Rect,
+}
+
+impl Completions {
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    pub fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
+    pub fn render(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+        if ctx.state.completions.items.is_empty() {
+            return None;
+        }
+
+        let placement = ctx.state.config.get_entry_value("completions", "placement");
+        let placement = placement.ok()?;
+        match placement {
+            "cursor" => self.render_at_cursor(ctx),
+            "modeline" => self.render_at_modeline(ctx),
+            _ => self.render_at_cursor(ctx),
+        }
+    }
+
+    fn render_at_cursor(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+        let width = ctx.state.completions.items.iter().map(String::len).max();
+        let width = i32::max(10, width.unwrap_or(0) as _);
+        let width = width + 2; // There is one cell padding on either side of the text.
+        let height = ctx.state.completions.items.len() as i32;
+        let size = Size::new(width, height);
+
+        // let position_in_buffer = selections.primary().cursor();
+        let position_in_buffer = ctx.state.completions.original_symbol_start;
+        let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
+        let target_position =
+            position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
+        let mut position = target_position;
+
+        // Place on the line below the cursor
+        position = position.offset((-1, 1));
+
+        // Don't let the panel go past the end of the viewport, rightward
+        if position.column + width >= ctx.state.viewport_size.column as i32 {
+            let corrected_column = ctx.state.viewport_size.column as i32 - width;
+            position = position.with_column(corrected_column);
+        }
+
+        // Don't let the panel go past the end of the viewport, leftward
+        if position.column < 0 {
+            position = position.with_column(0);
+        }
+
+        // Don't let the panel go past the end of the viewport, downward
+        if position.row + height >= ctx.state.viewport_size.row as i32 {
+            let corrected_row = target_position.row - height;
+            position = position.with_row(corrected_row);
+        }
+
+        let mut content = Vec::new();
+        let mut spans = Vec::new();
+        for (i, item) in ctx.state.completions.items.iter().enumerate() {
+            let mut s = String::from(" ");
+            let pad_len = (width as usize).saturating_sub(item.len());
+            let pad = " ".repeat(pad_len);
+            s.push_str(item);
+            s.push_str(&pad);
+            content.push(s);
+
+            let color = if ctx.state.completions.selected_item == (i as i32 + 1) {
+                ctx.state.config.get_theme_color("accent-bright")
+            } else {
+                ctx.state.config.get_theme_color("accent-mild")
+            };
+            spans.push(StyledRegion {
+                from: Position::new(0, i as i32),
+                to: Position::new(width as i32, i as i32),
+                style: Style {
+                    foreground_color: None,
+                    background_color: color,
+                    ..Default::default()
+                },
+                priority: 0,
+            });
+        }
+
+        Some(UiPanel {
+            position,
+            size,
+            content,
+            spans,
+        })
+    }
+
+    fn render_at_modeline(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+        let width = ctx.state.modeline_rect.width;
+        let height = ctx.state.completions.items.len() as i32;
+        let size = Size::new(width, height);
+
+        let position = ctx.state.modeline_rect.top_left().offset((0, -height));
+
+        let mut content = Vec::new();
+        let mut spans = Vec::new();
+        for (i, item) in ctx.state.completions.items.iter().enumerate() {
+            let mut s = item.clone();
+            let pad = " ".repeat(width as usize - s.len());
+            s.push_str(&pad);
+            content.push(s);
+
+            let color = if ctx.state.completions.selected_item == (i as i32 + 1) {
+                ctx.state.config.get_theme_color("accent-bright")
+            } else {
+                ctx.state.config.get_theme_color("accent-mild")
+            };
+            spans.push(StyledRegion {
+                from: Position::new(0, i as i32),
+                to: Position::new(width as i32, i as i32),
+                style: Style {
+                    foreground_color: None,
+                    background_color: color,
+                    ..Default::default()
+                },
+                priority: 0,
+            });
+        }
+
+        Some(UiPanel {
+            position,
+            size,
+            content,
+            spans,
+        })
+    }
+}

@@ -155,6 +155,10 @@ impl TextBuffer {
         self.path = path.into();
     }
 
+    pub fn path_str(&self) -> &str {
+        self.path().and_then(|p| p.to_str()).unwrap_or("")
+    }
+
     // I'd document this properly if I knew I to put words together to describe it
     // but basically this is to handle how to display tabs.
     // All code that wants to display a line should use this.
@@ -460,7 +464,8 @@ impl TextBuffer {
 
     pub fn delete_at(&mut self, at: Position) -> Result<(), String> {
         let line = self
-            .lines.get_mut(at.row as usize)
+            .lines
+            .get_mut(at.row as usize)
             .ok_or_else(|| String::from("bad row"))?;
         let (idx, ch) = line
             .char_indices()

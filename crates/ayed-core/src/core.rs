@@ -159,6 +159,10 @@ impl Core {
             panels.push(panel);
         }
 
+        if let Some(panel) = self.panels.completions.render(&render_ctx) {
+            panels.push(panel);
+        }
+
         let mode = self.state.config.state_value("mode");
         let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
         if show_combo {

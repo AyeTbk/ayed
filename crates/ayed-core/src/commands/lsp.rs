@@ -17,6 +17,10 @@ use crate::command::{CommandRegistry, helpers::focused_buffer_command};
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
     cr.register("lsp-start", |_opt, ctx| {
+        if ctx.state.lsp_client.is_some() {
+            return Err("client already running".into());
+        }
+
         let mut client = LspClient::new();
         client.initialize();
 
@@ -59,8 +63,8 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                 Response::HoverInfo { text } => {
                     ctx.state.hover_info = Some(text);
                 }
-                _ => {
-                    dbg!(response);
+                Response::CompletionSuggestions { items } => {
+                    ctx.state.completions.items = items;
                 }
             }
         }
@@ -158,6 +162,28 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             let cursor = ctx.selections.primary().cursor;
 
             client.queue_request(Request::Hover {
+                text_document: TextDocumentIdentifier::new(path),
+                position: cursor.into(),
+            });
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "lsp-completions",
+        focused_buffer_command(|_opt, ctx| {
+            let Some(client) = &mut ctx.state.lsp_client else {
+                return Err("lsp client not started".into());
+            };
+
+            let Some(path) = ctx.buffer.path() else {
+                return Err("save the file before you can ask for completions".into());
+            };
+
+            let cursor = ctx.selections.primary().cursor;
+
+            client.queue_request(Request::SuggestCompletion {
                 text_document: TextDocumentIdentifier::new(path),
                 position: cursor.into(),
             });

@@ -37,11 +37,15 @@ pub use resources::Resources;
 mod suggestions;
 pub use suggestions::Suggestions;
 
+mod completions;
+pub use completions::Completions;
+
 #[derive(Default)]
 pub struct State {
     pub active_editor_view: Option<Handle<View>>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
+    pub completions: Completions,
     pub suggestions: Suggestions,
     pub register: Register,
     pub config: Config,

@@ -1,5 +1,6 @@
 theme {
     accent              #393d49
+    accent-mild         #2f323c
     accent-dark         #22242a
     accent-bright       #393d49
 
