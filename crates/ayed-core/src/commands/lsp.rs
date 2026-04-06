@@ -25,7 +25,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             return Err("client already running".into());
         }
 
-        let mut client = LspClient::new();
+        let mut client = LspClient::new(ctx.state.is_async_task_ready.clone());
         client.initialize();
 
         ctx.state.lsp_client = Some(client);

@@ -1,6 +1,6 @@
 use std::{
     io::{self, Stdout, Write, stdout},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ayed_core::{
@@ -49,7 +49,8 @@ impl Tui {
         const DELTA_TIME: f32 = (POLL_TIMEOUT_MS as f32) / 1000.0;
 
         while !self.core.quit_requested() {
-            if crossterm::event::poll(Duration::from_millis(POLL_TIMEOUT_MS)).unwrap() {
+            let event_kind = self.poll_event(Duration::from_millis(POLL_TIMEOUT_MS));
+            if matches!(event_kind, Some(EventKind::User)) {
                 let event = crossterm::event::read().unwrap();
 
                 match event {
@@ -79,6 +80,21 @@ impl Tui {
         }
 
         self.to_main_screen();
+    }
+
+    fn poll_event(&self, timeout: Duration) -> Option<EventKind> {
+        let start = Instant::now();
+        loop {
+            if self.core.take_is_async_task_ready() {
+                return Some(EventKind::Async);
+            }
+            if crossterm::event::poll(Duration::from_millis(10)).unwrap() {
+                return Some(EventKind::User);
+            }
+            if start.elapsed() > timeout {
+                return None;
+            }
+        }
     }
 
     fn set_error_message(&mut self, mut msg: String) {
@@ -280,4 +296,10 @@ fn unset_crossterm_styling() -> io::Result<()> {
         crossterm::cursor::Show,
     )?;
     stdout.flush()
+}
+
+#[derive(Debug, PartialEq)]
+enum EventKind {
+    User,
+    Async,
 }

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 mod event;
 pub use event::Event;
@@ -38,8 +42,8 @@ pub struct LspClient {
 }
 
 impl LspClient {
-    pub fn new() -> Self {
-        let transport = SubprocessTransport::new("rust-analyzer");
+    pub fn new(notify_async_done: Arc<AtomicBool>) -> Self {
+        let transport = SubprocessTransport::new("rust-analyzer", notify_async_done);
         Self {
             transport,
             state: State::Offline,

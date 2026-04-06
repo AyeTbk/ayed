@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use crate::{
@@ -42,6 +43,7 @@ pub use completions::{CompletionEdit, CompletionItem, CompletionSources, Complet
 
 #[derive(Default)]
 pub struct State {
+    pub is_async_task_ready: Arc<AtomicBool>,
     pub active_editor_view: Option<Handle<View>>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,

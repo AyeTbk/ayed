@@ -20,7 +20,7 @@ pub struct SubprocessTransport {
 }
 
 impl SubprocessTransport {
-    pub fn new(command: &str) -> Self {
+    pub fn new(command: &str, notify_async_done: Arc<AtomicBool>) -> Self {
         let mut child = Command::new(command)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -70,6 +70,7 @@ impl SubprocessTransport {
                     let mut content = vec![0u8; len as usize];
                     stdout.read_exact(&mut content[..]).unwrap();
                     send_server_msg.send(content).unwrap();
+                    notify_async_done.swap(true, Ordering::Relaxed);
                 }
             }
         });

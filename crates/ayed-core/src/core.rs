@@ -51,6 +51,12 @@ impl Core {
         self.state.quit_requested
     }
 
+    pub fn take_is_async_task_ready(&self) -> bool {
+        self.state
+            .is_async_task_ready
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+    }
+
     pub fn viewport_size(&self) -> Size {
         self.state.viewport_size
     }
