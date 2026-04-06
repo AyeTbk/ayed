@@ -9,6 +9,7 @@ use crate::{
     position::{Column, Offset, Position, Row},
     selection::{Selection, Selections},
     slotmap::Handle,
+    state::CompletionEdit,
     utils::string_utils::{
         byte_index_to_char_index, char_count, char_index_to_byte_index,
         char_index_to_byte_index_end,
@@ -155,6 +156,10 @@ impl TextBuffer {
         self.path = path.into();
     }
 
+    pub fn path_str(&self) -> &str {
+        self.path().and_then(|p| p.to_str()).unwrap_or("")
+    }
+
     // I'd document this properly if I knew I to put words together to describe it
     // but basically this is to handle how to display tabs.
     // All code that wants to display a line should use this.
@@ -259,12 +264,13 @@ impl TextBuffer {
         self.lines.get(row as usize).map(String::as_str)
     }
 
-    pub fn set_line(&mut self, row_index: Row, new_content: String) -> Result<(), ()> {
+    pub fn set_line(&mut self, row_index: Row, new_content: String) -> Result<String, ()> {
         // FIXME check that the line upholds the invariants
         if let Some(line) = self.lines.get_mut(row_index as usize) {
+            let old_content = std::mem::take(line);
             *line = new_content;
             self.mark_dirty();
-            Ok(())
+            Ok(old_content)
         } else {
             Err(())
         }
@@ -282,11 +288,13 @@ impl TextBuffer {
         self.lines.len().try_into().unwrap()
     }
 
-    pub fn line_char_count(&self, row: Row) -> Option<Row> {
+    pub fn line_char_count(&self, row: Row) -> Option<Column> {
         self.line(row)
             .map(|line| char_count(line).try_into().unwrap())
     }
 
+    // TODO implement a selection_char_iter() and then reimplement
+    //          this and selection_char_count with it.
     pub fn selection_text(&self, selection: &Selection) -> Option<String> {
         let mut text = String::new();
 
@@ -349,6 +357,20 @@ impl TextBuffer {
         Position::new(column, row)
     }
 
+    pub fn limit_range_to_content(&self, range: (Position, Position)) -> (Position, Position) {
+        fn limit_range_edge_to_content(this: &TextBuffer, position: Position) -> Position {
+            let row = position.row.clamp(0, this.last_row());
+            let column = position
+                .column
+                .clamp(0, this.line_char_count(row).unwrap_or(0) + 1);
+            Position::new(column, row)
+        }
+
+        let start = limit_range_edge_to_content(self, range.0);
+        let end = limit_range_edge_to_content(self, range.1);
+        (start, end)
+    }
+
     pub fn move_position_horizontally(
         &self,
         position: Position,
@@ -403,113 +425,196 @@ impl TextBuffer {
         Some(correct_logpos)
     }
 
-    pub fn insert_str_at(&mut self, at: Position, s: &str) -> Result<Selection, String> {
-        // TODO PERF maybe make this not one by one, if you ever feel like it.
-        let mut cursor = at;
-        let mut prior_cursor = at;
-        for ch in s.chars() {
-            prior_cursor = cursor;
-            self.insert_char_at(cursor, ch)?;
-            if ch == '\n' {
-                cursor = Self::adjust_position_after_split_line(cursor, cursor);
-            } else {
-                cursor = Self::adjust_position_after_insert_char(cursor, cursor);
+    /// Applies the edit and returns the inverse edit that would undo the edit.
+    pub fn apply_edit(&mut self, edit: &CompletionEdit) -> Result<CompletionEdit, String> {
+        let original_text = self.range_text(edit.range)?;
+        let mut inverse_edit = CompletionEdit {
+            range: (edit.range.0, edit.range.0),
+            text: original_text,
+        };
+
+        let should_delete = edit.range.0 != edit.range.1;
+        if should_delete {
+            self.delete_range(edit.range)?;
+        }
+
+        let should_insert = !edit.text.is_empty();
+        if should_insert {
+            let selection = self.insert_str_at2(edit.range.0, &edit.text)?;
+            inverse_edit.range = selection.to_range();
+        }
+
+        Ok(inverse_edit)
+    }
+
+    /// Returns a selection over the inserted text.
+    pub fn insert_str_at2(&mut self, at: Position, s: &str) -> Result<Selection, String> {
+        let at = self.limit_position_to_content(at);
+
+        let row_idx = at.row as usize;
+        let dst_line = std::mem::take(&mut self.lines[row_idx]);
+        let dst_line_split_idx = char_index_to_byte_index(&dst_line, at.column as _).unwrap();
+        let dst_line_half1 = &dst_line[..dst_line_split_idx];
+        let dst_line_half2 = &dst_line[dst_line_split_idx..];
+
+        let lines_count = s.split('\n').count();
+        let lines = s.split('\n');
+
+        self.lines
+            .splice(row_idx..=row_idx, lines.map(str::to_string));
+
+        let splice_first_line_idx = row_idx;
+        let splice_last_line_idx = row_idx + (lines_count - 1);
+
+        self.lines[splice_first_line_idx].insert_str(0, dst_line_half1);
+        let range_end_column = char_count(&self.lines[splice_last_line_idx]);
+        self.lines[splice_last_line_idx].push_str(dst_line_half2);
+
+        self.mark_dirty();
+
+        let range_row_diff = (lines_count as i32) - 1;
+        let range_end = Position::new(range_end_column as i32, at.row + range_row_diff);
+        let mut range = (at, range_end);
+        self.adjust_selections_after_insert_str(range);
+
+        // A range that ends at column position 0 is the same as one that
+        // ends past the line separator of the previous line, but that
+        // second case is the correct way to form a selection from the range.
+        if range.1.column == 0 {
+            let prev_row = range.1.row - 1;
+            let prev_line_last_column = self.line_char_count(prev_row).unwrap();
+            range.1 = Position::new(prev_line_last_column + 1, prev_row);
+        }
+
+        Ok(Selection::from_range(range))
+    }
+
+    fn adjust_selections_after_insert_str(&mut self, insert_range: (Position, Position)) {
+        for selections in self.selections() {
+            for selection in selections.iter_mut() {
+                let cursor = Self::adjust_position_after_insert_str(selection.cursor, insert_range);
+                let anchor = Self::adjust_position_after_insert_str(selection.anchor, insert_range);
+                *selection = selection.with_anchor(anchor).with_cursor(cursor);
             }
         }
-        Ok(Selection::new().with_anchor(at).with_cursor(prior_cursor))
+    }
+
+    fn adjust_position_after_insert_str(
+        pos: Position,
+        insert_range: (Position, Position),
+    ) -> Position {
+        if pos < insert_range.0 {
+            return pos;
+        }
+        let row_diff = insert_range.1.row - insert_range.0.row;
+        let row = pos.row + row_diff;
+        let column;
+        if pos.row == insert_range.0.row {
+            let column_diff = pos.column - insert_range.0.column;
+            column = insert_range.1.column + column_diff;
+        } else {
+            column = pos.column;
+        }
+        Position { column, row }
+    }
+
+    fn delete_range(&mut self, range: (Position, Position)) -> Result<(), String> {
+        // FIXME Check validity of range. Should create a Range type.
+        let mut range = self.limit_range_to_content(range);
+
+        // Fixup the range to properly handle a line terminator at the end of it
+        if self.line_char_count(range.1.row).unwrap() < range.1.column {
+            range.1 = Position::new(0, range.1.row + 1);
+        }
+
+        let mut line_left = String::new();
+        {
+            let row_range = range.0.row as usize..=range.1.row as usize;
+            let mut range_lines = self.lines.splice(row_range, [String::new()]);
+            let first_range_line = range_lines.next().unwrap();
+            let last_range_line_owned = range_lines.next_back();
+            let last_range_line = last_range_line_owned.as_ref().unwrap_or(&first_range_line);
+
+            line_left.push_str(&first_range_line[..range.0.column as usize]);
+            line_left.push_str(&last_range_line[range.1.column as usize..]);
+        }
+
+        std::mem::swap(&mut line_left, &mut self.lines[range.0.row as usize]);
+
+        self.mark_dirty();
+
+        self.adjust_selections_after_delete_range(range);
+
+        Ok(())
+    }
+
+    fn adjust_selections_after_delete_range(&mut self, delete_range: (Position, Position)) {
+        for selections in self.selections() {
+            for selection in selections.iter_mut() {
+                let cursor =
+                    Self::adjust_position_after_delete_range(selection.cursor, delete_range);
+                let anchor =
+                    Self::adjust_position_after_delete_range(selection.anchor, delete_range);
+                *selection = selection.with_anchor(anchor).with_cursor(cursor);
+            }
+        }
+    }
+
+    fn adjust_position_after_delete_range(
+        pos: Position,
+        delete_range: (Position, Position),
+    ) -> Position {
+        if pos < delete_range.0 {
+            return pos;
+        }
+        let is_within_range = delete_range.0 <= pos && pos < delete_range.1; // FIXME Range type method
+        if is_within_range {
+            return delete_range.0;
+        }
+        let row_diff = delete_range.1.row - delete_range.0.row;
+        let row = pos.row - row_diff;
+        let column;
+        if pos.row == delete_range.1.row {
+            let column_diff = pos.column - delete_range.1.column;
+            column = delete_range.0.column + column_diff;
+        } else {
+            column = pos.column;
+        }
+        Position { column, row }
+    }
+
+    pub fn range_text(&mut self, range: (Position, Position)) -> Result<String, String> {
+        if range.0 > range.1 {
+            return Err("bad range".into());
+        }
+        if range.0 == range.1 {
+            return Ok(String::new());
+        }
+        let sel = Selection::new().with_start_and_end(range.0, range.1.offset((-1, 0)));
+        if let Some(s) = self.selection_text(&sel) {
+            Ok(s)
+        } else {
+            Ok(String::new())
+        }
+    }
+
+    pub fn insert_str_at(&mut self, at: Position, s: &str) -> Result<Selection, String> {
+        // FIXME clean this shit up
+        self.insert_str_at2(at, s)
     }
 
     pub fn insert_char_at(&mut self, at: Position, ch: char) -> Result<(), String> {
-        if ch == '\n' {
-            self.split_line(at)?;
-        } else {
-            let line = self
-                .lines
-                .get_mut(at.row as usize)
-                .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
-            let at_idx = char_index_to_byte_index(&line, at.column.try_into().unwrap())
-                .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
-
-            line.insert(at_idx, ch);
-
-            self.adjust_selections_after_insert_char(at);
-        }
-
-        self.mark_dirty();
-
-        Ok(())
-    }
-
-    pub fn split_line(&mut self, at: Position) -> Result<(), String> {
-        let line = self
-            .lines
-            .get_mut(at.row as usize)
-            .ok_or_else(|| format!("position out of bounds (bad row): {at:?}"))?;
-        let at_idx = char_index_to_byte_index(&line, at.column.try_into().unwrap())
-            .ok_or_else(|| format!("position out of bounds (bad column): {at:?}"))?;
-
-        let rest = line.split_off(at_idx);
-        self.lines.insert(at.row.saturating_add(1) as _, rest);
-
-        self.adjust_selections_after_split_line(at);
-
-        self.mark_dirty();
-
-        Ok(())
+        let mut buf = [0u8; 4];
+        let s = ch.encode_utf8(&mut buf);
+        self.insert_str_at2(at, s).map(|_| ())
     }
 
     pub fn delete_at(&mut self, at: Position) -> Result<(), String> {
-        let line = self
-            .lines.get_mut(at.row as usize)
-            .ok_or_else(|| String::from("bad row"))?;
-        let (idx, ch) = line
-            .char_indices()
-            .chain(Some((line.len(), '\n')))
-            .nth(at.column as usize)
-            .ok_or_else(|| String::from("bad column"))?;
-        if ch == '\n' {
-            let _ = self.join_line_with_next(at.row);
-        } else {
-            line.remove(idx);
-            self.adjust_selections_after_delete_at(at);
-        }
-
-        // self.mark_dirty(); // Done in the above .line_mut(...)
-
-        Ok(())
+        self.delete_range((at, at.offset((1, 0))))
     }
 
     pub fn delete_selection(&mut self, selection: &Selection) -> Result<(), String> {
-        // TODO PERF maybe make this not one by one, if you ever feel like it.
-        for _ in 0..self.selection_char_count(selection) {
-            self.delete_at(selection.start())?;
-        }
-
-        self.mark_dirty();
-
-        Ok(())
-    }
-
-    pub fn join_line_with_next(&mut self, row: Row) -> Result<(), String> {
-        if row > self.last_row() {
-            return Err(String::from("bad row"));
-        }
-
-        let next_row = row.checked_add(1).unwrap();
-        if next_row > self.last_row() {
-            return Err(String::from("no next line to join"));
-        }
-
-        let next_line = self.lines.remove(next_row as usize);
-        let line = self.lines.get_mut(row as usize).expect("verified above");
-        let original_line_char_count = char_count(line);
-        line.push_str(&next_line);
-
-        self.adjust_selections_after_join_line_with_next(row, original_line_char_count);
-
-        // self.mark_dirty(); // Done in the above .line_mut(...)
-
-        Ok(())
+        self.delete_range(selection.to_range())
     }
 
     pub fn end_position(&self) -> Position {
@@ -520,114 +625,8 @@ impl TextBuffer {
         Position::new(column, row)
     }
 
-    fn adjust_selections_after_insert_char(&mut self, inserted_at: Position) {
-        for selections in self.selections() {
-            for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_insert_char(selection.cursor, inserted_at);
-                let anchor = Self::adjust_position_after_insert_char(selection.anchor, inserted_at);
-                *selection = selection.with_anchor(anchor).with_cursor(cursor);
-            }
-        }
-    }
-
-    fn adjust_selections_after_split_line(&mut self, split_at: Position) {
-        for selections in self.selections() {
-            for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_split_line(selection.cursor, split_at);
-                let anchor = Self::adjust_position_after_split_line(selection.anchor, split_at);
-                *selection = selection.with_anchor(anchor).with_cursor(cursor);
-            }
-        }
-    }
-
-    fn adjust_selections_after_delete_at(&mut self, deleted_at: Position) {
-        for selections in self.selections() {
-            for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_delete_at(selection.cursor, deleted_at);
-                let anchor = Self::adjust_position_after_delete_at(selection.anchor, deleted_at);
-                *selection = selection.with_anchor(anchor).with_cursor(cursor);
-            }
-        }
-    }
-
-    fn adjust_selections_after_join_line_with_next(
-        &mut self,
-        row: Row,
-        original_line_char_count: usize,
-    ) {
-        for selections in self.selections() {
-            for selection in selections.iter_mut() {
-                let cursor = Self::adjust_position_after_join_line_with_next(
-                    selection.cursor,
-                    row,
-                    original_line_char_count,
-                );
-                let anchor = Self::adjust_position_after_join_line_with_next(
-                    selection.anchor,
-                    row,
-                    original_line_char_count,
-                );
-                *selection = selection.with_anchor(anchor).with_cursor(cursor);
-            }
-        }
-    }
-
     fn selections(&mut self) -> impl Iterator<Item = &mut Selections> {
         self.selections.values_mut()
-    }
-
-    fn adjust_position_after_insert_char(pos: Position, inserted_at: Position) -> Position {
-        if pos < inserted_at {
-            return pos;
-        }
-
-        if pos.row == inserted_at.row {
-            return pos.offset((1, 0));
-        }
-
-        pos
-    }
-
-    fn adjust_position_after_split_line(pos: Position, split_at: Position) -> Position {
-        if pos < split_at {
-            return pos;
-        }
-
-        let row = pos.row.saturating_add(1);
-        let column = if pos.row == split_at.row {
-            pos.column.saturating_sub(split_at.column)
-        } else {
-            pos.column
-        };
-
-        Position::new(column, row)
-    }
-
-    fn adjust_position_after_delete_at(pos: Position, deleted_at: Position) -> Position {
-        if pos <= deleted_at {
-            return pos;
-        }
-
-        if pos.row == deleted_at.row {
-            return pos.offset((-1, 0));
-        }
-
-        pos
-    }
-
-    fn adjust_position_after_join_line_with_next(
-        pos: Position,
-        row: Row,
-        original_line_char_count: usize,
-    ) -> Position {
-        if pos.row <= row {
-            pos
-        } else if pos.row == row + 1 {
-            let char_count: Column = original_line_char_count.try_into().unwrap();
-            Position::new(pos.column + char_count, row)
-        } else {
-            pos.offset((0, -1))
-        }
     }
 }
 

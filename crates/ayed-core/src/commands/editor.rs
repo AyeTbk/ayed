@@ -71,6 +71,18 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             .to_str_or_err()?
             .to_string();
 
+        ctx.queue.emit("buffer-closed", &path);
+
+        ctx.queue.push(format!("buffer-close__part2 {path}"));
+
+        Ok(())
+    });
+
+    cr.register("buffer-close__part2", |opt, ctx| {
+        let Some(buffer_handle) = ctx.resources.buffer_with_path(Path::new(opt)) else {
+            return Err(format!("big oof, no such buffer: {opt}"));
+        };
+
         // Cleanup buffer resource
         ctx.resources.buffers.remove(buffer_handle);
         // TODO clean other buffer related stuff like highlights and
@@ -88,8 +100,6 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }
 
         ctx.state.active_editor_view = ctx.resources.views.keys().next();
-
-        ctx.queue.emit("buffer-closed", &path);
 
         if ctx.state.active_editor_view.is_none() {
             ctx.queue.push("edit --scratch");
@@ -303,6 +313,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             for selection in ctx.selections.iter_mut() {
                 let original_cursor = selection.cursor;
                 let mut cursor = selection.cursor;
+                let mut should_magnetize_to_infinity_and_beyond = false;
 
                 match edge {
                     Edge::LineStart => cursor = cursor.with_column(0),
@@ -327,6 +338,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     Edge::LinePastEnd => {
                         let maybe_column = ctx.buffer.line_char_count(cursor.row);
                         let new_column = maybe_column.expect("cursor should be valid");
+                        should_magnetize_to_infinity_and_beyond = true;
                         cursor = cursor.with_column(new_column);
                     }
                     Edge::BufferStart => {
@@ -342,6 +354,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     sel = sel.with_anchor(original_cursor);
                 } else if !anchored {
                     sel = sel.with_anchor(cursor);
+                }
+                if should_magnetize_to_infinity_and_beyond {
+                    sel = sel.magnetized_to_infinity_and_beyond();
                 }
                 *selection = sel;
             }
@@ -538,7 +553,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 ctx.buffer.insert_char_at(sel.cursor, the_char)?;
             }
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -564,7 +579,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 ctx.buffer.insert_str_at(sel.cursor, &the_str)?;
             }
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -589,7 +604,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 ctx.buffer.delete_selection(&sel)?;
             }
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -636,7 +651,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 }
             }
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -709,7 +724,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     .insert_str_at(Position::new(0, row), &new_indentation)?;
             }
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())

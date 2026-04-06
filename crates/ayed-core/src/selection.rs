@@ -222,6 +222,14 @@ impl Selection {
         }
     }
 
+    pub fn to_range(&self) -> (Position, Position) {
+        (self.start(), self.end().offset((1, 0)))
+    }
+
+    pub fn from_range(range: (Position, Position)) -> Self {
+        Self::new().with_start_and_end(range.0, range.1.offset((-1, 0)))
+    }
+
     pub fn shrunk_to_cursor(&self) -> Self {
         let mut this = *self;
         this.anchor = this.cursor;
@@ -249,6 +257,12 @@ impl Selection {
         } else {
             *self
         }
+    }
+
+    pub fn magnetized_to_infinity_and_beyond(&self) -> Self {
+        let mut this = *self;
+        this.old_logical_cursor_column = Some(Column::MAX);
+        this
     }
 
     pub fn start(&self) -> Position {

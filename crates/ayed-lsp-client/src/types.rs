@@ -1,6 +1,22 @@
 use std::path::Path;
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionItem {
+    pub label: String,
+    pub sort_text: Option<String>,
+    pub text_edit: TextEdit,
+    pub additional_text_edits: Option<Vec<TextEdit>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextEdit {
+    pub range: Range,
+    pub new_text: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TextDocumentIdentifier {
@@ -53,7 +69,13 @@ impl LanguageId {
     pub const RUST: &str = "rs";
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Range {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     pub line: u32,
     pub character: u32,

@@ -5,12 +5,11 @@ use regex::Regex;
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     position::{Column, Position},
-    selection::Selection,
-    state::{TextBuffer, TextBufferHistory},
+    state::{CompletionEdit, TextBuffer, TextBufferHistory},
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
-static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+|[^\s\w]+").unwrap());
+static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap());
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
     cr.register("stderr", |opt, _ctx| {
@@ -151,8 +150,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("suggestions-select", |opt, ctx| {
-        if ctx.state.suggestions.items.is_empty() {
+    cr.register("completions-select", |opt, ctx| {
+        if ctx.state.completions.items.is_empty() {
             return Ok(());
         }
 
@@ -160,13 +159,13 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let next = opts.contains("next");
         let previous = opts.contains("previous");
 
-        let cycling_from_original = ctx.state.suggestions.selected_item == 0;
-        ctx.state.suggestions.selected_item += next as i32 - (previous as i32);
-        let modulo = ctx.state.suggestions.items.len() as i32 + 1;
-        ctx.state.suggestions.selected_item =
-            ctx.state.suggestions.selected_item.rem_euclid(modulo);
-        let selected_item_idx = i32::max(ctx.state.suggestions.selected_item - 1, 0) as usize;
-        let cycling_to_original = ctx.state.suggestions.selected_item == 0;
+        let cycling_from_original = ctx.state.completions.selected_item == 0;
+        ctx.state.completions.selected_item += next as i32 - (previous as i32);
+        let modulo = ctx.state.completions.items.len() as i32 + 1;
+        ctx.state.completions.selected_item =
+            ctx.state.completions.selected_item.rem_euclid(modulo);
+        let selected_item_idx = i32::max(ctx.state.completions.selected_item - 1, 0) as usize;
+        let cycling_to_original = ctx.state.completions.selected_item == 0;
 
         let Some(view_handle) = ctx.state.focused_view() else {
             return Ok(());
@@ -175,155 +174,151 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
         let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
-        // Select the symbols under cursor in order to delete and replace it later.
+        let inverse_edits = ctx.state.completions.last_completion_inverse_edits.take();
+        let inverse_edits = inverse_edits.unwrap_or_default();
+        let mut new_inverse_edits = Vec::new();
+
         for sel_idx in 0..sel_count {
-            let selections = buffer.view_selections(view_handle).unwrap();
-            let sel = selections.get(sel_idx).unwrap();
-            let new_sel = selection_from_symbol_prefix_under_cursor(buffer, sel.cursor);
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
-            let sel = selections.get_mut(sel_idx).unwrap();
-            *sel = new_sel;
-
-            if cycling_from_original {
-                // Gather original symbols
-                ctx.state.suggestions.original_symbols.clear();
-
-                let selections = buffer.view_selections(view_handle).unwrap();
-                let sel = selections.get(sel_idx).unwrap();
-                let original_sel = sel.with_end(sel.end().offset((-1, 0)));
-                let original = buffer.selection_text(&original_sel);
-                ctx.state
-                    .suggestions
-                    .original_symbols
-                    .push(original.unwrap());
+            if !cycling_from_original {
+                let reverse_edit = inverse_edits.get(sel_idx).unwrap();
+                buffer.apply_edit(reverse_edit)?;
+                // TODO extra edits too
             }
-        }
 
-        // Delete symbols under cursors and replace with appropriate suggestion
-        for sel_idx in 0..sel_count {
             let selections = buffer.view_selections(view_handle).unwrap();
             let sel = selections.get(sel_idx).unwrap();
 
-            let delete_sel = sel.with_end(sel.end().offset((-1, 0)));
-            buffer.delete_selection(&delete_sel)?;
-
-            let text_to_insert;
-            if cycling_to_original {
-                text_to_insert = ctx.state.suggestions.original_symbols[sel_idx].as_str();
-            } else {
-                text_to_insert = ctx.state.suggestions.items[selected_item_idx].as_str();
+            if !cycling_to_original {
+                let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
+                let item = &ctx.state.completions.items[selected_item_idx];
+                // TODO extra edits
+                let edit = CompletionEdit {
+                    range: prefix_symbol_range,
+                    text: item.edit.text.to_string(),
+                };
+                let inverse_edit = buffer.apply_edit(&edit)?;
+                new_inverse_edits.push(inverse_edit);
             }
-            let mut new_sel = buffer.insert_str_at(sel.start(), text_to_insert)?;
-            new_sel = new_sel.with_end(new_sel.end().offset((1, 0)));
-
-            ctx.state.suggestions.prompt_suggestion_cursor_position = Some(new_sel.end());
-
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
-            *selections.get_mut(sel_idx).unwrap() = new_sel.shrunk_to_cursor();
         }
 
-        ctx.queue.emit("buffer-modified", "");
+        ctx.state.completions.last_completion_inverse_edits = Some(new_inverse_edits);
+
+        let selections = buffer.view_selections(view_handle).unwrap();
+        let sel = selections.primary();
+        let cursor = sel.cursor;
+        ctx.state.completions.prompt_suggestion_cursor_position = Some(cursor);
+
+        ctx.queue.emit("buffer-modified", buffer.path_str());
         ctx.queue.emit("selections-modified", "");
 
         Ok(())
     });
 
-    cr.register("suggestions-clear", |_opt, ctx| {
-        // TODO In order for this to work properly, it would need to keep track of what
-        // this position is over the modifications that happen in the buffer (in
-        // particular, this makes the suggbox misbehave with multicursors before the
-        // primary cursor).
-        // TODO fix the above using a buffer mark when that's a thing.
-        ctx.state.suggestions.prompt_suggestion_cursor_position = None;
-
-        ctx.state.suggestions.items.clear();
-        ctx.state.suggestions.selected_item = 0;
-
-        Ok(())
-    });
+    // TODO Delete this when you are confident the completions stuff works well
+    // //  vvv DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG vvv
+    // cr.register(
+    //     "completions-dbgload",
+    //     focused_buffer_command(|_opt, ctx| {
+    //         impl From<&str> for CompletionEdit {
+    //             fn from(value: &str) -> Self {
+    //                 Self {
+    //                     range: (Position::ZERO, Position::ZERO),
+    //                     text: value.to_string(),
+    //                 }
+    //             }
+    //         }
+    //         impl From<&str> for CompletionItem {
+    //             fn from(value: &str) -> Self {
+    //                 Self {
+    //                     label: value.to_string(),
+    //                     edit: value.into(),
+    //                     extra_edits: vec![],
+    //                 }
+    //             }
+    //         }
+    //         ctx.state.completions.source_items.insert(
+    //             CompletionSources::Dbg,
+    //             vec!["foo".into(), "bar".into(), "spam".into(), "egg".into()],
+    //         );
+    //         ctx.queue.emit("completion-sources-modified", "");
+    //         Ok(())
+    //     }),
+    // );
+    // //  ^^^ DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG ^^^
 
     cr.register(
-        "suggestions-gather",
+        "completions-reset",
         focused_buffer_command(|_opt, ctx| {
-            let source = ctx.state.config.get_entry_value("suggestions", "source")?;
-            if source != "active-buffer" {
-                return Err("only 'active-buffer' is supported as suggestion source".to_string());
-            }
-
             let cursor = ctx.selections.primary().cursor;
+            let should_reset =
+                ctx.state.completions.prompt_suggestion_cursor_position != Some(cursor);
 
-            let should_prompt =
-                Some(cursor) == ctx.state.suggestions.prompt_suggestion_cursor_position;
+            if should_reset {
+                ctx.state.completions.selected_item = 0;
+                ctx.state.completions.last_completion_inverse_edits = None;
+            }
+            Ok(())
+        }),
+    );
 
-            if should_prompt && ctx.state.suggestions.selected_item != 0 {
-                // Don't interfere with suggestions when user is selecting one.
+    cr.register(
+        "completions-clear",
+        focused_buffer_command(|_opt, ctx| {
+            ctx.state.completions.items.clear();
+            ctx.state.completions.selected_item = 0;
+            ctx.state.completions.last_completion_inverse_edits = None;
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "completions-gather",
+        focused_buffer_command(|_opt, ctx| {
+            let cursor = ctx.selections.primary().cursor;
+            if ctx.state.completions.prompt_suggestion_cursor_position == Some(cursor) {
                 return Ok(());
             }
+            // ctx.state.completions.selected_item = 0;
+            // ctx.state.completions.last_completion_inverse_edits = None;
 
-            let line = ctx.buffer.line(cursor.row).unwrap();
+            let prefix_range = get_prefix_symbol_range(ctx.buffer, cursor);
+            ctx.state.completions.original_symbol_start = prefix_range.0;
+            let prefix = ctx.buffer.range_text(prefix_range)?;
+            ctx.state.completions.prompt_suggestion_cursor_position = Some(cursor);
 
-            let cursor_byte_idx =
-                char_index_to_byte_index(line, cursor.column as _).unwrap_or(line.len());
-            let mut maybe_symbol_prefix = None;
-            let mut maybe_symbol_start_end = None;
-            for matsh in RE_SYMBOL.find_iter(line) {
-                if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
-                    maybe_symbol_prefix =
-                        Some((matsh.as_str(), &line[matsh.start()..cursor_byte_idx]));
-                    maybe_symbol_start_end = Some((matsh.start(), matsh.end()));
-                }
+            let mut items = Vec::new();
+            for (_source, source_items) in &ctx.state.completions.source_items {
+                // if prefix.is_empty() {
+                //     break;
+                // }
+                items.extend(
+                    source_items
+                        .iter()
+                        .filter(|i| i.label.starts_with(&prefix))
+                        // TODO Consider not just starts_with(), but also contains()
+                        // but with lower "priority".
+                        .cloned(),
+                );
             }
-
-            ctx.state.suggestions.items.clear();
-            ctx.state.suggestions.selected_item = 0;
-
-            if let Some((start_index, end_index)) = maybe_symbol_start_end {
-                let start_column = byte_index_to_char_index(line, start_index).unwrap();
-                let symbol_start = Position::new(start_column as Column, cursor.row);
-                ctx.state.suggestions.original_symbol_start = symbol_start;
-
-                let end_column = byte_index_to_char_index(line, end_index).unwrap();
-                let prompt_position = Position::new(end_column as Column + 1, cursor.row);
-                ctx.state.suggestions.prompt_suggestion_cursor_position = Some(prompt_position);
-            }
-
-            let Some((symbol, prefix)) = maybe_symbol_prefix else { return Ok(()) };
-            // TODO bail if prefix hasnt changed (add prefix to suggs state)
-
-            for i in 0..ctx.buffer.line_count() {
-                let line = ctx.buffer.line(i).unwrap();
-                for matsh in RE_SYMBOL.find_iter(line) {
-                    let matsh_str = matsh.as_str();
-                    if matsh_str.starts_with(prefix) && matsh_str != symbol {
-                        let item = matsh_str.to_string();
-                        if !ctx.state.suggestions.items.contains(&item) {
-                            ctx.state.suggestions.items.push(item);
-                        }
-                    }
-                }
-            }
-
+            // FIXME sort appropriately (by most relevant kind first or something)
+            items.sort_by(|a, b| a.label.cmp(&b.label));
+            ctx.state.completions.items = items;
             Ok(())
         }),
     );
 }
 
-fn selection_from_symbol_prefix_under_cursor(buffer: &TextBuffer, cursor: Position) -> Selection {
+fn get_prefix_symbol_range(buffer: &TextBuffer, cursor: Position) -> (Position, Position) {
     let row = cursor.row;
     let line = buffer.line(row).unwrap();
     let cursor_byte_idx = char_index_to_byte_index(line, cursor.column as _).unwrap();
-    let mut maybe_selection = None;
+    let mut maybe_range = None;
     for matsh in RE_SYMBOL.find_iter(line) {
         if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
             let start_column = byte_index_to_char_index(line, matsh.start()).unwrap() as Column;
-            // let end_column = byte_index_to_char_index(line, matsh.end()).unwrap() as Column;
             let end_column = cursor_byte_idx as Column;
-            maybe_selection = Some(
-                Selection::new()
-                    .with_anchor((start_column, row).into())
-                    .with_cursor((end_column, row).into()),
-            )
+            maybe_range = Some(((start_column, row).into(), (end_column, row).into()))
         }
     }
-    maybe_selection.unwrap_or_else(|| Selection::new().with_cursor(cursor).shrunk_to_cursor())
+    maybe_range.unwrap_or((cursor, cursor))
 }
