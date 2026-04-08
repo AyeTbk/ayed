@@ -27,7 +27,7 @@ use serde_json::Value;
 use crate::{
     notification::convert_notification_to_json,
     request::{RequestType, convert_request_to_json},
-    types::CompletionItem,
+    types::{CompletionItem, Location},
 };
 
 const INITIALIZE_REQUEST_ID: i32 = 1;
@@ -211,6 +211,17 @@ impl LspClient {
                     None
                 }
             };
+            let get_definition_result = |result: &mut Value| -> Option<Vec<Location>> {
+                let result = result.take();
+                let results = match result {
+                    Value::Array(results) => results,
+                    Value::Object(_) => vec![result],
+                    Value::Null => vec![],
+                    _ => unimplemented!("bad goto location: {result:?}"),
+                };
+                let loc: Vec<Location> = serde_json::from_value(Value::Array(results)).ok()?;
+                Some(loc)
+            };
 
             let Some(request_type) = self.request_type_per_id.remove(&resp.id) else {
                 eprintln!("lsp response without associated request. id {}", resp.id);
@@ -228,6 +239,13 @@ impl LspClient {
                 RequestType::Hover => {
                     if let Some(text) = get_hover_result(&mut resp_result) {
                         responses.push(Response::HoverInfo { text });
+                    } else {
+                        unimplemented!("{resp_result:?}");
+                    }
+                }
+                RequestType::Definition => {
+                    if let Some(locations) = get_definition_result(&mut resp_result) {
+                        responses.push(Response::GotoDefinitionInfo { locations });
                     } else {
                         unimplemented!("{resp_result:?}");
                     }

@@ -3,7 +3,7 @@
 // the editor in a less intrusive way? I feel the LSP
 // functionalities would be a good candidate for that.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ayed_lsp_client::{
     LspClient, Notification, Request, Response,
@@ -16,6 +16,7 @@ use ayed_lsp_client::{
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command},
     position::{Column, Position, Row},
+    selection::Selection,
     state::{CompletionEdit, CompletionItem, CompletionSources},
 };
 
@@ -75,6 +76,20 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                         .insert(CompletionSources::Lsp, items);
                     ctx.queue.emit("completion-sources-modified", "");
                 }
+                Response::GotoDefinitionInfo { locations } => {
+                    let Some(location) = locations.into_iter().next() else { continue };
+
+                    let filepath = lsp_uri_to_filepath(location.uri);
+                    let range = lsp_range_to_tuple(location.range);
+                    let sel = Selection::from_range(range);
+                    let selstr = sel.to_string();
+                    // FIXME Hardcoded value. This adjustment might not be necessary if I add a config for "minimum distance between cursor and view edge" kind of thing
+                    let new_view_top = sel.start().row - 2;
+
+                    ctx.queue.push(format!("edit {}", filepath.display()));
+                    ctx.queue.push(format!("selections-set {}", selstr));
+                    ctx.queue.push(format!("look-set-top {}", new_view_top));
+                }
             }
         }
 
@@ -128,6 +143,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                 uri: DocumentUri::new(buffer_path),
                 version: buffer.content_version.get(),
             },
+            // FIXME PERF Send more granular updates
             new_content: buffer.content_to_string(),
         });
 
@@ -200,6 +216,28 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
+
+    cr.register(
+        "lsp-goto",
+        focused_buffer_command(|_opt, ctx| {
+            let Some(client) = &mut ctx.state.lsp_client else {
+                return Err("lsp client not started".into());
+            };
+
+            let Some(path) = ctx.buffer.path() else {
+                return Err("save the file before you can goto".into());
+            };
+
+            let cursor = ctx.selections.primary().cursor;
+
+            client.queue_request(Request::Definition {
+                text_document: TextDocumentIdentifier::new(path),
+                position: position_to_lsp_position(cursor),
+            });
+
+            Ok(())
+        }),
+    );
 }
 
 fn position_to_lsp_position(pos: Position) -> ayed_lsp_client::types::Position {
@@ -225,6 +263,13 @@ fn lsp_range_to_tuple(range: ayed_lsp_client::types::Range) -> (Position, Positi
         lsp_position_to_position(range.start),
         lsp_position_to_position(range.end),
     )
+}
+
+fn lsp_uri_to_filepath(uri: ayed_lsp_client::types::DocumentUri) -> PathBuf {
+    let Some(path) = uri.0.strip_prefix("file://") else {
+        unimplemented!("unknown lsp uri format: {uri:?}");
+    };
+    PathBuf::from(path)
 }
 
 fn lsp_completion_items_to_completion_items(

@@ -4,6 +4,13 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Location {
+    pub uri: DocumentUri,
+    pub range: Range,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CompletionItem {
     pub label: String,
     pub sort_text: Option<String>,
@@ -53,7 +60,7 @@ pub struct TextDocumentPositionParams {
     pub position: Position,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentUri(pub String);
 
 impl DocumentUri {
@@ -69,13 +76,13 @@ impl LanguageId {
     pub const RUST: &str = "rs";
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Range {
     pub start: Position,
     pub end: Position,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Position {
     pub line: u32,
     pub character: u32,

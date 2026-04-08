@@ -7,6 +7,7 @@ pub enum RequestType {
     Initialize,
     SuggestCompletion,
     Hover,
+    Definition,
 }
 
 #[derive(Debug)]
@@ -20,6 +21,10 @@ pub enum Request {
         text_document: TextDocumentIdentifier,
         position: Position,
     },
+    Definition {
+        text_document: TextDocumentIdentifier,
+        position: Position,
+    },
 }
 
 impl Request {
@@ -28,6 +33,7 @@ impl Request {
             Self::Initialize => RequestType::Initialize,
             Self::SuggestCompletion { .. } => RequestType::SuggestCompletion,
             Self::Hover { .. } => RequestType::Hover,
+            Self::Definition { .. } => RequestType::Definition,
         }
     }
 }
@@ -70,6 +76,18 @@ pub fn convert_request_to_json(req: Request, request_id: i32) -> Value {
             "jsonrpc": JSON_RPC_VERSION,
             "id": request_id,
             "method": "textDocument/hover",
+            "params": TextDocumentPositionParams {
+                text_document: text_document,
+                position: position,
+            },
+        }),
+        R::Definition {
+            text_document,
+            position,
+        } => json!({
+            "jsonrpc": JSON_RPC_VERSION,
+            "id": request_id,
+            "method": "textDocument/definition",
             "params": TextDocumentPositionParams {
                 text_document: text_document,
                 position: position,

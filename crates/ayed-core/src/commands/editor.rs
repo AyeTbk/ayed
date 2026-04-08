@@ -54,15 +54,17 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("buffer-close", |_opt, ctx| {
+    cr.register("buffer-close", |opt, ctx| {
         // Closes active buffer.
+
+        let force = opt.trim() == "--force";
 
         // Validity checks
         let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
             return Err("no currently open buffer".into());
         };
         let buffer = ctx.resources.buffers.get(buffer_handle);
-        if buffer.is_dirty() {
+        if buffer.is_dirty() && !force {
             return Err(format!("there are unsaved changes"));
         }
         let path = buffer
@@ -186,6 +188,16 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             ctx.view.top_left.column = i32::max(0, ctx.view.top_left.column);
             ctx.view.top_left.row = i32::max(0, ctx.view.top_left.row);
 
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "look-set-top",
+        focused_buffer_command(|opt, ctx| {
+            let new_row = i32::from_str_radix(opt.trim(), 10).map_err(|e| e.to_string())?;
+            ctx.view.top_left.row = new_row;
+            ctx.view.top_left.row = i32::max(0, ctx.view.top_left.row);
             Ok(())
         }),
     );
