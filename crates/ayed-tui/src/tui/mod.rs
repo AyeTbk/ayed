@@ -28,6 +28,7 @@ pub struct Tui {
     core: Core,
     screen: Stdout,
     error_message: Option<String>,
+    error_instant: Instant,
 }
 
 impl Tui {
@@ -37,6 +38,7 @@ impl Tui {
             core,
             screen: stdout,
             error_message: None,
+            error_instant: Instant::now(),
         }
     }
 
@@ -45,10 +47,15 @@ impl Tui {
 
         self.render().unwrap();
 
+        const ERROR_MESSAGE_DURATION: Duration = Duration::from_millis(1000);
         const POLL_TIMEOUT_MS: u64 = 124;
         const DELTA_TIME: f32 = (POLL_TIMEOUT_MS as f32) / 1000.0;
 
         while !self.core.quit_requested() {
+            if self.error_instant.elapsed() > ERROR_MESSAGE_DURATION {
+                self.error_message = None;
+            }
+
             let event_kind = self.poll_event(Duration::from_millis(POLL_TIMEOUT_MS));
             if matches!(event_kind, Some(EventKind::User)) {
                 let event = crossterm::event::read().unwrap();
@@ -100,6 +107,7 @@ impl Tui {
     fn set_error_message(&mut self, mut msg: String) {
         msg.insert_str(0, "[tui error] ");
         self.error_message = Some(msg);
+        self.error_instant = Instant::now();
     }
 
     fn render(&mut self) -> io::Result<()> {
@@ -181,7 +189,7 @@ impl Tui {
     }
 
     fn render_error_message(&mut self) -> io::Result<()> {
-        let Some(msg) = self.error_message.take() else {
+        let Some(msg) = self.error_message.as_ref() else {
             return Ok(());
         };
         self.screen
