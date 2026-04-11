@@ -3,6 +3,7 @@ mod commands;
 mod config;
 pub mod core;
 pub mod input;
+mod logger;
 mod panels;
 mod position;
 mod selection;

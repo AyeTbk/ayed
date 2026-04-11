@@ -10,3 +10,4 @@ ayed-config-parser = { path = "../ayed-config-parser" }
 ayed-lsp-client = { path = "../ayed-lsp-client" }
 
 regex = "1.9.5"
+log = { workspace = true, features = ["std"] }

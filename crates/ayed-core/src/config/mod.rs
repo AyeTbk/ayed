@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use log::debug;
 use regex::Regex;
 
 use crate::{
@@ -64,7 +65,7 @@ impl Config {
         for (k, v) in self.get("keybinds")? {
             let Some(k_input) = Input::parse(&k).ok() else {
                 if k != "else" {
-                    eprintln!("Config::get_keybind: failed to parse input: {:?}", k);
+                    debug!("Config::get_keybind: failed to parse input: {:?}", k);
                 }
                 continue;
             };

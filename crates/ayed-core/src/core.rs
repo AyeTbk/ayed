@@ -1,7 +1,10 @@
+use log::debug;
+
 use crate::{
     command::{CommandQueue, CommandRegistry, ExecuteCommandContext, parse_command},
     commands, config,
     input::Input,
+    logger::Logger,
     panels::{self, Modeline, Panels, RenderPanelContext},
     state::{Resources, State},
     ui::{Rect, Size, ui_state::UiState},
@@ -19,6 +22,8 @@ pub struct Core {
 
 impl Core {
     pub fn with_builtins() -> Self {
+        Logger::init().unwrap();
+
         let mut this = Self::default();
 
         this.register_builtin_events();
@@ -128,7 +133,7 @@ impl Core {
 
         if self.state.config.state_value("cmdlog") == Some("true") {
             if let Some(debug_log) = self.queue.take_debug_log() {
-                eprintln!("{}", debug_log);
+                debug!("{}", debug_log);
             }
         }
 

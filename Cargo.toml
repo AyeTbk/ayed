@@ -7,3 +7,5 @@ members = [
 [profile.dev.package.regex-automata]
 opt-level = 3
 
+[workspace.dependencies]
+log = "0.4.29"

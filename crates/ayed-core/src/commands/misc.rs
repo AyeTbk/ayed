@@ -1,5 +1,6 @@
 use std::sync::LazyLock;
 
+use log::debug;
 use regex::Regex;
 
 use crate::{
@@ -13,7 +14,7 @@ static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap()
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
     cr.register("stderr", |opt, _ctx| {
-        eprintln!("{opt}");
+        debug!("{opt}");
         Ok(())
     });
 

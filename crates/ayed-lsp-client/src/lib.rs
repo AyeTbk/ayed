@@ -4,12 +4,10 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
-mod event;
-pub use event::Event;
-
 pub mod types;
 
 mod notification;
+use log::debug;
 pub use notification::Notification;
 
 mod request;
@@ -72,10 +70,6 @@ impl LspClient {
 
     pub fn queue_notification(&mut self, notif: Notification) {
         self.pending_notifications.push(notif);
-    }
-
-    pub fn take_events(&mut self) -> Vec<Event> {
-        todo!()
     }
 
     pub fn is_online(&self) -> bool {
@@ -153,7 +147,7 @@ impl LspClient {
 
     fn recv_server_messages(&mut self) -> (Vec<ServerResponse>, Vec<Value>) {
         if let Ok(err) = self.transport.recv_server_err.try_recv() {
-            eprintln!("lsp server err: {}", String::from_utf8_lossy(&err))
+            debug!("lsp server err: {}", String::from_utf8_lossy(&err))
         }
 
         let mut responses = Vec::new();
@@ -184,7 +178,7 @@ impl LspClient {
         let mut responses = Vec::new();
         for resp in resps {
             let Some(mut resp_result) = resp.result else {
-                eprintln!("server response (id: {}) is malformed", resp.id);
+                debug!("server response (id: {}) is malformed", resp.id);
                 continue;
             };
 
@@ -224,7 +218,7 @@ impl LspClient {
             };
 
             let Some(request_type) = self.request_type_per_id.remove(&resp.id) else {
-                eprintln!("lsp response without associated request. id {}", resp.id);
+                debug!("lsp response without associated request. id {}", resp.id);
                 continue;
             };
             match request_type {
