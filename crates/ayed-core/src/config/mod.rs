@@ -165,6 +165,7 @@ pub struct ConfigState {
 
 impl ConfigState {
     pub const FILE: &'static str = "file";
+    pub const FORMAT: &'static str = "format";
 
     pub fn set(&mut self, state_name: impl Into<String>, value: impl Into<String>) {
         self.states.insert(state_name.into(), value.into());
@@ -177,8 +178,17 @@ impl ConfigState {
 
 pub fn make_builtin_config() -> Config {
     let mut conf = Config::default();
-    conf.add_module(include_str!("./builtin.ayedconf")).unwrap();
-    conf.add_module(include_str!("./theme.ayedconf")).unwrap();
+    macro_rules! builtin_cfg {
+        ($s: expr) => {
+            conf.add_module(include_str!($s)).unwrap()
+        };
+    }
+
+    builtin_cfg!("./builtin/essentials.aycfg");
+    builtin_cfg!("./builtin/formats/rust.aycfg");
+    builtin_cfg!("./builtin/keybinds/base.aycfg");
+    builtin_cfg!("./builtin/themes/base.aycfg");
+
     conf
 }
 

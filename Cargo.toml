@@ -9,3 +9,4 @@ opt-level = 3
 
 [workspace.dependencies]
 log = "0.4.29"
+regex = "1.9.5"

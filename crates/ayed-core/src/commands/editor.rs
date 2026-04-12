@@ -156,6 +156,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         ctx.state.active_editor_view = Some(view_handle);
 
+        let buffer = ctx.resources.buffers.get(buffer_handle);
+        if let Some(format) = buffer.forced_format.as_ref() {
+            ctx.queue.set_state(ConfigState::FORMAT, format);
+        }
+
         // The state must be updated before 'buffer-opened' is emitted so that
         // hooked commands may behave correctly.
         ctx.queue

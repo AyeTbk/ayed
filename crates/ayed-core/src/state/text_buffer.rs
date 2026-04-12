@@ -35,6 +35,8 @@ pub struct TextBuffer {
 
     /// Version for the buffer's content. Must increment for every change, including undos. For LSP.
     pub content_version: Cell<i32>,
+    /// File format the user set.
+    pub forced_format: Option<String>,
 }
 
 impl TextBuffer {
@@ -46,6 +48,7 @@ impl TextBuffer {
             dirty: Default::default(),
             history_dirty: Default::default(),
             content_version: Default::default(),
+            forced_format: None,
         }
     }
 
@@ -61,6 +64,7 @@ impl TextBuffer {
             dirty: Default::default(),
             history_dirty: Default::default(),
             content_version: Default::default(),
+            forced_format: None,
         })
     }
 

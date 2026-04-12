@@ -46,3 +46,21 @@ mode insert.* {
         selection-extra     #593636
     }
 }
+
+
+# When unspecified, style's default priority is 10.
+syntax-style {
+    keyword             #4488cf
+    keyword-statement   #aa77cc
+    builtin             $[ #62b0fb ; priority:11 ]
+    operator            #ddccdd
+    delimiter           $[ #ccaa11 ; priority:11 ]
+    macro               $[ #3377cc ; priority:11 ]
+    type                $[ #55b89b ; priority:12 ]
+    literal             $[ #aaddcc ; priority:11 ]
+    string              $[ #bb8866 ; priority:14 ]
+    lifetime            $[ #cccccc ; priority:14 ]
+    function            $[ #b8a4fc ; priority:13 ]
+    namespace           #55b89b
+    comment             $[ #55887a ; priority:15 ]
+}

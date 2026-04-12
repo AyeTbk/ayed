@@ -1,0 +1,23 @@
+file .*\.rs {
+    hooks {
+        state-modified:file state-set format rust
+    }
+}
+
+format rust {
+    syntax {
+        keyword \b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move|struct|enum|type)\b
+        keyword-statement \b(if|else|while|for|in|loop|continue|break|match)\b
+        builtin \b(Some|None|Ok|Err)\b
+        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
+        delimiter (->|=>|\{|\}|\[|\]|\(|\)|<|>)
+        macro \b([a-zA-Z0-9_]+\!)
+        type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b((u|i)(8|16|32|64|128)|f32|f64)\b ; \b(char|bool|str)\b ]
+        literal $[ (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)((u|i)(8|16|32|64|128)|f32|f64)?) ; \b(true|false)\b ]
+        string $[ (r?\"[^\"]*\") ; (r?'[^']') ]
+        lifetime $[ (r?'.) ]
+        function \b([a-z0-9_][a-zA-Z0-9_]*)\(
+        namespace \b([a-zA-Z0-9_]+)::
+        comment (//.*)
+    }
+}
