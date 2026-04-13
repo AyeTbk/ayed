@@ -72,6 +72,9 @@ hooks {
     buffer-opened lsp-doc-sync-open
     buffer-modified lsp-doc-sync-change
     buffer-closed lsp-doc-sync-close
+
+    buffer-opened lsp-start
+    state-modified:format lsp-start
 }
 mode insert.* {
     hooks {

@@ -164,7 +164,9 @@ pub struct ConfigState {
 }
 
 impl ConfigState {
+    /// Active buffer's file path.
     pub const FILE: &'static str = "file";
+    /// Active buffer's file format (language).
     pub const FORMAT: &'static str = "format";
 
     pub fn set(&mut self, state_name: impl Into<String>, value: impl Into<String>) {
@@ -198,7 +200,7 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
 
     let (ast, errors) = ayed_config_parser::parse_module(src);
     if !errors.is_empty() {
-        dbg!(errors);
+        debug!("{:?}", errors);
         return Err(());
     }
 

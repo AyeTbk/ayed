@@ -40,8 +40,8 @@ pub struct LspClient {
 }
 
 impl LspClient {
-    pub fn new(notify_async_done: Arc<AtomicBool>) -> Self {
-        let transport = SubprocessTransport::new("rust-analyzer", notify_async_done);
+    pub fn new(server_command: &str, notify_async_done: Arc<AtomicBool>) -> Self {
+        let transport = SubprocessTransport::new(server_command, notify_async_done);
         Self {
             transport,
             state: State::Offline,
@@ -172,7 +172,7 @@ impl LspClient {
         let (resps, notifs) = self.recv_server_messages();
 
         for notif in notifs {
-            dbg!(notif);
+            debug!("{:?}", notif);
         }
 
         let mut responses = Vec::new();

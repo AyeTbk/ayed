@@ -175,6 +175,20 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register("e", alias("edit"));
 
     cr.register(
+        "format-set",
+        focused_buffer_command(|opts, ctx| {
+            let format = opts.trim();
+            ctx.buffer.forced_format = if format.is_empty() {
+                None
+            } else {
+                ctx.queue.set_state(ConfigState::FORMAT, format);
+                Some(format.to_string())
+            };
+            Ok(())
+        }),
+    );
+
+    cr.register(
         "look",
         focused_buffer_command(|opt, ctx| {
             let mut offset = Offset::new(0, 0);

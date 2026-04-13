@@ -12,6 +12,7 @@ use ayed_lsp_client::{
         VersionedTextDocumentIdentifier,
     },
 };
+use log::{debug, info};
 
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command},
@@ -22,11 +23,16 @@ use crate::{
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
     cr.register("lsp-start", |_opt, ctx| {
+        let Ok(server_command) = ctx.state.config.get_entry_value("lsp", "server-command") else {
+            info!("no lsp server command set, skipping lsp-start");
+            return Ok(());
+        };
+
         if ctx.state.lsp_client.is_some() {
-            return Err("client already running".into());
+            return Ok(());
         }
 
-        let mut client = LspClient::new(ctx.state.is_async_task_ready.clone());
+        let mut client = LspClient::new(server_command, ctx.state.is_async_task_ready.clone());
         client.initialize();
 
         ctx.state.lsp_client = Some(client);
@@ -37,7 +43,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         if let Some(client) = ctx.state.lsp_client.take() {
             client.shutdown();
         }
-        dbg!("turned off");
+        debug!("turned off");
         Ok(())
     });
 
