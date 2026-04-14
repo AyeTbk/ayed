@@ -526,9 +526,19 @@ impl TextBuffer {
         // FIXME Check validity of range. Should create a Range type.
         let mut range = self.limit_range_to_content(range);
 
-        // Fixup the range to properly handle a line terminator at the end of it
+        // Check if there is actual work to be done.
+        if range.0 == range.1 {
+            return Ok(());
+        }
+
         if self.line_char_count(range.1.row).unwrap() < range.1.column {
-            range.1 = Position::new(0, range.1.row + 1);
+            if range.1.row != self.last_row() {
+                // Fixup the range to properly handle a line terminator at the end of it
+                range.1 = Position::new(0, range.1.row + 1);
+            } else {
+                // Prevent trying to deleting past the end of the buffer by collapsing the range.
+                range.1.column -= 1;
+            }
         }
 
         let mut line_left = String::new();
