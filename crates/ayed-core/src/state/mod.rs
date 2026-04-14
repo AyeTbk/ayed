@@ -35,9 +35,6 @@ pub use register::Register;
 mod resources;
 pub use resources::Resources;
 
-mod suggestions;
-pub use suggestions::Suggestions;
-
 mod completions;
 pub use completions::{CompletionEdit, CompletionItem, CompletionSources, Completions};
 
@@ -48,7 +45,6 @@ pub struct State {
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
     pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
     pub completions: Completions,
-    pub suggestions: Suggestions,
     pub register: Register,
     pub config: Config,
     pub modeline: ModelineState,

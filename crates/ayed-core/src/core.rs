@@ -166,10 +166,6 @@ impl Core {
             panels.push(panel);
         }
 
-        if let Some(panel) = self.panels.suggestion.render(&render_ctx) {
-            panels.push(panel);
-        }
-
         if let Some(panel) = self.panels.completions.render(&render_ctx) {
             panels.push(panel);
         }
