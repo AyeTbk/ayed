@@ -5,9 +5,9 @@ use crate::{
     commands, config,
     input::Input,
     logger::Logger,
-    panels::{self, Modeline, Panels, RenderPanelContext},
+    panels::{self, Editor, FilePicker, Modeline, Panels, RenderPanelContext},
     state::{Resources, State},
-    ui::{Rect, Size, ui_state::UiState},
+    ui::{Size, ui_state::UiState},
 };
 
 #[derive(Default)]
@@ -148,35 +148,13 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
-        let render_ctx = RenderPanelContext {
+        let ctx = RenderPanelContext {
             state: &self.state,
             resources: &self.resources,
         };
 
-        let mut panels = Vec::new();
-
-        panels.extend(self.panels.editor.render(&render_ctx));
-        panels.push(self.panels.line_numbers.render(&render_ctx));
-        panels.push(self.panels.modeline.render(&render_ctx));
-
-        panels.extend(self.panels.hover_info.render(&render_ctx));
-        panels.extend(self.panels.file_picker.render(&render_ctx));
-
-        if let Some(panel) = self.panels.warpdrive.render(&render_ctx) {
-            panels.push(panel);
-        }
-
-        if let Some(panel) = self.panels.completions.render(&render_ctx) {
-            panels.push(panel);
-        }
-
-        let mode = self.state.config.state_value("mode");
-        let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
-        if show_combo {
-            panels.extend(self.panels.combo.render(&self.state));
-        }
-
-        UiState { panels }
+        let ui_panels = self.panels.render(&ctx);
+        UiState { panels: ui_panels }
     }
 
     fn register_builtin_events(&mut self) {
@@ -211,68 +189,18 @@ impl Core {
     fn update_viewport_size(&mut self, viewport_size: Size) {
         self.state.viewport_size = viewport_size;
 
-        let render_ctx = RenderPanelContext {
+        self.panels.compute_layout(viewport_size);
+
+        let editor_panel = self.panels.panel_of_type::<Editor>().unwrap();
+        self.state.editor_rect = editor_panel.rect();
+        // FIXME .line_numbers_width(...) should probably just be taking something else, because it's not rendering?
+        let ctx = RenderPanelContext {
             state: &self.state,
             resources: &self.resources,
         };
+        self.state.editor_line_numbers_width = editor_panel.line_numbers_width(&ctx);
 
-        let line_numbers_width = self.panels.line_numbers.required_width(&render_ctx);
-        let editor_width = self
-            .state
-            .viewport_size
-            .column
-            .saturating_sub(line_numbers_width);
-        let editor_height = self
-            .state
-            .viewport_size
-            .row
-            .saturating_sub(Modeline::HEIGHT);
-
-        self.panels.editor.set_rect(Rect::new(
-            line_numbers_width,
-            0,
-            editor_width,
-            editor_height,
-        ));
-        self.state.editor_rect = self.panels.editor.rect();
-
-        self.panels.warpdrive.set_rect(self.panels.editor.rect());
-        self.panels.combo.set_rect(self.panels.editor.rect());
-
-        self.panels
-            .line_numbers
-            .set_rect(Rect::new(0, 0, line_numbers_width, editor_height));
-
-        self.panels.modeline.set_rect(Rect::new(
-            0,
-            self.state
-                .viewport_size
-                .row
-                .saturating_sub(Modeline::HEIGHT),
-            self.state.viewport_size.column,
-            Modeline::HEIGHT,
-        ));
-        self.state.modeline_rect = self.panels.modeline.rect();
-
-        self.panels.file_picker.set_rect(
-            Rect::new(
-                0,
-                0,
-                self.state.viewport_size.column,
-                self.state.viewport_size.row,
-            )
-            .grown(-1, -(Modeline::HEIGHT as i32 + 1), -4, -4),
-        );
-        self.state.file_picker_rect = self.panels.file_picker.rect();
-
-        self.panels.hover_info.set_rect(
-            Rect::new(
-                0,
-                self.state.viewport_size.row / 2,
-                self.state.viewport_size.column,
-                self.state.viewport_size.row / 2,
-            )
-            .grown(-1, -(Modeline::HEIGHT as i32), -4, -4),
-        );
+        self.state.file_picker_rect = self.panels.panel_of_type::<FilePicker>().unwrap().rect();
+        self.state.modeline_rect = self.panels.panel_of_type::<Modeline>().unwrap().rect();
     }
 }

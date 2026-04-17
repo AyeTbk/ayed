@@ -1,5 +1,5 @@
 use crate::{
-    panels::RenderPanelContext,
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext, Sides},
     position::{Column, Position, Row},
     ui::{
         Rect, Style,
@@ -13,11 +13,31 @@ pub struct HoverInfo {
     rect: Rect,
 }
 
-impl HoverInfo {
-    pub fn rect(&self) -> Rect {
-        self.rect
+impl Panel for HoverInfo {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        LayoutInfo {
+            place: LayoutPlace::FloatBottom,
+            height: Some(8),
+            padding: Some(Sides {
+                left: 2,
+                right: 2,
+                bottom: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
     }
 
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        self.render(ctx)
+    }
+}
+
+impl HoverInfo {
     pub fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
     }

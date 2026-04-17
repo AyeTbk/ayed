@@ -1,4 +1,5 @@
 use crate::{
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel},
     position::Position,
     ui::{
         Rect, Size, Style,
@@ -13,11 +14,24 @@ pub struct Completions {
     rect: Rect,
 }
 
-impl Completions {
-    pub fn rect(&self) -> Rect {
-        self.rect
+impl Panel for Completions {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        LayoutInfo {
+            place: LayoutPlace::ManuallyManaged,
+            ..Default::default()
+        }
     }
 
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        self.render(ctx).into_iter().collect()
+    }
+}
+
+impl Completions {
     pub fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
     }
@@ -52,8 +66,9 @@ impl Completions {
         // let position_in_buffer = selections.primary().cursor();
         let position_in_buffer = ctx.state.completions.original_symbol_start;
         let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
-        let target_position =
-            position_in_buffer.local_to_pos(view_top_left) + ctx.state.editor_rect.top_left();
+        let target_position = position_in_buffer.local_to_pos(view_top_left)
+            + ctx.state.editor_rect.top_left()
+            + Position::new(ctx.state.editor_line_numbers_width, 0);
         let mut position = target_position;
 
         // Place on the line below the cursor

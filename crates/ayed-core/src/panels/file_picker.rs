@@ -1,6 +1,10 @@
-use std::{collections::BTreeMap, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, Sides},
     position::Position,
     ui::{
         Color, Rect, Style,
@@ -17,6 +21,29 @@ use super::{Editor, FocusedPanel, RenderPanelContext};
 #[derive(Default)]
 pub struct FilePicker {
     rect: Rect,
+}
+
+impl Panel for FilePicker {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        LayoutInfo {
+            place: LayoutPlace::FloatCenter,
+            padding: Some(Sides {
+                top: 2,
+                bottom: 2,
+                left: 6,
+                right: 6,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        self.render(ctx)
+    }
 }
 
 impl FilePicker {
@@ -245,7 +272,10 @@ pub mod commands {
         );
     }
 
-    fn file_picker_fill_list(working_directory: &Path, filter: &str) -> std::io::Result<Vec<FileListItem>> {
+    fn file_picker_fill_list(
+        working_directory: &Path,
+        filter: &str,
+    ) -> std::io::Result<Vec<FileListItem>> {
         fn aux(
             filters: &[&str],
             dir_path: &Path,

@@ -12,6 +12,7 @@ use crate::{
         file_picker::FilePickerState,
         modeline::{Align, ModelineInfo, ModelineState},
     },
+    position::Column,
     slotmap::Handle,
     ui::{Rect, Size, Style},
 };
@@ -54,6 +55,7 @@ pub struct State {
     pub quit_requested: bool,
     pub viewport_size: Size,
     pub editor_rect: Rect,
+    pub editor_line_numbers_width: Column,
     pub modeline_rect: Rect,
     pub file_picker_rect: Rect,
     pub last_input: Option<Input>,

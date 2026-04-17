@@ -1,5 +1,6 @@
 use crate::{
     config::Config,
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel},
     position::Position,
     ui::{
         Rect, Style,
@@ -15,6 +16,24 @@ pub struct Modeline {
     // FIXME modeline should probably keep the same view and buffer always,
     // instead of taking it from FocusedPanel.
     rect: Rect,
+}
+
+impl Panel for Modeline {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        LayoutInfo {
+            place: LayoutPlace::South,
+            height: Some(Modeline::HEIGHT),
+            ..Default::default()
+        }
+    }
+
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        vec![self.render(ctx)]
+    }
 }
 
 impl Modeline {
@@ -42,7 +61,7 @@ impl Modeline {
                 self.rect.bottom_right(),
             ));
 
-            let mut editor_panel = editor.render(ctx).remove(0);
+            let mut editor_panel = editor.render(ctx).pop().unwrap();
 
             for line in &mut editor_panel.content {
                 line.insert(0, '›');

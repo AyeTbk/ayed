@@ -1,4 +1,5 @@
 use crate::{
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext},
     position::Position,
     state::State,
     ui::{
@@ -16,16 +17,35 @@ pub struct Combo {
     rect: Rect,
 }
 
-impl Combo {
-    pub fn rect(&self) -> Rect {
-        self.rect
+impl Panel for Combo {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        LayoutInfo {
+            place: LayoutPlace::Center,
+            ..Default::default()
+        }
     }
 
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        self.render(ctx.state)
+    }
+}
+
+impl Combo {
     pub fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
     }
 
     pub fn render(&self, state: &State) -> Vec<UiPanel> {
+        let mode = state.config.state_value("mode");
+        let show_combo = mode.is_some_and(|m| m.starts_with("combo-"));
+        if !show_combo {
+            return vec![];
+        }
+
         let mut grid = GridStringBuilder::new();
 
         if let Some(keybinds_doc) = state.config.get("keybinds-doc") {

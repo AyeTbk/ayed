@@ -1,6 +1,6 @@
 use crate::{
     command::{CommandRegistry, helpers::alias, options::Options},
-    panels::FocusedPanel,
+    panels::{FocusedPanel, Warpdrive},
     position::Position,
     selection::Selections,
     state::{TextBuffer, View},
@@ -70,7 +70,11 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         // Cleanup if needed
         match ctx.state.focused_panel {
             FocusedPanel::Warpdrive => {
-                ctx.panels.warpdrive.clear_state();
+                let warpdrive_panel = ctx
+                    .panels
+                    .panel_of_type_mut::<Warpdrive>()
+                    .expect("just exist plz");
+                warpdrive_panel.clear_state();
             }
             FocusedPanel::Modeline(view_handle) => {
                 let buffer_handle = ctx.resources.views.get(view_handle).buffer;

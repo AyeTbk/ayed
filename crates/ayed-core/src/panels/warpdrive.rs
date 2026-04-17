@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::{
     command::ExecuteCommandContext,
-    panels::RenderPanelContext,
+    panels::{Editor, LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext, Sides},
     position::{Column, Position, Row},
     slotmap::Handle,
     state::View,
@@ -21,11 +21,29 @@ pub struct Warpdrive {
     state: Option<WarpdriveState>,
 }
 
-impl Warpdrive {
-    pub fn rect(&self) -> Rect {
-        self.rect
+impl Panel for Warpdrive {
+    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+        let left = (|| Some(self.state.as_ref()?.render_left_padding))().unwrap_or_default();
+        LayoutInfo {
+            place: LayoutPlace::FloatCenter,
+            padding: Some(Sides {
+                left,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
     }
 
+    fn set_rect(&mut self, rect: Rect) {
+        self.set_rect(rect)
+    }
+
+    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+        self.render(ctx).into_iter().collect()
+    }
+}
+
+impl Warpdrive {
     pub fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
     }
@@ -82,6 +100,7 @@ struct WarpdriveState {
     content: Vec<String>,
     input: String,
     jump_points: Vec<JumpPoint>,
+    render_left_padding: i32,
 }
 
 static REGEX_JUMP_POINT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap());
@@ -95,7 +114,13 @@ impl WarpdriveState {
             state: ctx.state,
             resources: ctx.resources,
         };
-        let mut content = ctx.panels.editor.render(render_ctx).remove(0).content;
+        let editor_panel = ctx
+            .panels
+            .panel_of_type::<Editor>()
+            .expect("just exist plz");
+        let editor_ui_panel = editor_panel.render(render_ctx).pop().unwrap();
+        let mut content = editor_ui_panel.content;
+        let render_left_padding = editor_ui_panel.position.column;
 
         // Gather jump points
         let mut jump_points = Vec::new();
@@ -168,6 +193,7 @@ impl WarpdriveState {
             content,
             input: Default::default(),
             jump_points,
+            render_left_padding,
         }
     }
 
@@ -206,6 +232,7 @@ struct JumpPoint {
 pub mod commands {
     use crate::{
         command::CommandRegistry,
+        panels::Warpdrive,
         selection::{Selection, Selections},
     };
 
@@ -217,14 +244,23 @@ pub mod commands {
                 return Ok(());
             };
 
-            ctx.panels.warpdrive.state = Some(WarpdriveState::new(&ctx, view_handle));
+            let new_state = Some(WarpdriveState::new(&ctx, view_handle));
+            let warpdrive_panel = ctx
+                .panels
+                .panel_of_type_mut::<Warpdrive>()
+                .expect("just exist plz");
+            warpdrive_panel.state = new_state;
 
             ctx.queue.push("panel-focus warpdrive");
             Ok(())
         });
 
         cr.register("warpdrive-input", |opt, ctx| {
-            let Some(state) = ctx.panels.warpdrive.state.as_mut() else {
+            let warpdrive_panel = ctx
+                .panels
+                .panel_of_type_mut::<Warpdrive>()
+                .expect("just exist plz");
+            let Some(state) = warpdrive_panel.state.as_mut() else {
                 return Ok(());
             };
 

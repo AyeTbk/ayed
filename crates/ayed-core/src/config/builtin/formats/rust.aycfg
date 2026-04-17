@@ -1,5 +1,6 @@
 file .*\.rs {
     hooks {
+        # FIXME this stinks, it's not declarative. Invent declarative config states now!
         state-modified:file state-set format rust
     }
 }
