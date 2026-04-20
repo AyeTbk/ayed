@@ -215,7 +215,7 @@ impl FilePickerState {
 }
 
 pub mod commands {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use crate::{
         command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
@@ -263,7 +263,8 @@ pub mod commands {
             "file-picker-fill-list",
             focused_buffer_command(|_opt, ctx| {
                 let filter = ctx.buffer.line(0).unwrap_or_default();
-                match file_picker_fill_list(&ctx.state, filter) {
+                let ignore = get_gitignore_ignores(&ctx.state.working_directory); // FIXME make this "ignore paths source" configurable.
+                match file_picker_fill_list(&ctx.state, filter, &ignore) {
                     Ok(list) => ctx.state.file_picker.list_items = file_list_to_file_tree(list),
                     Err(err) => return Err(err.to_string()),
                 }
@@ -273,7 +274,23 @@ pub mod commands {
         );
     }
 
-    fn file_picker_fill_list(state: &State, filter: &str) -> std::io::Result<Vec<FileListItem>> {
+    fn get_gitignore_ignores(cwd: &Path) -> Vec<PathBuf> {
+        let Ok(gitignore) = std::fs::read_to_string(cwd.join(".gitignore")) else {
+            return vec![];
+        };
+        gitignore
+            .split('\n')
+            .map(str::trim)
+            .chain([".git/", ".jj/"])
+            .map(|p| Path::new(p).to_path_buf())
+            .collect()
+    }
+
+    fn file_picker_fill_list(
+        state: &State,
+        filter: &str,
+        ignore: &[PathBuf],
+    ) -> std::io::Result<Vec<FileListItem>> {
         // FIXME The state param is only used for the working dir and the
         // denormalize_path method. Maybe denormalize could be a standalone util
         // and just pass the working_directory instead?
@@ -284,6 +301,7 @@ pub mod commands {
             dir_path: &Path,
             list: &mut Vec<FileListItem>,
             state: &State,
+            ignore: &[PathBuf],
         ) -> std::io::Result<()> {
             if list.len() > 200 {
                 return Ok(());
@@ -291,8 +309,11 @@ pub mod commands {
             'entry: for maybe_entry in std::fs::read_dir(dir_path)? {
                 let Ok(entry) = maybe_entry else { continue };
                 let path = state.denormalize_path(&entry.path());
+                if ignore.contains(&path) {
+                    continue;
+                }
                 if entry.file_type()?.is_dir() {
-                    aux(filters, &entry.path(), list, state)?;
+                    aux(filters, &entry.path(), list, state, ignore)?;
                 } else {
                     let path_string = path.to_str().unwrap().to_string();
                     for filter in filters {
@@ -312,7 +333,7 @@ pub mod commands {
 
         let mut list = Vec::new();
         let filters = filter.split(' ').collect::<Vec<&str>>();
-        aux(&filters, &working_directory, &mut list, state)?;
+        aux(&filters, &working_directory, &mut list, state, ignore)?;
         Ok(list)
     }
 }
