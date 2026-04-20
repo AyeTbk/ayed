@@ -220,6 +220,7 @@ pub mod commands {
     use crate::{
         command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
         panels::file_picker::{FileListItem, file_list_to_file_tree},
+        state::State,
     };
 
     pub fn register_file_picker_commands(cr: &mut CommandRegistry) {
@@ -262,7 +263,7 @@ pub mod commands {
             "file-picker-fill-list",
             focused_buffer_command(|_opt, ctx| {
                 let filter = ctx.buffer.line(0).unwrap_or_default();
-                match file_picker_fill_list(&ctx.state.working_directory, filter) {
+                match file_picker_fill_list(&ctx.state, filter) {
                     Ok(list) => ctx.state.file_picker.list_items = file_list_to_file_tree(list),
                     Err(err) => return Err(err.to_string()),
                 }
@@ -272,33 +273,37 @@ pub mod commands {
         );
     }
 
-    fn file_picker_fill_list(
-        working_directory: &Path,
-        filter: &str,
-    ) -> std::io::Result<Vec<FileListItem>> {
+    fn file_picker_fill_list(state: &State, filter: &str) -> std::io::Result<Vec<FileListItem>> {
+        // FIXME The state param is only used for the working dir and the
+        // denormalize_path method. Maybe denormalize could be a standalone util
+        // and just pass the working_directory instead?
+        let working_directory = state.working_directory.clone();
+
         fn aux(
             filters: &[&str],
             dir_path: &Path,
             list: &mut Vec<FileListItem>,
+            state: &State,
         ) -> std::io::Result<()> {
             if list.len() > 200 {
                 return Ok(());
             }
             'entry: for maybe_entry in std::fs::read_dir(dir_path)? {
                 let Ok(entry) = maybe_entry else { continue };
-                let path = entry.path().to_str().unwrap().to_string();
+                let path = state.denormalize_path(&entry.path());
                 if entry.file_type()?.is_dir() {
-                    aux(filters, &entry.path(), list)?;
+                    aux(filters, &entry.path(), list, state)?;
                 } else {
+                    let path_string = path.to_str().unwrap().to_string();
                     for filter in filters {
                         // TODO FEAT case insensitivity
-                        if !path.contains(filter) {
+                        if !path_string.contains(filter) {
                             continue 'entry;
                         }
                     }
                     list.push(FileListItem::File {
-                        text: path.clone(),
-                        path: Path::new(&path).to_path_buf(),
+                        text: path_string,
+                        path,
                     });
                 }
             }
@@ -307,7 +312,7 @@ pub mod commands {
 
         let mut list = Vec::new();
         let filters = filter.split(' ').collect::<Vec<&str>>();
-        aux(&filters, working_directory, &mut list)?;
+        aux(&filters, &working_directory, &mut list, state)?;
         Ok(list)
     }
 }
