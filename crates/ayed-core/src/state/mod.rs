@@ -7,11 +7,7 @@ use std::{
 use crate::{
     config::Config,
     input::Input,
-    panels::{
-        FocusedPanel,
-        file_picker::FilePickerState,
-        modeline::{Align, ModelineInfo, ModelineState},
-    },
+    panels::{Panels, file_picker::FilePickerState},
     position::Column,
     slotmap::Handle,
     ui::{Rect, Size, Style},
@@ -39,6 +35,9 @@ pub use resources::Resources;
 mod completions;
 pub use completions::{CompletionEdit, CompletionItem, CompletionSources, Completions};
 
+mod modeline;
+pub use modeline::{Align, ModelineInfo, ModelineState};
+
 #[derive(Default)]
 pub struct State {
     pub is_async_task_ready: Arc<AtomicBool>,
@@ -51,7 +50,8 @@ pub struct State {
     pub modeline: ModelineState,
     pub hover_info: Option<String>,
     pub file_picker: FilePickerState,
-    pub focused_panel: FocusedPanel,
+    pub focused_panel: String,
+    pub focused_panel_view_rect: Option<Rect>,
     pub quit_requested: bool,
     pub viewport_size: Size,
     pub editor_rect: Rect,
@@ -65,26 +65,21 @@ pub struct State {
 }
 
 impl State {
-    pub fn focused_view(&self) -> Option<Handle<View>> {
-        match self.focused_panel {
-            FocusedPanel::Editor | FocusedPanel::Warpdrive => self.active_editor_view,
-            FocusedPanel::Modeline(view) => Some(view),
-            FocusedPanel::FilePicker(view) => Some(view),
-        }
+    pub fn focused_view(&self, panels: &Panels) -> Option<Handle<View>> {
+        panels
+            .panel_with_name(&self.focused_panel)
+            .and_then(|p| p.view())
+            .or(self.active_editor_view)
     }
 
-    pub fn focused_view_rect(&self, resources: &Resources) -> Rect {
-        let (view_handle, panel_rect) = match self.focused_panel {
-            FocusedPanel::Modeline(handle) => (Some(handle), self.modeline_rect),
-            FocusedPanel::FilePicker(handle) => (Some(handle), self.file_picker_rect),
-            FocusedPanel::Editor | FocusedPanel::Warpdrive => {
-                (self.active_editor_view, self.editor_rect)
-            }
-        };
+    pub fn focused_view_rect(&self, panels: &Panels, resources: &Resources) -> Option<Rect> {
+        let focused_panel = panels.panel_with_name(&self.focused_panel)?;
+        let panel_rect = focused_panel.rect();
+        let view_handle = focused_panel.view().or(self.active_editor_view);
         let top_left = view_handle
             .map(|handle| resources.views.get(handle).top_left)
             .unwrap_or_default();
-        Rect::with_position_and_size(top_left, panel_rect.size())
+        Some(Rect::with_position_and_size(top_left, panel_rect.size()))
     }
 
     pub fn active_editor_view_rect(&self, resources: &Resources) -> Rect {

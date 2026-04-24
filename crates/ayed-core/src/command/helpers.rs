@@ -31,7 +31,7 @@ pub fn focused_buffer_command(
     f: impl Fn(&str, FocusedBufferCommandContext) -> Result<(), String>,
 ) -> impl Fn(&str, ExecuteCommandContext) -> Result<(), String> {
     move |opt, ctx| {
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
         let view = ctx.resources.views.get_mut(view_handle);

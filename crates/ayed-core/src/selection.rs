@@ -23,6 +23,18 @@ impl Selections {
         }
     }
 
+    pub fn from_vec(mut v: Vec<Selection>) -> Self {
+        let primary_selection = if v.is_empty() {
+            Selection::new()
+        } else {
+            v.remove(0)
+        };
+        Selections {
+            primary_selection,
+            extra_selections: v,
+        }
+    }
+
     pub fn parse(src: &str) -> Result<Self, String> {
         let mut selections = Vec::new();
         for selection_src in src.split_whitespace() {

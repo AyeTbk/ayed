@@ -16,6 +16,7 @@ pub fn main() {
                         ]
                     #esc   ive got 5$$
                     str $"hello!  "
+                    str15 $""
                     str2 what$" are "you
                     str3 what $" are " you
                     #strlist $[ $"$1" ; tw$"o" ; $"thr

@@ -321,6 +321,10 @@ pub fn is_whitespace(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch == '\n'
 }
 
+pub fn is_inline_whitespace(ch: char) -> bool {
+    ch == ' ' || ch == '\t'
+}
+
 fn is_identifier(ch: char) -> bool {
     matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-')
 }

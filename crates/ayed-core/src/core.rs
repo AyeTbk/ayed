@@ -5,7 +5,7 @@ use crate::{
     commands, config,
     input::Input,
     logger::Logger,
-    panels::{self, Editor, FilePicker, Modeline, Panels, RenderPanelContext},
+    panels::{self, Editor, FilePicker, PanelContext, Panels, Prompt},
     state::{Resources, State},
     ui::{Size, ui_state::UiState},
 };
@@ -148,12 +148,12 @@ impl Core {
     }
 
     pub fn render(&mut self) -> UiState {
-        let ctx = RenderPanelContext {
-            state: &self.state,
-            resources: &self.resources,
+        let mut ctx = PanelContext {
+            state: &mut self.state,
+            resources: &mut self.resources,
         };
 
-        let ui_panels = self.panels.render(&ctx);
+        let ui_panels = self.panels.render(&mut ctx);
         UiState { panels: ui_panels }
     }
 
@@ -193,14 +193,18 @@ impl Core {
 
         let editor_panel = self.panels.panel_of_type::<Editor>().unwrap();
         self.state.editor_rect = editor_panel.rect();
-        // FIXME .line_numbers_width(...) should probably just be taking something else, because it's not rendering?
-        let ctx = RenderPanelContext {
-            state: &self.state,
-            resources: &self.resources,
+
+        let ctx = PanelContext {
+            state: &mut self.state,
+            resources: &mut self.resources,
         };
         self.state.editor_line_numbers_width = editor_panel.line_numbers_width(&ctx);
 
         self.state.file_picker_rect = self.panels.panel_of_type::<FilePicker>().unwrap().rect();
-        self.state.modeline_rect = self.panels.panel_of_type::<Modeline>().unwrap().rect();
+        self.state.modeline_rect = self.panels.panel_of_type::<Prompt>().unwrap().rect();
+
+        // Needed for positioning Completion panel.
+        self.state.focused_panel_view_rect =
+            self.state.focused_view_rect(&self.panels, &self.resources);
     }
 }

@@ -45,7 +45,7 @@ mode command {
         <del> delete
         <backspace> delete-around -p
         <a-backspace> delete-around
-        : focus-panel modeline
+        : focus-panel prompt
         i mode-set insert
     }
 }
@@ -66,10 +66,10 @@ mode insert {
 # this block's children will merge as usual, but the result will *replace*
 # the corresponding maps defined elsewhere rather than merge with them.
 @override
-panel modeline {
+panel prompt {
     keybinds {
         <esc> focus-panel editor
-        <ret> modeline-exec
+        <ret> prompt-exec
         else insert-char
     }
 }
@@ -126,7 +126,7 @@ commands {
     hello $[error bye]
 }
 
-modeline-info {
+prompt-info {
     top-left $(mode)
     top-right $(last-input) $(file)
 }

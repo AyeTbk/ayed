@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-use super::RenderPanelContext;
+use super::PanelContext;
 
 #[derive(Default)]
 pub struct Editor {
@@ -30,12 +30,24 @@ impl Panel for Editor {
         }
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx)
+    }
+
+    fn name(&self) -> Option<&str> {
+        Some("editor")
+    }
+
+    fn view(&self) -> Option<Handle<View>> {
+        self.view
     }
 }
 
@@ -61,11 +73,11 @@ impl Editor {
         self.rect = rect;
     }
 
-    pub fn line_numbers_width(&self, ctx: &RenderPanelContext) -> i32 {
+    pub fn line_numbers_width(&self, ctx: &PanelContext) -> i32 {
         LineNumbers.required_width(ctx)
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    pub fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         let mut panels = Vec::new();
 
         // Render line numbers
@@ -261,7 +273,7 @@ impl Editor {
         &self,
         editor_panel: &mut UiPanel,
         view_line_start: usize,
-        ctx: &RenderPanelContext,
+        ctx: &PanelContext,
     ) {
         let foreground_color = ctx.state.config.get_theme_color("editor-indent");
         let background_color = ctx.state.config.get_theme_color("editor-bg");
@@ -311,7 +323,7 @@ struct LineNumbers;
 impl LineNumbers {
     const RIGHT_PAD_LEN: i32 = 2;
 
-    pub fn required_width(&self, ctx: &RenderPanelContext) -> i32 {
+    pub fn required_width(&self, ctx: &PanelContext) -> i32 {
         let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
             return 2;
         };
@@ -321,7 +333,7 @@ impl LineNumbers {
         width
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext, rect: Rect) -> UiPanel {
+    pub fn render(&self, ctx: &PanelContext, rect: Rect) -> UiPanel {
         let mut content = Vec::new();
         let mut spans = Vec::new();
 

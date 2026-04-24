@@ -1,9 +1,13 @@
 use crate::{
     Error, ErrorKind,
-    ast::{Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span, Template},
+    ast::{
+        Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span,
+        Template,
+    },
     error::Expected,
     token::{
-        Token, TokenKind, is_whitespace, next_entry_name, next_token, next_token_in_entry_value, next_token_in_string, take_while0
+        Token, TokenKind, is_inline_whitespace, is_whitespace, next_entry_name, next_token,
+        next_token_in_entry_value, next_token_in_string, take_while0,
     },
 };
 
@@ -24,9 +28,16 @@ impl<'a> Parser<'a> {
         let mut ast = Ast::default();
 
         loop {
+            if self.peek_token().kind == TokenKind::Eof {
+                break;
+            }
+
             match self.parse_block() {
                 Ok(block) => ast.top_level_blocks.push(block),
-                Err(err) if err.is_eof_error() => break,
+                Err(err) if err.is_eof_error() => {
+                    self.add_error(err);
+                    break;
+                }
                 Err(err) => {
                     let can_recover = err.is_recoverable();
                     self.add_error(err);
@@ -142,7 +153,6 @@ impl<'a> Parser<'a> {
         if is_list {
             return self.parse_entry_value_list();
         }
-
         let value = self.parse_entry_value(false)?;
         Ok(vec![value])
     }
@@ -154,7 +164,13 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_entry_value(&mut self, in_list: bool) -> Result<Template<'a>, Error<'a>> {
-        let (mut i, _) = take_while0(is_whitespace)(self.src);
+        let is_white = if in_list {
+            is_whitespace
+        } else {
+            is_inline_whitespace
+        };
+
+        let (mut i, _) = take_while0(is_white)(self.src);
         let mut parts = Vec::new();
         while let Some((j, token)) = next_token_in_entry_value(i, in_list) {
             if token.kind == TokenKind::Escape {
@@ -177,12 +193,6 @@ impl<'a> Parser<'a> {
             }
         }
         self.src = i;
-        if parts.is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unexpected(Expected::EntryValue),
-                self.src,
-            ));
-        }
         Ok(Template { parts })
     }
 
@@ -201,12 +211,6 @@ impl<'a> Parser<'a> {
             parts.push(token.slice.into());
         }
         self.src = i;
-        if parts.is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unexpected(Expected::String),
-                self.src,
-            ));
-        }
         Ok(Template { parts })
     }
 
@@ -259,6 +263,16 @@ impl<'a> Parser<'a> {
                 } else if must_close {
                     return Err(Error::new(
                         ErrorKind::Unexpected(Expected::Tag(close)),
+                        self.src,
+                    ));
+                }
+
+                if peek.kind == TokenKind::Eof {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: Expected::Tag(close),
+                            got: TokenKind::Eof,
+                        },
                         self.src,
                     ));
                 }

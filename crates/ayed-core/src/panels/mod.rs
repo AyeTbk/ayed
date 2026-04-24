@@ -9,8 +9,11 @@ use crate::ui::{Rect, Size};
 mod editor;
 pub use self::editor::Editor;
 
-pub mod modeline;
-pub use self::modeline::Modeline;
+pub mod prompt;
+pub use self::prompt::Prompt;
+
+pub mod status_bar;
+pub use self::status_bar::StatusBar;
 
 pub mod file_picker;
 pub use self::file_picker::FilePicker;
@@ -36,7 +39,8 @@ impl Default for Panels {
         Self {
             panels: vec![
                 Box::new(Editor::default().with_line_numbers()),
-                Box::new(Modeline::default()),
+                Box::new(Prompt::default()),
+                Box::new(StatusBar::default()),
                 Box::new(Warpdrive::default()),
                 Box::new(FilePicker::default()),
                 Box::new(HoverInfo::default()),
@@ -52,12 +56,44 @@ impl Panels {
         compute_layout(viewport_size, &mut self.panels);
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    pub fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.panels
             .iter()
             .map(|p| p.render(ctx))
             .flatten()
             .collect()
+    }
+
+    pub fn panel_with_name(&self, name: &str) -> Option<&dyn Panel> {
+        // FIXME ugly hack because focused_panel is initialized empty.
+        let mut name = name;
+        if name == "" {
+            name = "editor"
+        }
+
+        self.panels
+            .iter()
+            .filter_map(|p| {
+                if p.name() == Some(name) {
+                    Some(p.as_ref())
+                } else {
+                    None
+                }
+            })
+            .next()
+    }
+
+    pub fn panel_with_name_mut(&mut self, name: &str) -> Option<&mut dyn Panel> {
+        self.panels
+            .iter_mut()
+            .filter_map(|p| {
+                if p.name() == Some(name) {
+                    Some(p.as_mut())
+                } else {
+                    None
+                }
+            })
+            .next()
     }
 
     pub fn panel_of_type<T: 'static>(&self) -> Option<&T> {
@@ -81,24 +117,23 @@ impl Panels {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusedPanel {
-    #[default]
-    Editor,
-    Modeline(Handle<View>),
-    FilePicker(Handle<View>),
-    Warpdrive,
-}
-
-pub struct RenderPanelContext<'a> {
-    pub state: &'a State,
-    pub resources: &'a Resources,
+pub struct PanelContext<'a> {
+    pub state: &'a mut State,
+    pub resources: &'a mut Resources,
 }
 
 pub trait Panel: Any {
     fn layout_info(&self, ctx: &LayoutContext) -> LayoutInfo;
+    fn rect(&self) -> Rect;
     fn set_rect(&mut self, rect: Rect);
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel>;
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel>;
+
+    fn on_focus(&mut self, _ctx: &mut PanelContext) {}
+    fn on_unfocus(&mut self, _ctx: &mut PanelContext) {}
+
+    fn name(&self) -> Option<&str> {
+        None
+    }
 
     fn enabled(&self) -> bool {
         true
@@ -146,6 +181,10 @@ pub fn compute_layout(viewport_size: Size, panels: &mut Vec<Box<dyn Panel>>) {
         full_viewport_size: viewport_size,
     };
     for panel in panels {
+        if !panel.enabled() {
+            continue;
+        }
+
         let info = panel.layout_info(&ctx);
         places
             .entry(info.place)

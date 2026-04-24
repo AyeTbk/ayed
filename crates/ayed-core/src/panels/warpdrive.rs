@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::{
     command::ExecuteCommandContext,
-    panels::{Editor, LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext, Sides},
+    panels::{Editor, LayoutContext, LayoutInfo, LayoutPlace, Panel, PanelContext, Sides},
     position::{Column, Position, Row},
     slotmap::Handle,
     state::View,
@@ -34,12 +34,24 @@ impl Panel for Warpdrive {
         }
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn on_unfocus(&mut self, _ctx: &mut PanelContext) {
+        self.clear_state();
+    }
+
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx).into_iter().collect()
+    }
+
+    fn name(&self) -> Option<&str> {
+        Some("warpdrive")
     }
 }
 
@@ -52,7 +64,7 @@ impl Warpdrive {
         self.state = None;
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+    pub fn render(&self, ctx: &PanelContext) -> Option<UiPanel> {
         let foreground_color = ctx.state.config.get_theme_color("warpdrive-fg");
         let background_color = ctx.state.config.get_theme_color("warpdrive-bg");
         let code_color = ctx.state.config.get_theme_color("warpdrive-code");
@@ -106,11 +118,10 @@ struct WarpdriveState {
 static REGEX_JUMP_POINT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap());
 
 impl WarpdriveState {
-    pub fn new(ctx: &ExecuteCommandContext, view_handle: Handle<View>) -> WarpdriveState {
+    pub fn new(ctx: &mut ExecuteCommandContext, view_handle: Handle<View>) -> WarpdriveState {
         // TODO allow providing the regex for jump points
 
-        let view = ctx.resources.views.get(view_handle);
-        let render_ctx = &RenderPanelContext {
+        let render_ctx = &mut PanelContext {
             state: ctx.state,
             resources: ctx.resources,
         };
@@ -121,6 +132,8 @@ impl WarpdriveState {
         let editor_ui_panel = editor_panel.render(render_ctx).pop().unwrap();
         let mut content = editor_ui_panel.content;
         let render_left_padding = editor_ui_panel.position.column;
+
+        let view = ctx.resources.views.get(view_handle);
 
         // Gather jump points
         let mut jump_points = Vec::new();
@@ -240,11 +253,12 @@ pub mod commands {
 
     pub fn register_warpdrive_commands(cr: &mut CommandRegistry) {
         cr.register("warpdrive", |_opt, ctx| {
-            let Some(view_handle) = ctx.state.focused_view() else {
+            let mut ctx = ctx;
+            let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
                 return Ok(());
             };
 
-            let new_state = Some(WarpdriveState::new(&ctx, view_handle));
+            let new_state = Some(WarpdriveState::new(&mut ctx, view_handle));
             let warpdrive_panel = ctx
                 .panels
                 .panel_of_type_mut::<Warpdrive>()

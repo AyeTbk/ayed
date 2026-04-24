@@ -7,7 +7,7 @@ use crate::{
     },
 };
 
-use super::RenderPanelContext;
+use super::PanelContext;
 
 #[derive(Default)]
 pub struct Completions {
@@ -22,11 +22,15 @@ impl Panel for Completions {
         }
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx).into_iter().collect()
     }
 }
@@ -36,7 +40,7 @@ impl Completions {
         self.rect = rect;
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+    pub fn render(&self, ctx: &PanelContext) -> Option<UiPanel> {
         if ctx.state.completions.items.is_empty() {
             return None;
         }
@@ -45,12 +49,12 @@ impl Completions {
         let placement = placement.ok()?;
         match placement {
             "cursor" => self.render_at_cursor(ctx),
-            "modeline" => self.render_at_modeline(ctx),
+            "prompt" => self.render_at_modeline(ctx),
             _ => self.render_at_cursor(ctx),
         }
     }
 
-    fn render_at_cursor(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+    fn render_at_cursor(&self, ctx: &PanelContext) -> Option<UiPanel> {
         let width = ctx
             .state
             .completions
@@ -65,7 +69,7 @@ impl Completions {
 
         // let position_in_buffer = selections.primary().cursor();
         let position_in_buffer = ctx.state.completions.original_symbol_start;
-        let view_top_left = ctx.state.focused_view_rect(&ctx.resources).top_left();
+        let view_top_left = ctx.state.focused_panel_view_rect.unwrap().top_left();
         let target_position = position_in_buffer.local_to_pos(view_top_left)
             + ctx.state.editor_rect.top_left()
             + Position::new(ctx.state.editor_line_numbers_width, 0);
@@ -126,7 +130,7 @@ impl Completions {
         })
     }
 
-    fn render_at_modeline(&self, ctx: &RenderPanelContext) -> Option<UiPanel> {
+    fn render_at_modeline(&self, ctx: &PanelContext) -> Option<UiPanel> {
         let width = ctx.state.modeline_rect.width;
         let height = ctx.state.completions.items.len() as i32;
         let size = Size::new(width, height);

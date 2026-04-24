@@ -6,6 +6,9 @@ use std::{
 use crate::{
     panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, Sides},
     position::Position,
+    selection::Selections,
+    slotmap::Handle,
+    state::{TextBuffer, View},
     ui::{
         Color, Rect, Style,
         ui_state::{StyledRegion, UiPanel},
@@ -16,11 +19,12 @@ use crate::{
     },
 };
 
-use super::{Editor, FocusedPanel, RenderPanelContext};
+use super::{Editor, PanelContext};
 
 #[derive(Default)]
 pub struct FilePicker {
     rect: Rect,
+    view_handle: Option<Handle<View>>,
 }
 
 impl Panel for FilePicker {
@@ -37,12 +41,45 @@ impl Panel for FilePicker {
         }
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn on_focus(&mut self, ctx: &mut PanelContext) {
+        let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
+        let view = ctx.resources.views.insert(View {
+            top_left: Position::ZERO,
+            buffer,
+        });
+        ctx.resources
+            .buffers
+            .get_mut(buffer)
+            .add_view_selections(view, Selections::new());
+        self.view_handle = Some(view);
+    }
+
+    fn on_unfocus(&mut self, ctx: &mut PanelContext) {
+        let Some(view_handle) = self.view_handle else { return };
+        let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+        ctx.resources.views.remove(view_handle);
+        ctx.resources.buffers.remove(buffer_handle);
+        self.view_handle = None;
+    }
+
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx)
+    }
+
+    fn name(&self) -> Option<&str> {
+        Some("file-picker")
+    }
+
+    fn view(&self) -> Option<Handle<View>> {
+        self.view_handle
     }
 }
 
@@ -55,8 +92,8 @@ impl FilePicker {
         self.rect = rect;
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
-        let FocusedPanel::FilePicker(view_handle) = ctx.state.focused_panel else {
+    pub fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
+        let Some(view_handle) = self.view_handle else {
             return Vec::new();
         };
 
@@ -94,7 +131,7 @@ impl FilePicker {
 }
 
 fn render_file_list(
-    ctx: &RenderPanelContext,
+    ctx: &PanelContext,
     rect: Rect,
     default_style: Style,
     text_color: Option<Color>,

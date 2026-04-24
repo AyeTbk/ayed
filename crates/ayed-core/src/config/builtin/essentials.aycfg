@@ -53,13 +53,13 @@ mode insert.* {
     }
 }
 @override
-panel modeline {
+panel prompt {
     completions {
-        placement modeline
+        placement prompt
         source commands
     }
 }
-panel modeline {
+panel prompt {
     hooks {
         completions-select move r anchored
     }
@@ -170,8 +170,9 @@ mixin completions {
     }
 }
 
+# Essential for prompt
 @override
-panel modeline {
+panel prompt {
     use basic-movement
     use basic-deletion
     use completions
@@ -180,13 +181,27 @@ panel modeline {
         <esc> panel-focus editor
         <c-space> panel-focus editor
 
-        <ret> modeline-exec
+        <ret> prompt-exec
 
-        <up> modeline-history --previous
-        <down> modeline-history --next
+        <up> prompt-history --previous
+        <down> prompt-history --next
 
         else insert-char
     }
+
+    prompt-mode search {
+        keybinds {
+            <ret> prompt-exec move-regex --primary <PROMPT>
+        }
+    }
+    prompt-mode select {
+        keybinds {
+            <ret> prompt-exec select-regex <PROMPT>
+        }
+    }
+}
+hooks {
+    panel-focus  set prompt-mode $""
 }
 
 # Essential for file-picker
@@ -214,6 +229,7 @@ panel file-picker {
     }
 }
 
+# Essential for warpdrive
 @override
 panel warpdrive {
     keybinds {
@@ -228,7 +244,7 @@ panel warpdrive {
 
 keybinds {
     # Escape hatch for when mode is set to nonsense
-    <a-1> set mode normal
+    <a-1> $[ set mode normal ; set prompt-mode command ; panel-focus editor ]
 }
 
 hooks {
@@ -290,10 +306,6 @@ mode normal {
 
         _ select-regex [^\s][\S\s]*[^\s]|[^\s]
 
-        # This doesn't work because I would need to be able to express a space at the end of a value,
-        # but such a space gets trimmed rn...
-        s $[ panel-focus modeline ; insert-str $"select-regex " ]
-
         <lt> indent --less
         <gt> indent --more
         <a-lt> indent --reindent
@@ -304,7 +316,9 @@ mode normal {
         <s-p> paste --before
         <s-r> $[ set mode insert ; delete ; paste --before ; set mode normal ]
 
-        : panel-focus modeline
+        : panel-focus prompt
+        / $[ panel-focus prompt ; set prompt-mode search ]
+        s $[ panel-focus prompt ; set prompt-mode select ]
 
         <backtab> set mode insert
         i set mode insert

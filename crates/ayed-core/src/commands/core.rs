@@ -1,9 +1,6 @@
 use crate::{
     command::{CommandRegistry, helpers::alias, options::Options},
-    panels::{FocusedPanel, Warpdrive},
-    position::Position,
-    selection::Selections,
-    state::{TextBuffer, View},
+    panels::PanelContext,
 };
 
 pub fn register_core_commands(cr: &mut CommandRegistry) {
@@ -67,106 +64,103 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
             .next()
             .ok_or_else(|| format!("missing panel name"))?;
 
-        // Cleanup if needed
-        match ctx.state.focused_panel {
-            FocusedPanel::Warpdrive => {
-                let warpdrive_panel = ctx
-                    .panels
-                    .panel_of_type_mut::<Warpdrive>()
-                    .expect("just exist plz");
-                warpdrive_panel.clear_state();
-            }
-            FocusedPanel::Modeline(view_handle) => {
-                let buffer_handle = ctx.resources.views.get(view_handle).buffer;
-                ctx.resources.views.remove(view_handle);
-                ctx.resources.buffers.remove(buffer_handle);
-            }
-            FocusedPanel::FilePicker(view_handle) => {
-                let buffer_handle = ctx.resources.views.get(view_handle).buffer;
-                ctx.resources.views.remove(view_handle);
-                ctx.resources.buffers.remove(buffer_handle);
-            }
-            _ => (),
+        // Unfocus previously focused panel
+        if let Some(panel) = ctx.panels.panel_with_name_mut(&ctx.state.focused_panel) {
+            panel.on_unfocus(&mut PanelContext {
+                resources: ctx.resources,
+                state: ctx.state,
+            });
         }
 
-        match panel_name {
-            "editor" => {
-                ctx.state.focused_panel = FocusedPanel::Editor;
-            }
-            "modeline" => {
-                let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
-                let view = ctx.resources.views.insert(View {
-                    top_left: Position::ZERO,
-                    buffer,
-                });
-                ctx.resources
-                    .buffers
-                    .get_mut(buffer)
-                    .add_view_selections(view, Selections::new());
+        ctx.state.focused_panel = panel_name.to_string();
 
-                // TODO the modeline view and buffer handles could just be stored in the panel maybe?
-                // It would avoid having to cleanup and recreate them (but would still need to clear the buffer).
-                ctx.state.focused_panel = FocusedPanel::Modeline(view);
-            }
-            "file-picker" => {
-                let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
-                let view = ctx.resources.views.insert(View {
-                    top_left: Position::ZERO,
-                    buffer,
-                });
-                ctx.resources
-                    .buffers
-                    .get_mut(buffer)
-                    .add_view_selections(view, Selections::new());
-
-                // TODO the file picker view and buffer handles could just be stored in the panel maybe?
-                // It would avoid having to cleanup and recreate them (but would still need to clear the buffer).
-                ctx.state.focused_panel = FocusedPanel::FilePicker(view);
-            }
-            "warpdrive" => {
-                ctx.state.focused_panel = FocusedPanel::Warpdrive;
-            }
-            _ => return Err(format!("unknown panel '{opt}'")),
+        // Focus newly focused panel
+        if let Some(panel) = ctx.panels.panel_with_name_mut(&ctx.state.focused_panel) {
+            panel.on_focus(&mut PanelContext {
+                resources: ctx.resources,
+                state: ctx.state,
+            });
         }
 
-        ctx.queue.set_state("panel", panel_name);
+        ctx.queue.set_state("panel", &ctx.state.focused_panel);
 
         Ok(())
     });
 
-    cr.register("modeline-exec", |_opt, ctx| {
-        let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel else {
-            return Err("modeline not focused".into());
-        };
+    cr.register("prompt-exec", |opt, ctx| {
+        let command_to_execute_override = opt.trim();
+
+        let view_handle = ctx
+            .panels
+            .panel_with_name(&ctx.state.focused_panel)
+            .and_then(|p| p.view())
+            .ok_or_else(|| "prompt not focused".to_string())?;
 
         let buffer_handle = ctx.resources.views.get(view_handle).buffer;
         let line = ctx.resources.buffers.get(buffer_handle).first_line();
 
         ctx.queue.push("panel-focus editor");
-        if !line.is_empty() {
-            ctx.state.modeline.history.push(line.to_string());
-            ctx.state.modeline.history_selected_item = ctx.state.modeline.history.len();
 
-            ctx.queue.push(line);
+        let maybe_history = if let Some(prompt_mode) = ctx.state.config.state_value("prompt-mode") {
+            let key = prompt_mode.to_string();
+            let history = ctx.state.modeline.histories.entry(key).or_default();
+            Some(history)
+        } else {
+            None
+        };
+
+        let mut unprocessed_command = line.to_string();
+
+        if let Some(history) = maybe_history {
+            if line.is_empty() {
+                if let Some(entry) = history.entries.last() {
+                    unprocessed_command = entry.to_string();
+                }
+            }
+
+            if !line.is_empty() {
+                history.entries.push(unprocessed_command.clone());
+                history.selected_item = history.entries.len();
+            }
+        }
+
+        let command;
+        if command_to_execute_override.is_empty() {
+            command = unprocessed_command;
+        } else {
+            command = command_to_execute_override.replace("<PROMPT>", &unprocessed_command);
+        }
+
+        if !command.trim().is_empty() {
+            ctx.queue.push(command);
         }
 
         Ok(())
     });
 
-    cr.register("modeline-history", |opt, ctx| {
+    cr.register("prompt-history", |opt, ctx| {
         let opts = Options::new().flag("next").flag("previous").parse(opt)?;
         let next = opts.contains("next");
         let previous = opts.contains("previous");
 
-        let FocusedPanel::Modeline(view_handle) = ctx.state.focused_panel else {
-            return Err("modeline not focused".into());
+        let Some(prompt_mode) = ctx.state.config.state_value("prompt-mode") else {
+            return Ok(());
         };
+        let Some(history) = ctx.state.modeline.histories.get_mut(prompt_mode) else {
+            return Ok(());
+        };
+
+        let view_handle = ctx
+            .panels
+            .panel_with_name(&ctx.state.focused_panel)
+            .and_then(|p| p.view())
+            .ok_or_else(|| "prompt not focused".to_string())?;
 
         let buffer_handle = ctx.resources.views.get(view_handle).buffer;
         let buffer = ctx.resources.buffers.get_mut(buffer_handle);
         if buffer.line(0).is_some() {
-            let max = ctx.state.modeline.history.len();
-            let item_idx = &mut ctx.state.modeline.history_selected_item;
+            let max = history.entries.len();
+            let item_idx = &mut history.selected_item;
             if next {
                 *item_idx = usize::min(item_idx.saturating_add(1), max);
             }
@@ -177,7 +171,7 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
             if *item_idx == max {
                 buffer.set_line(0, String::new()).unwrap();
             } else {
-                let item = &ctx.state.modeline.history[*item_idx];
+                let item = &history.entries[*item_idx];
                 buffer.set_line(0, item.clone()).unwrap();
 
                 ctx.queue.push("move-to-edge line-past-end");

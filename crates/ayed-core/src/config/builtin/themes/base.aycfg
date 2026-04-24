@@ -33,6 +33,7 @@ theme {
     error-dark          #180808
 
     modeline-text       #cccccc
+    modeline-text-dim   #8d95b0
 }
 
 mode insert.* {

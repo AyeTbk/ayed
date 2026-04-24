@@ -222,8 +222,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register("look-keep-primary-cursor-in-view", |_opt, ctx| {
-        if let Some(view_handle) = ctx.state.focused_view() {
-            let view_rect = ctx.state.focused_view_rect(&ctx.resources);
+        if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
+            let view_rect = ctx
+                .state
+                .focused_view_rect(&ctx.panels, &ctx.resources)
+                .unwrap();
             let view = ctx.resources.views.get_mut(view_handle);
             let cursor = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
@@ -405,21 +408,30 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         let opts = Options::new()
             .flag("reversed")
             .flag("anchored")
+            .flag("primary")
             .flag("line")
             .parse(opt)?;
         let reversed = opts.contains("reversed");
         let anchored = opts.contains("anchored");
+        let primary_selection_only = opts.contains("primary");
         let stay_within_line = opts.contains("line");
         let pattern = opts.remainder();
 
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
 
         let view = ctx.resources.views.get(view_handle);
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let mut selections = buffer.view_selections(view_handle).unwrap().clone();
+
         let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
+
+        let view_selections = buffer.view_selections(view_handle).unwrap();
+        let mut selections = if primary_selection_only {
+            vec![view_selections.primary()]
+        } else {
+            view_selections.iter().copied().collect::<Vec<_>>()
+        };
 
         for selection in selections.iter_mut() {
             let cursor = selection.cursor;
@@ -505,7 +517,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             }
         }
 
-        *buffer.view_selections_mut(view_handle).unwrap() = selections;
+        *buffer.view_selections_mut(view_handle).unwrap() = Selections::from_vec(selections);
 
         ctx.queue.emit("selections-modified", "");
 
@@ -774,7 +786,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("selections-merge-overlapping", |_opt, ctx| {
-        if let Some(view_handle) = ctx.state.focused_view() {
+        if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let selections = buffer.view_selections_mut(view_handle).unwrap();
@@ -785,7 +797,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("selections-dismiss-extras", |_opt, ctx| {
-        if let Some(view_handle) = ctx.state.focused_view() {
+        if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let selections = buffer.view_selections_mut(view_handle).unwrap();
@@ -798,7 +810,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("selections-set", |opt, ctx| {
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
 
@@ -813,7 +825,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     });
 
     cr.register("selections-shrink", |_opt, ctx| {
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
         let view = ctx.resources.views.get(view_handle);
@@ -833,7 +845,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         let forward = opts.contains("forward");
         let backward = opts.contains("backward");
 
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
         let view = ctx.resources.views.get(view_handle);
@@ -862,7 +874,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         let row_offset = -(up as i8) + (down as i8);
         let offset = Offset::new(0, row_offset as i32);
 
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
 

@@ -1,5 +1,5 @@
 use crate::{
-    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext},
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, PanelContext},
     position::Position,
     state::State,
     ui::{
@@ -20,16 +20,20 @@ pub struct Combo {
 impl Panel for Combo {
     fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
         LayoutInfo {
-            place: LayoutPlace::Center,
+            place: LayoutPlace::FloatCenter,
             ..Default::default()
         }
+    }
+
+    fn rect(&self) -> Rect {
+        self.rect
     }
 
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx.state)
     }
 }

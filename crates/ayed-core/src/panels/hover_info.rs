@@ -1,5 +1,5 @@
 use crate::{
-    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, RenderPanelContext, Sides},
+    panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel, PanelContext, Sides},
     position::{Column, Position, Row},
     ui::{
         Rect, Style,
@@ -28,11 +28,15 @@ impl Panel for HoverInfo {
         }
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn set_rect(&mut self, rect: Rect) {
         self.set_rect(rect)
     }
 
-    fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         self.render(ctx)
     }
 }
@@ -42,7 +46,7 @@ impl HoverInfo {
         self.rect = rect;
     }
 
-    pub fn render(&self, ctx: &RenderPanelContext) -> Vec<UiPanel> {
+    pub fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
         let Some(text) = &ctx.state.hover_info else {
             return Vec::new();
         };

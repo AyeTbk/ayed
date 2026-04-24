@@ -168,7 +168,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let selected_item_idx = i32::max(ctx.state.completions.selected_item - 1, 0) as usize;
         let cycling_to_original = ctx.state.completions.selected_item == 0;
 
-        let Some(view_handle) = ctx.state.focused_view() else {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
         let view = ctx.resources.views.get(view_handle);
