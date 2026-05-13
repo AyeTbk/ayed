@@ -37,6 +37,54 @@ impl Core {
 
         this.state.working_directory = std::env::current_dir().unwrap();
 
+        // // DEBUG DEBUG DEBUG
+        // let make_item = |s: &str| CompletionItem {
+        //     label: s.to_string(),
+        //     edit: CompletionEdit {
+        //         range: (Position::ZERO, Position::ZERO),
+        //         text: s.to_string(),
+        //     },
+        //     extra_edits: vec![],
+        // };
+        // this.state.completions.items = vec![
+        //     make_item("ahow"),
+        //     make_item("beeboo"),
+        //     make_item("cachow"),
+        //     make_item("dabidibum"),
+        //     make_item("fahow"),
+        //     make_item("gbeeboo"),
+        //     make_item("hcachow"),
+        //     make_item("idabidibum"),
+        //     make_item("jahow"),
+        //     make_item("kbeeboo"),
+        //     make_item("lcachow"),
+        //     make_item("mdabidibum"),
+        //     make_item("ahow"),
+        //     make_item("beeboo"),
+        //     make_item("cachow"),
+        //     make_item("dabidibum"),
+        //     make_item("fahow"),
+        //     make_item("gbeeboo"),
+        //     make_item("hcachow"),
+        //     make_item("idabidibum"),
+        //     make_item("jahow"),
+        //     make_item("kbeeboo"),
+        //     make_item("lcachow"),
+        //     make_item("mdabidibum"),
+        //     make_item("ahow"),
+        //     make_item("beeboo"),
+        //     make_item("cachow"),
+        //     make_item("dabidibum"),
+        //     make_item("fahow"),
+        //     make_item("gbeeboo"),
+        //     make_item("hcachow"),
+        //     make_item("idabidibum"),
+        //     make_item("jahow"),
+        //     make_item("kbeeboo"),
+        //     make_item("lcachow"),
+        //     make_item("mdabidibum"),
+        // ];
+
         this.queue_command("started".to_string());
         this.tick();
 

@@ -82,7 +82,7 @@ impl StatusBar {
 
         let mut spans = Vec::new();
 
-        let mut top_line_builder = LineBuilder::new_with_length(size.column as _);
+        let mut top_line_builder = LineBuilder::new().with_length(size.column as _);
 
         let mut top_style = Style {
             foreground_color: ctx.state.config.get_theme_color("modeline-text"),
@@ -100,17 +100,30 @@ impl StatusBar {
             // TODO styles for the infos
             match info.align {
                 Align::Right => {
-                    top_line_builder = top_line_builder.add_right_aligned(&info.text, ());
-                    top_line_builder = top_line_builder.add_right_aligned("  ", ());
+                    top_line_builder =
+                        top_line_builder.add_right_aligned(&info.text, Some(info.style));
+                    top_line_builder = top_line_builder.add_right_aligned("  ", None);
                 }
                 Align::Left => {
-                    top_line_builder = top_line_builder.add_left_aligned(&info.text, ());
-                    top_line_builder = top_line_builder.add_left_aligned("  ", ());
+                    top_line_builder =
+                        top_line_builder.add_left_aligned(&info.text, Some(info.style));
+                    top_line_builder = top_line_builder.add_left_aligned("  ", None);
                 }
             }
         }
 
-        let (top_line_content, _) = top_line_builder.build();
+        let (top_line_content, styles) = top_line_builder.build();
+
+        // Styles spans
+        for positioned_style in styles {
+            let Some(style) = positioned_style.data else { continue };
+            spans.push(StyledRegion {
+                from: Position::ZERO.offset((positioned_style.chars.0 as i32, 0)),
+                to: Position::ZERO.offset((positioned_style.chars.1 as i32 - 1, 0)),
+                style,
+                ..Default::default()
+            })
+        }
 
         // Top Bg color
         spans.push(StyledRegion {

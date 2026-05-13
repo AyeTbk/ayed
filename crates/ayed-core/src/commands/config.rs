@@ -41,11 +41,7 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
 
         let buffer = ctx.resources.buffers.get(buffer_handle);
         let syntax = ctx.state.config.get_syntax();
-        let syntax_style = ctx
-            .state
-            .config
-            .get("syntax-style")
-            .expect("syntax-style should exist");
+        let syntax_style = ctx.state.config.get_syntax_sytle();
         let highlights = regex_syntax_highlight(buffer, syntax, syntax_style);
 
         ctx.state.highlights.insert(buffer_handle, highlights);

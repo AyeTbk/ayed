@@ -6,7 +6,7 @@ use regex::Regex;
 use crate::{
     config::applied_config::{AppliedConfig, EditorConfig},
     input::Input,
-    ui::Color,
+    ui::{Color, style::SyntaxStyle},
 };
 
 mod applied_config;
@@ -78,6 +78,10 @@ impl Config {
 
     pub fn get_syntax(&self) -> &HashMap<String, Vec<Regex>> {
         &self.current_config.syntax
+    }
+
+    pub fn get_syntax_sytle(&self) -> &HashMap<String, SyntaxStyle> {
+        &self.current_config.syntax_style
     }
 
     pub fn get_editor(&self) -> &EditorConfig {

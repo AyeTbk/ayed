@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::position::Position;
 
@@ -8,31 +8,44 @@ pub struct Completions {
     pub items: Vec<CompletionItem>,
     /// Selected item index, 1 based, where 0 means none.
     pub selected_item: i32,
-    /// The position in the buffer where the cursor should be for the
-    /// suggestion box to show up. Used to show/hide the box when appropriate.
-    pub prompt_suggestion_cursor_position: Option<Position>,
     /// The start position of the primary cursor's original symbol.
     /// Used to position the box.
     pub original_symbol_start: Position,
 
     /// Unfiltered items from completion sources.
-    pub source_items: HashMap<CompletionSources, Vec<CompletionItem>>,
+    pub source_items: BTreeMap<CompletionSource, Vec<CompletionItem>>,
     /// The last completion inverse edits, kept to undo the edits when cycling through choices.
     pub last_completion_inverse_edits: Option<Vec<CompletionEdit>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CompletionSources {
-    Dbg,
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub enum CompletionSource {
+    Buffer,
     Lsp,
+}
+
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub enum CompletionItemKind {
+    Variable,
+    Function,
+    Member,
+    Type,
+    Interface,
+    Module,
+    Keyword,
+    Plaintext,
 }
 
 #[derive(Debug, Clone)]
 pub struct CompletionItem {
     pub label: String,
     // TODO add filter text field
-    pub edit: CompletionEdit, // TODO This might just need to be a String, because the range will be ignored
+    pub text: String,
     pub extra_edits: Vec<CompletionEdit>,
+    pub kind: CompletionItemKind,
+    pub source: CompletionSource,
+    pub type_annotation: Option<String>,
+    pub documentation: Option<String>,
 }
 
 #[derive(Debug, Clone)]

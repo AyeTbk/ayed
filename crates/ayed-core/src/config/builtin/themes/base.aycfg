@@ -1,6 +1,6 @@
 theme {
     accent              #393d49
-    accent-mild         #2f323c
+    accent-mild         #292c34
     accent-dark         #22242a
     accent-bright       #393d49
 
@@ -8,6 +8,7 @@ theme {
     box-bg              #22242a
 
     editor-fg           #dddddd
+    editor-fg-mild      #7f7f88
     editor-bg           #22242a
     editor-nil-line     #586d90
     editor-indent       #2f323b
@@ -58,6 +59,7 @@ syntax-style {
     delimiter           $[ #ccaa11 ; priority:11 ]
     macro               $[ #3377cc ; priority:11 ]
     type                $[ #55b89b ; priority:12 ]
+    interface           $[ #54a3b7 ; priority:12 ]
     literal             $[ #aaddcc ; priority:11 ]
     string              $[ #bb8866 ; priority:14 ]
     lifetime            $[ #cccccc ; priority:14 ]

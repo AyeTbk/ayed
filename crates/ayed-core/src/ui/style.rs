@@ -66,6 +66,12 @@ impl Color {
     }
 }
 
+#[derive(Debug)]
+pub struct SyntaxStyle {
+    pub color: Option<Color>,
+    pub priority: u8,
+}
+
 pub const DEFAULT_PRIORITY: u8 = 10;
 
 pub fn priority_from_str(src: &str) -> Result<u8, ()> {

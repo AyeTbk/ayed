@@ -84,7 +84,7 @@ impl Prompt {
         let mut panels = Vec::new();
 
         let mut bg_style = Style {
-            background_color: ctx.state.config.get_theme_color("accent-dark"),
+            background_color: ctx.state.config.get_theme_color("editor-bg"),
             ..Default::default()
         };
         let bg_content;
@@ -92,7 +92,8 @@ impl Prompt {
             if let Some(style) = content_override.bottom_style {
                 bg_style = style;
             }
-            bg_content = LineBuilder::new_with_length(size.column as _)
+            bg_content = LineBuilder::new()
+                .with_length(size.column as _)
                 .add_left_aligned(&content_override.text, ())
                 .build()
                 .0;
@@ -154,7 +155,8 @@ impl Prompt {
                 let history = ctx.state.modeline.histories.get(prompt_mode)?;
                 let entry = history.entries.last()?;
 
-                *content = LineBuilder::new_with_length(char_count(content))
+                *content = LineBuilder::new()
+                    .with_length(char_count(content))
                     .add_left_aligned(entry, ())
                     .build()
                     .0;

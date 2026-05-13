@@ -4,13 +4,17 @@ use regex::Regex;
 
 use crate::{
     config::{ConditionalMapping, ConfigModule, ConfigState},
-    ui::Color,
+    ui::{
+        Color,
+        style::{DEFAULT_PRIORITY, SyntaxStyle, priority_from_str},
+    },
 };
 
 #[derive(Debug, Default)]
 pub struct AppliedConfig {
     pub mappings: HashMap<String, HashMap<String, Vec<String>>>,
     pub syntax: HashMap<String, Vec<Regex>>,
+    pub syntax_style: HashMap<String, SyntaxStyle>,
     pub editor: EditorConfig,
     pub theme: HashMap<String, Color>,
 }
@@ -120,6 +124,28 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
         })
         .collect();
 
+    let syntax_style = mappings
+        .get("syntax-style")
+        .unwrap_or(&HashMap::new())
+        .iter()
+        .map(|(rule_name, values)| {
+            let mut color = None;
+            let mut priority = None;
+            for value in values {
+                if let Some(parsed_color) = Color::from_hex(value).ok() {
+                    color = Some(parsed_color);
+                } else if let Ok(parsed_priority) = priority_from_str(value) {
+                    priority = Some(parsed_priority);
+                }
+            }
+            let style = SyntaxStyle {
+                color,
+                priority: priority.unwrap_or(DEFAULT_PRIORITY),
+            };
+            (rule_name.to_string(), style)
+        })
+        .collect();
+
     let mut editor = EditorConfig::default();
     if let Some(mapping) = mappings.get("editor") {
         if let Some(indent_size) = mapping
@@ -144,6 +170,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
     AppliedConfig {
         mappings,
         syntax,
+        syntax_style,
         editor,
         theme,
     }

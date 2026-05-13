@@ -11,7 +11,7 @@ format rust {
     }
 
     syntax {
-        keyword \b(let|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move|struct|enum|type)\b
+        keyword \b(let|const|impl|pub|fn|mod|use|as|self|Self|mut|unsafe|move|struct|enum|type)\b
         keyword-statement \b(if|else|while|for|in|loop|continue|break|match)\b
         builtin \b(Some|None|Ok|Err)\b
         operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)

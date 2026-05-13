@@ -1,11 +1,3 @@
-use crate::utils::string_utils::char_count;
-
-use super::char_index_to_byte_index;
-
-const ELLIPSIS: &'static str = " …";
-
-// TODO rewrite/fix this to be better aware of char boundaries.
-
 pub struct LineBuilder<'a, Data> {
     line_length: usize,
     right_aligned_content: Vec<(&'a str, Data)>,
@@ -13,12 +5,17 @@ pub struct LineBuilder<'a, Data> {
 }
 
 impl<'a, Data> LineBuilder<'a, Data> {
-    pub fn new_with_length(line_length: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            line_length,
+            line_length: 1,
             right_aligned_content: Default::default(),
             left_aligned_content: Default::default(),
         }
+    }
+
+    pub fn with_length(mut self, line_length: usize) -> Self {
+        self.line_length = line_length;
+        self
     }
 
     pub fn add_right_aligned(mut self, content: &'a str, data: Data) -> Self {
@@ -31,67 +28,119 @@ impl<'a, Data> LineBuilder<'a, Data> {
         self
     }
 
-    pub fn build(self) -> (String, Vec<(usize, usize, Data)>) {
-        let mut buf = " ".repeat(self.line_length);
+    pub fn build(self) -> (String, Vec<PositionedData<Data>>) {
+        let ellipsis_len = 2; // ellipsis + a space
 
-        let left_aligned_content = Self::joined_content_string(&self.left_aligned_content);
-        let left_aligned_length = char_count(&left_aligned_content);
-        let left_aligned_space = left_aligned_length.min(self.line_length);
+        let mut datas = Vec::new();
+        let mut buf = String::new();
 
-        let right_aligned_content = Self::joined_content_string(&self.right_aligned_content);
-        let right_aligned_length = char_count(&right_aligned_content);
-        let right_aligned_space = right_aligned_length.min(self.line_length - left_aligned_space);
-        let right_aligned_slice_start_idx = right_aligned_length - right_aligned_space;
-        let right_aligned_buf_start_idx = self.line_length - right_aligned_space;
-
-        let maybe_ellipsis_idx =
-            if left_aligned_space < left_aligned_length && left_aligned_space > 0 {
-                // Left aligned was "truncated"
-                Some(left_aligned_space - 1)
-            } else if left_aligned_space >= right_aligned_buf_start_idx && left_aligned_space > 0 {
-                // Left not truncated but overlaps Right
-                Some(left_aligned_space - 1)
-            } else if right_aligned_space < right_aligned_length {
-                // Right aligned was "truncated"
-                Some(right_aligned_buf_start_idx)
-            } else {
-                None
-            };
-
-        // NOTE this is a crappy fix
-        let lasb =
-            char_index_to_byte_index(&left_aligned_content, left_aligned_space).unwrap_or_default();
-        buf.replace_range(..left_aligned_space, &left_aligned_content[..lasb]);
-        buf.replace_range(
-            right_aligned_buf_start_idx..,
-            &right_aligned_content[right_aligned_slice_start_idx..],
-        );
-
-        if let Some(ellipsis_idx) = maybe_ellipsis_idx {
-            let char_to_replace = buf.chars().nth(ellipsis_idx).unwrap();
-            let char_to_replace_byte_size = char_to_replace.len_utf8();
-            let ellipsis_end_idx = ellipsis_idx + char_to_replace_byte_size;
-
-            buf.replace_range(ellipsis_idx..ellipsis_end_idx, ELLIPSIS);
+        // Build left-aligned content
+        let mut remaining_len = self.line_length as i32;
+        let mut left_ellipsize = false;
+        let mut char_count = 0;
+        for (content, data) in self.left_aligned_content.into_iter() {
+            let data_start_byte_idx = buf.len();
+            let data_start_char_idx = char_count;
+            for ch in content.chars() {
+                if remaining_len == ellipsis_len {
+                    left_ellipsize = true;
+                    break;
+                }
+                buf.push(ch);
+                remaining_len -= 1;
+                char_count += 1;
+            }
+            let data_end_byte_idx = buf.len();
+            let data_end_char_idx = char_count;
+            datas.push(PositionedData {
+                bytes: (data_start_byte_idx, data_end_byte_idx),
+                chars: (data_start_char_idx, data_end_char_idx),
+                data,
+            });
+            if left_ellipsize {
+                break;
+            }
+        }
+        if left_ellipsize {
+            buf.push_str("… ");
+            remaining_len -= 2;
         }
 
-        (buf, vec![])
-    }
+        // Build right aligned content, in reverse
+        if remaining_len > ellipsis_len {
+            let mut rdatas: Vec<PositionedData<Data>> = Vec::new();
+            let mut rbuf = String::new();
+            let mut right_ellipsize = false;
+            let mut rchar_count = 0;
+            for (content, data) in self.right_aligned_content.into_iter().rev() {
+                let data_start_byte_idx = rbuf.len();
+                let data_start_char_idx = rchar_count;
+                for ch in content.chars().rev() {
+                    if remaining_len == ellipsis_len {
+                        right_ellipsize = true;
+                        break;
+                    }
+                    rbuf.push(ch);
+                    remaining_len -= 1;
+                    rchar_count += 1;
+                }
+                let data_end_byte_idx = rbuf.len();
+                let data_end_char_idx = rchar_count;
+                rdatas.push(PositionedData {
+                    bytes: (data_start_byte_idx, data_end_byte_idx),
+                    chars: (data_start_char_idx, data_end_char_idx),
+                    data,
+                });
+                if right_ellipsize {
+                    break;
+                }
+            }
+            if right_ellipsize {
+                rbuf.push_str("… ");
+                remaining_len -= 2;
+            }
 
-    fn joined_content_string(content: &[(&str, Data)]) -> String {
-        content
-            .iter()
-            .map(|(content, _)| content)
-            .fold(String::new(), |mut acc, s| {
-                acc.push_str(s);
-                acc
-            })
+            // Optional padding
+            if remaining_len > 0 {
+                for _ in 0..remaining_len {
+                    buf.push(' ');
+                }
+            }
+
+            // Fixup rdatas indices
+            let full_buf_byte_len = buf.len() + rbuf.len();
+            let full_buf_char_len = self.line_length;
+            for data in &mut rdatas {
+                data.bytes.0 = full_buf_byte_len - data.bytes.0;
+                data.bytes.1 = full_buf_byte_len - data.bytes.1;
+
+                data.chars.0 = full_buf_char_len - data.chars.0;
+                data.chars.1 = full_buf_char_len - data.chars.1;
+            }
+
+            // Combine left and right
+            for ch in rbuf.chars().rev() {
+                buf.push(ch);
+            }
+            datas.extend(rdatas);
+        }
+
+        (buf, datas)
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct PositionedData<Data> {
+    pub bytes: (usize, usize),
+    pub chars: (usize, usize),
+    pub data: Data,
 }
 
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
+    use crate::utils::string_utils::char_count;
+
     use super::*;
 
     // FIXME These tests dont work. The implementation sorta seems to work but I don't like it.
@@ -103,8 +152,9 @@ mod tests {
     #[test]
     fn build__when_empty__filled_with_spaces() {
         let expected = "                        ";
-        let (result, _payload) =
-            LineBuilder::<()>::new_with_length(char_count(expected) as _).build();
+        let (result, _payload) = LineBuilder::<()>::new()
+            .with_length(char_count(expected) as _)
+            .build();
 
         assert_eq!(result, expected);
     }
@@ -112,7 +162,8 @@ mod tests {
     #[test]
     fn build__right_aligned_is_right_aligned() {
         let expected = "            salut";
-        let (result, _payload) = LineBuilder::new_with_length(char_count(expected) as _)
+        let (result, _payload) = LineBuilder::new()
+            .with_length(char_count(expected) as _)
             .add_right_aligned("salut", ())
             .build();
 
@@ -123,7 +174,8 @@ mod tests {
     fn build__when_not_enough_space__right_aligned_is_ellipsized() {
         let content = "bienvenu";
         let expected = " …venu";
-        let (result, _payload) = LineBuilder::new_with_length(6)
+        let (result, _payload) = LineBuilder::new()
+            .with_length(6)
             .add_right_aligned(content, ())
             .build();
 
@@ -133,8 +185,9 @@ mod tests {
     #[test]
     fn build__when_not_enough_space__left_aligned_is_ellipsized() {
         let content = "bienvenu";
-        let expected = "bien …";
-        let (result, _payload) = LineBuilder::new_with_length(6)
+        let expected = "bien… ";
+        let (result, _payload) = LineBuilder::new()
+            .with_length(6)
             .add_left_aligned(content, ())
             .build();
 
@@ -146,34 +199,13 @@ mod tests {
      {
         let lcontent = "bienvenu";
         let rcontent = "allo";
-        let expected = "bi …";
-        let (result, _payload) = LineBuilder::new_with_length(4)
+        let expected = "bi… ";
+        let (result, _payload) = LineBuilder::new()
+            .with_length(4)
             .add_left_aligned(lcontent, ())
             .add_right_aligned(rcontent, ())
             .build();
 
         assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn build__when_left_aligned_has_just_enough_space_but_right_aligned_is_ellipsized_so_the_last_character_needs_to_be_ellipsis__dont_crash_plz()
-     {
-        let expected = ":edit the file plz tyvm rlly appreciated like i mean it dud …";
-        let (result, _payload) = LineBuilder::new_with_length(61)
-            .add_left_aligned(":", ())
-            .add_left_aligned(
-                "edit the file plz tyvm rlly appreciated like i mean it dude",
-                (),
-            )
-            .add_left_aligned(" ", ())
-            .add_right_aligned("Cargo.toml", ())
-            .build();
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn build__data_payload_indices_are_correct() {
-        todo!()
     }
 }

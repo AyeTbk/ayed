@@ -4,11 +4,7 @@ use regex::Regex;
 
 use crate::{
     position::{Column, Position},
-    ui::{
-        Color, Style,
-        style::{DEFAULT_PRIORITY, priority_from_str},
-        ui_state::StyledRegion,
-    },
+    ui::{Color, Style, style::SyntaxStyle, ui_state::StyledRegion},
 };
 
 use super::TextBuffer;
@@ -22,24 +18,17 @@ pub struct Highlight {
 pub fn regex_syntax_highlight(
     buffer: &TextBuffer,
     syntax: &HashMap<String, Vec<regex::Regex>>,
-    syntax_style: &HashMap<String, Vec<String>>,
+    syntax_style: &HashMap<String, SyntaxStyle>,
 ) -> Vec<Highlight> {
     let mut highlights = Vec::new();
 
-    let mut rules: Vec<(Vec<Regex>, Color, Option<u8>)> = Vec::new();
+    let mut rules: Vec<(Vec<Regex>, Color, u8)> = Vec::new();
     for (rule_name, regexes) in syntax {
-        let Some(values) = syntax_style.get(rule_name) else {
+        let Some(style) = syntax_style.get(rule_name) else {
             continue;
         };
-        let mut color = None;
-        let mut priority = None;
-        for value in values {
-            if let Some(parsed_color) = Color::from_hex(value).ok() {
-                color = Some(parsed_color);
-            } else if let Ok(parsed_priority) = priority_from_str(value) {
-                priority = Some(parsed_priority);
-            }
-        }
+        let color = style.color;
+        let priority = style.priority;
         let Some(color) = color else { continue };
 
         rules.push((regexes.clone(), color, priority));
@@ -74,7 +63,7 @@ pub fn regex_syntax_highlight(
                                 foreground_color: Some(*color),
                                 ..Default::default()
                             },
-                            priority: priority.unwrap_or(DEFAULT_PRIORITY),
+                            priority: *priority,
                         },
                     });
                 }

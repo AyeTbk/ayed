@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +17,21 @@ pub struct CompletionItem {
     pub sort_text: Option<String>,
     pub text_edit: TextEdit,
     pub additional_text_edits: Option<Vec<TextEdit>>,
+    pub kind: Option<i32>,
+    pub detail: Option<String>,
+    pub documentation: Option<Value>,
+}
+
+pub fn extract_completion_item_documentation(value: Option<Value>) -> Option<String> {
+    let extract_string = |v: Value| {
+        let Value::String(s) = v else { return None; };
+        return Some(s);
+    };
+    match value? {
+        Value::String(s) => Some(s),
+        Value::Object(mut map) => extract_string(map.remove("value")?),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

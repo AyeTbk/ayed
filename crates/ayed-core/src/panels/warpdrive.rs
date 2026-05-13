@@ -115,7 +115,7 @@ struct WarpdriveState {
     render_left_padding: i32,
 }
 
-static REGEX_JUMP_POINT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap());
+static REGEX_JUMP_POINT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w[\w!-]*").unwrap());
 
 impl WarpdriveState {
     pub fn new(ctx: &mut ExecuteCommandContext, view_handle: Handle<View>) -> WarpdriveState {

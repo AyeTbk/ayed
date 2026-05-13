@@ -1,4 +1,8 @@
-use std::sync::LazyLock;
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    sync::LazyLock,
+};
 
 use log::debug;
 use regex::Regex;
@@ -6,11 +10,15 @@ use regex::Regex;
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     position::{Column, Position},
-    state::{CompletionEdit, TextBuffer, TextBufferHistory},
+    state::{
+        CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource, TextBuffer,
+        TextBufferHistory,
+    },
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
-static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+").unwrap());
+static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w[\w!\-]*").unwrap());
+static RE_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\.|::|,)(\s*)").unwrap());
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
     cr.register("stderr", |opt, _ctx| {
@@ -179,6 +187,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         let inverse_edits = inverse_edits.unwrap_or_default();
         let mut new_inverse_edits = Vec::new();
 
+        let item = &ctx.state.completions.items[selected_item_idx];
+
         for sel_idx in 0..sel_count {
             if !cycling_from_original {
                 let reverse_edit = inverse_edits.get(sel_idx).unwrap();
@@ -191,11 +201,10 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             if !cycling_to_original {
                 let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
-                let item = &ctx.state.completions.items[selected_item_idx];
                 // TODO extra edits
                 let edit = CompletionEdit {
                     range: prefix_symbol_range,
-                    text: item.edit.text.to_string(),
+                    text: item.text.to_string(),
                 };
                 let inverse_edit = buffer.apply_edit(&edit)?;
                 new_inverse_edits.push(inverse_edit);
@@ -204,59 +213,36 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
         ctx.state.completions.last_completion_inverse_edits = Some(new_inverse_edits);
 
-        let selections = buffer.view_selections(view_handle).unwrap();
-        let sel = selections.primary();
-        let cursor = sel.cursor;
-        ctx.state.completions.prompt_suggestion_cursor_position = Some(cursor);
+        // Show selected item documentation in the hover info panel, if possible.
+        if cycling_to_original {
+            ctx.state.hover_info = None;
+        } else {
+            ctx.state.hover_info = item.documentation.clone();
+        }
 
         ctx.queue.emit("buffer-modified", buffer.path_str());
-        ctx.queue.emit("selections-modified", "");
+        ctx.queue.emit("selections-modified", "completions-select");
 
         Ok(())
     });
 
-    // TODO Delete this when you are confident the completions stuff works well
-    // //  vvv DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG vvv
-    // cr.register(
-    //     "completions-dbgload",
-    //     focused_buffer_command(|_opt, ctx| {
-    //         impl From<&str> for CompletionEdit {
-    //             fn from(value: &str) -> Self {
-    //                 Self {
-    //                     range: (Position::ZERO, Position::ZERO),
-    //                     text: value.to_string(),
-    //                 }
-    //             }
-    //         }
-    //         impl From<&str> for CompletionItem {
-    //             fn from(value: &str) -> Self {
-    //                 Self {
-    //                     label: value.to_string(),
-    //                     edit: value.into(),
-    //                     extra_edits: vec![],
-    //                 }
-    //             }
-    //         }
-    //         ctx.state.completions.source_items.insert(
-    //             CompletionSources::Dbg,
-    //             vec!["foo".into(), "bar".into(), "spam".into(), "egg".into()],
-    //         );
-    //         ctx.queue.emit("completion-sources-modified", "");
-    //         Ok(())
-    //     }),
-    // );
-    // //  ^^^ DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG ^^^
-
+    // Check that completion menu should be displayed. Gathers completions if so. Clears them otherwise.
     cr.register(
-        "completions-reset",
-        focused_buffer_command(|_opt, ctx| {
-            let cursor = ctx.selections.primary().cursor;
-            let should_reset =
-                ctx.state.completions.prompt_suggestion_cursor_position != Some(cursor);
+        "completions-check",
+        focused_buffer_command(|opt, ctx| {
+            let selections_modified_source = opt.trim();
+            if selections_modified_source == "completions-select" {
+                return Ok(());
+            }
 
-            if should_reset {
-                ctx.state.completions.selected_item = 0;
-                ctx.state.completions.last_completion_inverse_edits = None;
+            let cursor = ctx.selections.primary().cursor;
+            let prefix_range = get_prefix_symbol_range(ctx.buffer, cursor);
+
+            ctx.queue.push("completions-clear"); // TODO check if this should even be a command rather than a fn call.
+
+            let prefix_exists = prefix_range.0 != prefix_range.1;
+            if prefix_exists || position_follows_a_separator(ctx.buffer, cursor) {
+                ctx.queue.push("completions-gather"); // TODO check if this should even be a command rather than a fn call.
             }
             Ok(())
         }),
@@ -272,38 +258,109 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         }),
     );
 
+    // Gathers completions from the various sources, filling the list of active completion items.
     cr.register(
         "completions-gather",
         focused_buffer_command(|_opt, ctx| {
             let cursor = ctx.selections.primary().cursor;
-            if ctx.state.completions.prompt_suggestion_cursor_position == Some(cursor) {
-                return Ok(());
-            }
-            // ctx.state.completions.selected_item = 0;
-            // ctx.state.completions.last_completion_inverse_edits = None;
 
             let prefix_range = get_prefix_symbol_range(ctx.buffer, cursor);
             ctx.state.completions.original_symbol_start = prefix_range.0;
             let prefix = ctx.buffer.range_text(prefix_range)?;
-            ctx.state.completions.prompt_suggestion_cursor_position = Some(cursor);
 
-            let mut items = Vec::new();
+            let mut items_by_labels: HashMap<String, HashMap<CompletionItemKind, CompletionItem>> =
+                HashMap::new();
             for (_source, source_items) in &ctx.state.completions.source_items {
-                // if prefix.is_empty() {
-                //     break;
-                // }
-                items.extend(
-                    source_items
-                        .iter()
-                        .filter(|i| i.label.starts_with(&prefix))
-                        // TODO Consider not just starts_with(), but also contains()
-                        // but with lower "priority".
-                        .cloned(),
-                );
+                // TODO hashmap of {label, hashmap of {kind, item}}
+                // fill things up naively, then check over every label entries
+                // for anything that has plaintext kind. For them, if there are
+                // also other kinds, remove plaintext kind.
+                for i in source_items {
+                    // TODO Consider not just starts_with(), but also contains()
+                    // but with lower "priority".
+                    // Make case insensitive but higher priority if case matches.
+                    if !i.label.starts_with(&prefix) {
+                        continue;
+                    }
+                    if i.text == prefix {
+                        continue;
+                    }
+
+                    items_by_labels
+                        .entry(i.label.clone())
+                        .or_default()
+                        .insert(i.kind, i.clone());
+                }
             }
-            // FIXME sort appropriately (by most relevant kind first or something)
-            items.sort_by(|a, b| a.label.cmp(&b.label));
+
+            // Remove plaintext items when there are alternatives of other kinds.
+            for (_, kinds) in &mut items_by_labels {
+                if kinds.len() > 1 {
+                    kinds.remove(&CompletionItemKind::Plaintext);
+                }
+            }
+
+            let mut items = items_by_labels
+                .into_iter()
+                .flat_map(|(_, v)| v.into_iter())
+                .map(|(_, v)| v)
+                .collect::<Vec<_>>();
+
+            items.sort_by(|a, b| {
+                let cmp = a.kind.cmp(&b.kind);
+                if !matches!(cmp, Ordering::Equal) {
+                    return cmp;
+                }
+                let cmp = a.source.cmp(&b.source);
+                if !matches!(cmp, Ordering::Equal) {
+                    return cmp;
+                }
+                let cmp = a.label.cmp(&b.label);
+                cmp
+            });
+
+            ctx.state.completions.selected_item =
+                i32::clamp(ctx.state.completions.selected_item, 0, items.len() as _);
             ctx.state.completions.items = items;
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "completions-source-buffer",
+        focused_buffer_command(|opt, ctx| {
+            let selections_modified_source = opt.trim();
+            if selections_modified_source == "completions-select" {
+                return Ok(());
+            }
+
+            let content = ctx.buffer.content_to_string();
+            let mut symbols = BTreeSet::new();
+            let mut completions = Vec::new();
+            for matsh in RE_SYMBOL.find_iter(&content) {
+                let symbol = matsh.as_str();
+                if symbol.len() < 3 || symbols.contains(symbol) {
+                    continue;
+                }
+                symbols.insert(symbol.to_string());
+                completions.push(CompletionItem {
+                    label: symbol.to_string(),
+                    text: symbol.to_string(),
+                    extra_edits: Vec::new(),
+                    kind: CompletionItemKind::Plaintext,
+                    source: CompletionSource::Buffer,
+                    type_annotation: None,
+                    documentation: None,
+                });
+            }
+
+            ctx.state
+                .completions
+                .source_items
+                .insert(CompletionSource::Buffer, completions);
+
+            ctx.queue.emit("completion-sources-modified", "");
+
             Ok(())
         }),
     );
@@ -322,4 +379,17 @@ fn get_prefix_symbol_range(buffer: &TextBuffer, cursor: Position) -> (Position, 
         }
     }
     maybe_range.unwrap_or((cursor, cursor))
+}
+
+fn position_follows_a_separator(buffer: &TextBuffer, cursor: Position) -> bool {
+    let row = cursor.row;
+    let line = buffer.line(row).unwrap();
+    let cursor_byte_idx = char_index_to_byte_index(line, cursor.column as _).unwrap();
+    for capture in RE_SEPARATOR.captures_iter(line) {
+        let matsh = capture.get(2).expect("ws expected in group 2");
+        if matsh.start() <= cursor_byte_idx && matsh.end() >= cursor_byte_idx {
+            return true;
+        }
+    }
+    return false;
 }

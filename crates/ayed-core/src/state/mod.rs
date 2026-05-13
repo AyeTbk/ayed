@@ -33,7 +33,9 @@ mod resources;
 pub use resources::Resources;
 
 mod completions;
-pub use completions::{CompletionEdit, CompletionItem, CompletionSources, Completions};
+pub use completions::{
+    CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource, Completions,
+};
 
 mod modeline;
 pub use modeline::{Align, ModelineInfo, ModelineState};

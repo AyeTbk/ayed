@@ -42,14 +42,22 @@ completions {
     placement cursor
     source active-buffer
 }
+hooks {
+    buffer-opened completions-source-buffer
+    state-modified:mode completions-source-buffer
+}
 mode insert.* {
     hooks {
-        completion-sources-modified completions-gather
+        selections-modified completions-check
+        completion-sources-modified completions-check
 
         state-before-modified:mode completions-clear
-        selections-modified completions-reset
-
-        # time-tick completions-dbgload   # DEBUG DEBUG DEBUG
+    }
+}
+mode normal {
+    keybinds {
+        # DEBUG
+        m $[ message COMPLETIONS ; completions-gather ]
     }
 }
 @override
@@ -317,8 +325,10 @@ mode normal {
         <s-r> $[ set mode insert ; delete ; paste --before ; set mode normal ]
 
         : panel-focus prompt
-        / $[ panel-focus prompt ; set prompt-mode search ]
         s $[ panel-focus prompt ; set prompt-mode select ]
+
+        / $[ panel-focus prompt ; set prompt-mode search ]
+        n $[ selections-dismiss-extras ; panel-focus prompt ; set prompt-mode search ; prompt-exec move-regex --primary <PROMPT> ]
 
         <backtab> set mode insert
         i set mode insert

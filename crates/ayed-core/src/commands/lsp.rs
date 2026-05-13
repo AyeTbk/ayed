@@ -9,7 +9,7 @@ use ayed_lsp_client::{
     LspClient, Notification, Request, Response,
     types::{
         DocumentUri, LanguageId, TextDocumentIdentifier, TextDocumentItem,
-        VersionedTextDocumentIdentifier,
+        VersionedTextDocumentIdentifier, extract_completion_item_documentation,
     },
 };
 use log::{debug, info};
@@ -18,7 +18,7 @@ use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command},
     position::{Column, Position, Row},
     selection::Selection,
-    state::{CompletionEdit, CompletionItem, CompletionSources},
+    state::{CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource},
 };
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
@@ -79,7 +79,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                     ctx.state
                         .completions
                         .source_items
-                        .insert(CompletionSources::Lsp, items);
+                        .insert(CompletionSource::Lsp, items);
                     ctx.queue.emit("completion-sources-modified", "");
                 }
                 Response::GotoDefinitionInfo { locations } => {
@@ -203,7 +203,12 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "lsp-completions",
-        focused_buffer_command(|_opt, ctx| {
+        focused_buffer_command(|opt, ctx| {
+            let selections_modified_source = opt.trim();
+            if selections_modified_source == "completions-select" {
+                return Ok(());
+            }
+
             let Some(client) = &mut ctx.state.lsp_client else {
                 return Ok(());
             };
@@ -289,10 +294,11 @@ fn lsp_completion_items_to_completion_items(
         }
         get_key(a).cmp(get_key(b))
     });
-    items
+    let converted_items = items
         .into_iter()
         .map(lsp_completion_item_to_completion_item)
-        .collect()
+        .collect();
+    converted_items
 }
 
 fn lsp_completion_item_to_completion_item(
@@ -307,10 +313,38 @@ fn lsp_completion_item_to_completion_item(
                 .collect()
         })
         .unwrap_or_default();
+    let kind = item
+        .kind
+        .map(lsp_completion_item_kind_to_completion_item_kind)
+        .unwrap_or(CompletionItemKind::Plaintext);
+    let type_annotation = if matches!(item.kind, Some(2 | 3 | 4 | 5 | 6 | 10 | 12 | 21)) {
+        item.detail
+    } else {
+        None
+    };
+    let documentation = extract_completion_item_documentation(item.documentation);
     CompletionItem {
         label: item.label,
-        edit: lsp_text_edit_to_completion_edit(item.text_edit),
+        text: item.text_edit.new_text,
         extra_edits,
+        kind,
+        source: CompletionSource::Lsp,
+        type_annotation,
+        documentation,
+    }
+}
+
+fn lsp_completion_item_kind_to_completion_item_kind(kind: i32) -> CompletionItemKind {
+    use CompletionItemKind as CIK;
+    match kind {
+        14 => CIK::Keyword,
+        2 | 3 | 4 | 10 => CIK::Function,
+        6 | 21 => CIK::Variable,
+        7 | 13 | 22 | 25 => CIK::Type,
+        8 => CIK::Interface,
+        5 | 20 => CIK::Member,
+        9 | 17 | 19 => CIK::Module,
+        1 | _ => CIK::Plaintext,
     }
 }
 
