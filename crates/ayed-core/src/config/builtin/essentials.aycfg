@@ -425,13 +425,25 @@ mode combo-goto {
         G move-to-edge --anchored buffer-start
         e move-to-edge buffer-end
         E move-to-edge --anchored buffer-end
+        k move-to-edge buffer-start
+        K move-to-edge --anchored buffer-start
+        j move-to-edge buffer-end
+        J move-to-edge --anchored buffer-end
+        h move-to-edge line-start
+        H move-to-edge --anchored line-start
+        l move-to-edge line-past-end
+        L move-to-edge --anchored line-past-end
         d lsp-goto
     }
     keybinds-doc {
-        g Buffer start
-        G Buffer start (anchored)
-        e Buffer end
-        E Buffer end (anchored)
+        g,k Buffer start
+        G,K Buffer start (anchored)
+        e,j Buffer end
+        E,J Buffer end (anchored)
+        h Line start
+        H Line start (anchored)
+        l Line end
+        L Line end (anchored)
         d Goto definition (LSP)
     }
 }

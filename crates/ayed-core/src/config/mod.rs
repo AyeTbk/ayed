@@ -4,12 +4,14 @@ use log::debug;
 use regex::Regex;
 
 use crate::{
-    config::applied_config::{AppliedConfig, EditorConfig},
+    config::applied_config::{AppliedConfig, EditorConfig, MappingEntries},
     input::Input,
     ui::{Color, style::SyntaxStyle},
 };
 
 mod applied_config;
+
+pub mod insert_order_map;
 
 // TODO change hashmaps for some kind of map that keeps insertion order.
 // most likely, all hashmaps in the config modules need to be changed to
@@ -34,7 +36,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn get(&self, key: &str) -> Option<&HashMap<String, Vec<String>>> {
+    pub fn get(&self, key: &str) -> Option<&MappingEntries<Vec<String>>> {
         self.current_config.get(key)
     }
 
@@ -62,7 +64,7 @@ impl Config {
 
     pub fn get_keybind(&self, input: Input) -> Option<&[String]> {
         // TODO have a map of actual inputs in the Applied config instead of this.
-        for (k, v) in self.get("keybinds")? {
+        for (k, v) in self.get("keybinds")?.iter() {
             let Some(k_input) = Input::parse(&k).ok() else {
                 if k != "else" {
                     debug!("Config::get_keybind: failed to parse input: {:?}", k);
@@ -121,7 +123,7 @@ struct ConditionalMapping {
     // Active mappings of the same layer merge together, but merged mappings on
     // higher layers replace those lower layers.
     layer: i32,
-    entries: HashMap<String, Vec<String>>,
+    entries: MappingEntries<Vec<String>>,
 }
 
 impl ConditionalMapping {
@@ -231,11 +233,14 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                 }
             }
             ast::BlockKind::Mapping(ast::MappingBlock { name, entries }) => {
-                let mut mapping: HashMap<String, Vec<String>> = Default::default();
+                let mut mapping: MappingEntries<Vec<String>> = Default::default();
                 for entry in entries {
+                    if !mapping.contains_key(entry.name.slice) {
+                        mapping.insert(entry.name.to_string(), Default::default());
+                    }
                     mapping
-                        .entry(entry.name.to_string()) // FIXME unecessary allocation
-                        .or_default()
+                        .get_mut(entry.name.slice)
+                        .unwrap()
                         .extend(entry.values.iter().map(|template| {
                             let mut buf = String::new();
                             for part in &template.parts {

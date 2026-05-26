@@ -3,16 +3,18 @@ use std::collections::{BTreeMap, HashMap};
 use regex::Regex;
 
 use crate::{
-    config::{ConditionalMapping, ConfigModule, ConfigState},
+    config::{ConditionalMapping, ConfigModule, ConfigState, insert_order_map::InsertOrderMap},
     ui::{
         Color,
         style::{DEFAULT_PRIORITY, SyntaxStyle, priority_from_str},
     },
 };
 
+pub type MappingEntries<T> = InsertOrderMap<String, T>;
+
 #[derive(Debug, Default)]
 pub struct AppliedConfig {
-    pub mappings: HashMap<String, HashMap<String, Vec<String>>>,
+    pub mappings: HashMap<String, MappingEntries<Vec<String>>>,
     pub syntax: HashMap<String, Vec<Regex>>,
     pub syntax_style: HashMap<String, SyntaxStyle>,
     pub editor: EditorConfig,
@@ -20,7 +22,7 @@ pub struct AppliedConfig {
 }
 
 impl AppliedConfig {
-    pub fn get(&self, key: &str) -> Option<&HashMap<String, Vec<String>>> {
+    pub fn get(&self, key: &str) -> Option<&MappingEntries<Vec<String>>> {
         self.mappings.get(key)
     }
 }
@@ -44,7 +46,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
 
     #[derive(Default)]
     struct Mapping {
-        entries: HashMap<String, Vec<String>>,
+        entries: MappingEntries<Vec<String>>,
         specificity: usize,
     }
 
@@ -72,7 +74,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
                 continue;
             };
 
-            for (key, values) in &active_mapping.entries {
+            for (key, values) in active_mapping.entries.iter() {
                 let Some(existing_values) = mapping.entries.get_mut(key) else {
                     mapping.entries.insert(key.to_string(), values.to_vec());
                     continue;
@@ -105,7 +107,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
     }
 
     // Merge mappings, respecting layers
-    let mut mappings: HashMap<String, HashMap<String, Vec<String>>> = Default::default();
+    let mut mappings: HashMap<String, MappingEntries<Vec<String>>> = Default::default();
     for (_, layer_mappings) in layers_of_mappings.into_iter() {
         let layer_mappings_iter = layer_mappings.into_iter().map(|l| (l.0, l.1.entries));
         mappings.extend(layer_mappings_iter);
@@ -113,7 +115,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
 
     let syntax = mappings
         .get("syntax")
-        .unwrap_or(&HashMap::new())
+        .unwrap_or(&Default::default())
         .iter()
         .map(|(rule_name, patterns)| {
             let regexes = patterns
@@ -126,7 +128,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
 
     let syntax_style = mappings
         .get("syntax-style")
-        .unwrap_or(&HashMap::new())
+        .unwrap_or(&Default::default())
         .iter()
         .map(|(rule_name, values)| {
             let mut color = None;
@@ -159,7 +161,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
 
     let theme = mappings
         .get("theme")
-        .unwrap_or(&HashMap::new())
+        .unwrap_or(&Default::default())
         .iter()
         .flat_map(|(rule_name, values)| {
             let color = Color::from_hex(values.first()?).ok()?;
