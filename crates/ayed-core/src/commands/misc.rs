@@ -26,6 +26,14 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("pending-command-run", |opt, ctx| {
+        let Some(cmd) = ctx.state.config.state_value("pending-command") else {
+            return Err("pending-command not set!".to_string());
+        };
+        ctx.queue.push(format!("{cmd} {opt}"));
+        Ok(())
+    });
+
     cr.register("history-save", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());

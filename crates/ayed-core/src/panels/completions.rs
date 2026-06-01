@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::{
     panels::{LayoutContext, LayoutInfo, LayoutPlace, Panel},
     position::Position,
@@ -151,7 +149,6 @@ impl Completions {
                 builder = builder.add_right_aligned(" 🗎 ", color_editor_fg_mild);
             }
             let (line, colors) = builder.build();
-            debug!("{colors:?}");
             let bg_color = if ctx.state.completions.selected_item == i_idx + 1 {
                 color_accent_bright
             } else {

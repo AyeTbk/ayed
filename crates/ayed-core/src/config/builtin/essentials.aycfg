@@ -241,6 +241,23 @@ panel file-picker {
     }
 }
 
+# Essential for pending commands
+mode normal {
+    hooks {
+        state-modified:pending-command  set mode pending
+    }
+}
+mode pending {
+    keybinds {
+        <esc>  set mode normal
+        else  $(pending-command)
+    }
+    hooks {
+        state-before-modified:mode  set pending-command $""
+        map-input  set mode normal
+    }
+}
+
 # Essential for warpdrive
 @override
 panel warpdrive {
@@ -343,6 +360,10 @@ mode normal {
 
         <space> set mode combo-user
         g set mode combo-goto
+
+        r set pending-command replace
+        f set pending-command move-to-char
+        # <a-f> set pending-command move-to-char --reverse $($)
 
         q warpdrive
     }

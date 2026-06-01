@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::{command::CommandRegistry, input::Input, state::regex_syntax_highlight};
 
 pub fn register_config_commands(cr: &mut CommandRegistry) {
@@ -15,22 +13,18 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
         }
 
         let input = Input::parse(&opt).map_err(|_| format!("invalid input: {opt}"))?;
-        debug!("{:?}", input);
 
         if let Some(cmds) = ctx.state.config.get_keybind(input) {
-            debug!("{:?}", cmds);
             for cmd in cmds {
                 ctx.queue.push(cmd);
             }
         } else if let Some(cmds) = ctx.state.config.get_keybind_else() {
-            debug!("{:?}", cmds);
             if cmds.len() == 1 {
                 if let Some(ch) = input.char() {
                     let cmd = cmds.first().expect("len is 1");
                     ctx.queue.push(format!("{cmd} {ch}"));
                 }
             } else {
-                debug!("{:?}", cmds);
                 for cmd in cmds {
                     ctx.queue.push(cmd);
                 }

@@ -314,6 +314,49 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register(
+        "move-to-char",
+        focused_buffer_command(|opt, mut ctx| {
+            // FIXME in order to support options with pending commands,
+            // hook arg substitution needs to be supported.
+            let Some(ch) = opt.chars().next() else {
+                return Err("missing target char".to_string());
+            };
+            for selection in ctx.selections.iter_mut() {
+                let cursor = selection.cursor;
+                let start_row = cursor.row;
+
+                let mut found_position = None;
+                let mut start_column = cursor.column + 1;
+                'find_pos: for row_i in start_row..ctx.buffer.line_count() {
+                    let Some(line) = ctx.buffer.line(row_i) else { break };
+
+                    // Find ch in line
+                    for (column, chr) in line.chars().enumerate().skip(start_column as _) {
+                        if chr == ch {
+                            found_position = Some(Position::new(column as i32, row_i));
+                            break 'find_pos;
+                        }
+                    }
+
+                    start_column = 0;
+                }
+
+                if let Some(pos) = found_position {
+                    let sel = selection.with_cursor(pos).shrunk_to_cursor();
+                    *selection = sel;
+                }
+            }
+
+            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            *sels = ctx.selections;
+
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
         "move-to-edge",
         focused_buffer_command(|opt, mut ctx| {
             enum Edge {
@@ -620,6 +663,39 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     continue;
                 };
                 ctx.buffer.insert_str_at(sel.cursor, &the_str)?;
+            }
+
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "replace",
+        focused_buffer_command(|opt, ctx| {
+            let Some(ch) = opt.chars().next() else {
+                return Err("missing replacement char".to_string());
+            };
+
+            let sel_count = ctx.selections.count();
+
+            for sel_idx in (0..sel_count).rev() {
+                let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+                let Some(sel) = selections.get_mut(sel_idx) else {
+                    continue;
+                };
+
+                let delete_sel = sel.clone();
+                let after_sel = delete_sel.end().offset((1, 0));
+                *sel = sel.shrunk_to_cursor();
+
+                // TODO Should these operations somehow be made "transactionally"?
+                // like, if it fails, the buffer isnt left unclean?
+                // Could TextEdit based buffer modifications make this simple-ish?
+                ctx.buffer.insert_char_at(after_sel, ch)?;
+                ctx.buffer.delete_selection(&delete_sel)?;
             }
 
             ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
