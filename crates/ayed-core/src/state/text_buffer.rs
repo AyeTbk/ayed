@@ -549,8 +549,13 @@ impl TextBuffer {
             let last_range_line_owned = range_lines.next_back();
             let last_range_line = last_range_line_owned.as_ref().unwrap_or(&first_range_line);
 
-            line_left.push_str(&first_range_line[..range.0.column as usize]);
-            line_left.push_str(&last_range_line[range.1.column as usize..]);
+            let first_range_line_end_idx =
+                char_index_to_byte_index(&first_range_line, range.0.column as usize).unwrap();
+            let last_range_line_start_idx =
+                char_index_to_byte_index(&last_range_line, range.1.column as usize).unwrap();
+
+            line_left.push_str(&first_range_line[..first_range_line_end_idx]);
+            line_left.push_str(&last_range_line[last_range_line_start_idx..]);
         }
 
         std::mem::swap(&mut line_left, &mut self.lines[range.0.row as usize]);
