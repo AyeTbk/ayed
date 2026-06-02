@@ -8,7 +8,11 @@
 hooks {
 
 }
-
+mode normal {
+    keybinds {
+        v  message Current buffer is '$(file)'
+    }
+}
 
 # Essential for input mapping
 hooks {

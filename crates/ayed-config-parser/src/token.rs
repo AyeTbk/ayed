@@ -68,11 +68,69 @@ pub fn next_token<'a>(mut i: &'a str) -> (&'a str, Token<'a>) {
     }
 }
 
+pub fn next_token_in_substitution<'a>(i: &'a str) -> (&'a str, Token<'a>) {
+    // The loop only exist to allow skipping comments.
+    loop {
+        let (j, _) = take_while0(is_whitespace)(i);
+        if j.is_empty() {
+            return (
+                j,
+                Token {
+                    kind: TokenKind::Eof,
+                    slice: j,
+                },
+            );
+        }
+
+        if let Some((l, delimiter)) = any_of(&[")"])(j) {
+            return (
+                l,
+                Token {
+                    kind: TokenKind::Delimiter,
+                    slice: delimiter,
+                },
+            );
+        }
+
+        if let Some((l, identifier)) = take_while1(|ch| is_identifier(ch))(j) {
+            return (
+                l,
+                Token {
+                    kind: TokenKind::Identifier,
+                    slice: identifier,
+                },
+            );
+        }
+
+        if let Some((l, invalid)) = take_while(|ch| !is_whitespace(ch))(j) {
+            return (
+                l,
+                Token {
+                    kind: TokenKind::Invalid,
+                    slice: invalid,
+                },
+            );
+        }
+
+        unreachable!();
+    }
+}
+
 pub fn next_token_in_entry_value<'a>(i: &'a str, in_list: bool) -> Option<(&'a str, Token<'a>)> {
     let string_start = tag("$\"");
+    let substitution_start = tag("$\"");
     let line_terminator = tag("\n");
 
     if let Some((j, slice)) = string_start(i) {
+        return Some((
+            j,
+            Token {
+                kind: TokenKind::Delimiter,
+                slice,
+            },
+        ));
+    }
+    if let Some((j, slice)) = substitution_start(i) {
         return Some((
             j,
             Token {
@@ -169,8 +227,18 @@ fn next_token_in_entry_value_verbatim<'a>(
 }
 
 pub fn next_token_in_string<'a>(i: &'a str) -> Option<(&'a str, Token<'a>)> {
+    let substitution_start = tag("$(");
     let string_end = tag("\"");
 
+    if let Some((j, slice)) = substitution_start(i) {
+        return Some((
+            j,
+            Token {
+                kind: TokenKind::Delimiter,
+                slice,
+            },
+        ));
+    }
     if let Some((j, slice)) = string_end(i) {
         return Some((
             j,

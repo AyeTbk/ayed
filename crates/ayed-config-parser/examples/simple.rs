@@ -25,4 +25,19 @@ pub fn main() {
             }
         "#
     ));
+
+    // let _ = dbg!(parse_module(
+    //     r#"
+    //     hooks {
+
+    //     }
+
+    //     mode normal {
+    //         keybinds {
+    //             v  error Current buffer is '$(file)'
+    //         }
+    //     }
+
+    //     "#
+    // ));
 }

@@ -13,12 +13,27 @@ mod applied_config;
 
 pub mod insert_order_map;
 
-// TODO change hashmaps for some kind of map that keeps insertion order.
-// most likely, all hashmaps in the config modules need to be changed to
-// such a map, so that configs visible in the editor are in a deterministic
-// order. Combo-modes are an example where this matters, where at the moment
-// the order of the entries displayed is randomized everytime the editor is
-// run.
+// NOTES
+//
+// ast:
+//      Abstract form of the written config module.
+//
+// ConfigModule:
+//      Config module processed such as to mostly be a list of conditionnal
+//      mappings, each with their "flattened" selectors stack, and with mixins
+//      and layers applied.
+//      Substitutions have not been applied yet.
+//
+// AppliedConfig:
+//      All config modules flattened to a map of unconditional mappings with
+//      substitutions in entries resolved, determined by the config state at
+//      the time of building (applying the state to the config).
+//      Also applies substitutions at the very start of the applying
+//      process.
+//
+// command:
+//      Registered command invocation. May need substitution at the point of
+//      invocation for "arg". Maybe use $($) for it?
 
 #[derive(Default)]
 pub struct Config {
@@ -123,7 +138,7 @@ struct ConditionalMapping {
     // Active mappings of the same layer merge together, but merged mappings on
     // higher layers replace those lower layers.
     layer: i32,
-    entries: MappingEntries<Vec<String>>,
+    entries: Vec<ConditionalMappingEntry>,
 }
 
 impl ConditionalMapping {
@@ -134,6 +149,31 @@ impl ConditionalMapping {
     pub fn specificity(&self) -> usize {
         self.selectors.len()
     }
+}
+
+#[derive(Debug, Clone)]
+struct ConditionalMappingEntry {
+    pub name: TemplatedString,
+    pub values: Vec<TemplatedString>,
+}
+
+#[derive(Debug, Clone)]
+struct TemplatedString {
+    parts: Vec<TemplatedStringPart>,
+}
+
+impl<'a> Into<TemplatedString> for &'a str {
+    fn into(self) -> TemplatedString {
+        TemplatedString {
+            parts: vec![TemplatedStringPart::String(self.to_string())],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum TemplatedStringPart {
+    String(String),
+    Substitution(String),
 }
 
 #[derive(Debug, Clone)]
@@ -232,28 +272,55 @@ fn parse_module(src: &str) -> Result<ConfigModule, ()> {
                     aux(mappings, mixins, child, &selector_stack, layer, false);
                 }
             }
-            ast::BlockKind::Mapping(ast::MappingBlock { name, entries }) => {
-                let mut mapping: MappingEntries<Vec<String>> = Default::default();
-                for entry in entries {
-                    if !mapping.contains_key(entry.name.slice) {
-                        mapping.insert(entry.name.to_string(), Default::default());
-                    }
-                    mapping
-                        .get_mut(entry.name.slice)
-                        .unwrap()
-                        .extend(entry.values.iter().map(|template| {
-                            let mut buf = String::new();
-                            for part in &template.parts {
-                                buf.push_str(part.slice);
-                            }
-                            buf
-                        }));
+            ast::BlockKind::Mapping(ast::MappingBlock {
+                name,
+                entries: ast_entries,
+            }) => {
+                let mut entries: Vec<ConditionalMappingEntry> = Vec::new();
+                for entry in ast_entries {
+                    let cond_entry = ConditionalMappingEntry {
+                        name: entry.name.slice.into(),
+                        values: entry
+                            .values
+                            .iter()
+                            .map(|ast_template| {
+                                let mut parts: Vec<TemplatedStringPart> = Vec::new();
+                                let mut buf = String::new();
+                                for ast_part in &ast_template.parts {
+                                    buf = match ast_part {
+                                        ast::TemplatePart::Span(span) => {
+                                            buf.push_str(span.slice);
+                                            buf
+                                        }
+                                        ast::TemplatePart::Escape(esc) => {
+                                            esc.write(&mut buf);
+                                            buf
+                                        }
+                                        ast::TemplatePart::Substitution(sub) => {
+                                            parts.push(TemplatedStringPart::String(buf));
+                                            parts.push(TemplatedStringPart::Substitution(
+                                                sub.to_string(),
+                                            ));
+                                            String::new()
+                                        }
+                                    };
+                                }
+                                if !buf.is_empty() {
+                                    parts.push(TemplatedStringPart::String(buf));
+                                }
+
+                                TemplatedString { parts }
+                            })
+                            .collect(),
+                    };
+
+                    entries.push(cond_entry);
                 }
                 mappings.push(ConditionalMapping {
                     name: name.to_string(),
                     selectors: selector_stack.to_vec(),
                     layer,
-                    entries: mapping,
+                    entries,
                 });
             }
             ast::BlockKind::Mixin(ast::MixinBlock { name, children }) => {

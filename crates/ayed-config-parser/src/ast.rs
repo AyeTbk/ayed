@@ -54,15 +54,28 @@ pub struct MappingEntry<'a> {
 
 #[derive(Debug)]
 pub struct Template<'a> {
-    // TODO replace Span<'a> with TemplatePart<'a>
-    pub parts: Vec<Span<'a>>,
-    // pub parts: Vec<TemplatePart<'a>>,
+    pub parts: Vec<TemplatePart<'a>>,
 }
 
 #[derive(Debug)]
 pub enum TemplatePart<'a> {
     Span(Span<'a>),
-    Escape(Span<'a>),
+    Escape(Escape<'a>),
+    Substitution(Span<'a>),
+}
+
+#[derive(Debug)]
+pub struct Escape<'a>(pub Span<'a>);
+
+impl<'a> Escape<'a> {
+    pub fn write(&self, buf: &mut String) {
+        match self.0.slice {
+            "$n" => buf.push('\n'),
+            "$r" => buf.push('\r'),
+            "$t" => buf.push('\t'),
+            anything_else => buf.push_str(anything_else),
+        }
+    }
 }
 
 #[derive(Debug)]

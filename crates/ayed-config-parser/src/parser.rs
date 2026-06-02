@@ -1,13 +1,13 @@
 use crate::{
     Error, ErrorKind,
     ast::{
-        Ast, Block, BlockKind, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span,
-        Template,
+        Ast, Block, BlockKind, Escape, MappingBlock, MappingEntry, MixinBlock, SelectorBlock, Span,
+        Template, TemplatePart,
     },
     error::Expected,
     token::{
         Token, TokenKind, is_inline_whitespace, is_whitespace, next_entry_name, next_token,
-        next_token_in_entry_value, next_token_in_string, take_while0,
+        next_token_in_entry_value, next_token_in_string, next_token_in_substitution, take_while0,
     },
 };
 
@@ -173,10 +173,6 @@ impl<'a> Parser<'a> {
         let (mut i, _) = take_while0(is_white)(self.src);
         let mut parts = Vec::new();
         while let Some((j, token)) = next_token_in_entry_value(i, in_list) {
-            if token.kind == TokenKind::Escape {
-                todo!("properly handle escapes");
-            }
-
             if token.kind == TokenKind::Delimiter && token.slice != "$\"" {
                 break;
             }
@@ -188,8 +184,36 @@ impl<'a> Parser<'a> {
                 let str_template = self.parse_entry_value_string()?;
                 i = self.src;
                 parts.extend(str_template.parts);
+            } else if token.slice == "$(" {
+                // This is shit. Legacy on arrival
+                self.src = i;
+                let (k, token) = next_token_in_substitution(i);
+                if token.kind != TokenKind::Identifier {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: Expected::TokenKind(TokenKind::Identifier),
+                            got: token.kind,
+                        },
+                        token.slice,
+                    ));
+                }
+                i = k;
+                let (l, delim) = next_token_in_substitution(i);
+                if delim.slice != ")" {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: Expected::TokenKind(TokenKind::Delimiter),
+                            got: delim.kind,
+                        },
+                        delim.slice,
+                    ));
+                }
+                i = l;
+                parts.push(TemplatePart::Substitution(token.slice.into()));
+            } else if token.kind == TokenKind::Escape {
+                parts.push(TemplatePart::Escape(Escape(token.slice.into())));
             } else {
-                parts.push(token.slice.into());
+                parts.push(TemplatePart::Span(token.slice.into()));
             }
         }
         self.src = i;
@@ -200,15 +224,42 @@ impl<'a> Parser<'a> {
         let mut i = self.src;
         let mut parts = Vec::new();
         while let Some((j, token)) = next_token_in_string(i) {
-            if token.kind == TokenKind::Escape {
-                todo!("properly handle escapes");
-            }
-
             i = j;
             if token.slice == "\"" {
                 break;
             }
-            parts.push(token.slice.into());
+
+            if token.slice == "$(" {
+                // This is shit. Legacy on arrival. Copy pasted too...
+                self.src = i;
+                let (k, token) = next_token_in_substitution(i);
+                if token.kind != TokenKind::Identifier {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: Expected::TokenKind(TokenKind::Identifier),
+                            got: token.kind,
+                        },
+                        token.slice,
+                    ));
+                }
+                i = k;
+                let (l, delim) = next_token_in_substitution(i);
+                if delim.slice != ")" {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: Expected::TokenKind(TokenKind::Delimiter),
+                            got: delim.kind,
+                        },
+                        delim.slice,
+                    ));
+                }
+                i = l;
+                parts.push(TemplatePart::Substitution(token.slice.into()));
+            } else if token.kind == TokenKind::Escape {
+                parts.push(TemplatePart::Escape(Escape(token.slice.into())));
+            } else {
+                parts.push(TemplatePart::Span(token.slice.into()));
+            }
         }
         self.src = i;
         Ok(Template { parts })
@@ -234,6 +285,11 @@ impl<'a> Parser<'a> {
         let mut items = Vec::new();
         'goto_end: {
             'looop: loop {
+                let empty_list_peek = self.peek_token();
+                if empty_list_peek.slice == close {
+                    break 'looop;
+                }
+
                 match parse_fn(self) {
                     Ok(item) => {
                         items.push(item);

@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, HashMap};
 use regex::Regex;
 
 use crate::{
-    config::{ConditionalMapping, ConfigModule, ConfigState, insert_order_map::InsertOrderMap},
+    config::{
+        ConfigModule, ConfigState, TemplatedString, TemplatedStringPart,
+        insert_order_map::InsertOrderMap,
+    },
     ui::{
         Color,
         style::{DEFAULT_PRIORITY, SyntaxStyle, priority_from_str},
@@ -28,7 +31,37 @@ impl AppliedConfig {
 }
 
 pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) -> AppliedConfig {
-    let mut active_mappings: HashMap<&str, Vec<&ConditionalMapping>> = Default::default();
+    #[derive(Default, Clone)]
+    struct Mapping {
+        entries: MappingEntries<Vec<String>>,
+        layer: i32,
+        specificity: i32,
+    }
+
+    enum MergeStrategy {
+        MergeMoreSpecificFirst,
+        ReplaceWithMoreSpecific,
+    }
+
+    fn apply_substitutions(templated_string: &TemplatedString, state: &ConfigState) -> String {
+        templated_string
+            .parts
+            .iter()
+            .fold(String::new(), |mut buf, part| {
+                match part {
+                    TemplatedStringPart::String(s) => {
+                        buf.push_str(&s);
+                    }
+                    TemplatedStringPart::Substitution(s) => {
+                        let ss = state.get(s).unwrap_or(s);
+                        buf.push_str(&ss);
+                    }
+                }
+                buf
+            })
+    }
+
+    let mut active_mappings: HashMap<&str, Vec<Mapping>> = Default::default();
 
     // Gather all active mappings
     for module in modules {
@@ -37,40 +70,44 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
                 continue;
             }
 
+            // Apply substitutions
+            let entries: MappingEntries<Vec<String>> = cond_mapping
+                .entries
+                .iter()
+                .map(|cond_mapping_entry| {
+                    let name = apply_substitutions(&cond_mapping_entry.name, state);
+                    let values: Vec<String> = cond_mapping_entry
+                        .values
+                        .iter()
+                        .map(|value| apply_substitutions(value, state))
+                        .collect();
+                    (name, values)
+                })
+                .collect();
+
+            let mapping = Mapping {
+                layer: cond_mapping.layer,
+                specificity: cond_mapping.specificity() as i32,
+                entries,
+            };
+
             active_mappings
                 .entry(&cond_mapping.name)
                 .or_default()
-                .push(&cond_mapping);
+                .push(mapping);
         }
-    }
-
-    #[derive(Default)]
-    struct Mapping {
-        entries: MappingEntries<Vec<String>>,
-        specificity: usize,
-    }
-
-    enum MergeStrategy {
-        MergeMoreSpecificFirst,
-        ReplaceWithMoreSpecific,
     }
 
     // Merge active mappings, giving priority to the ones with more specific selectors.
     let mut layers_of_mappings: BTreeMap<i32, HashMap<String, Mapping>> = Default::default();
 
     for (mapping_name, mut active_mappings) in active_mappings {
-        active_mappings.sort_by_key(|a| a.specificity());
+        active_mappings.sort_by_key(|a| a.specificity);
         for active_mapping in active_mappings {
-            let mappings = layers_of_mappings.entry(active_mapping.layer).or_default();
+            let mappings_of_layer = layers_of_mappings.entry(active_mapping.layer).or_default();
 
-            let Some(mapping) = mappings.get_mut(mapping_name) else {
-                mappings.insert(
-                    mapping_name.to_string(),
-                    Mapping {
-                        entries: active_mapping.entries.clone(),
-                        specificity: active_mapping.specificity(),
-                    },
-                );
+            let Some(mapping) = mappings_of_layer.get_mut(mapping_name) else {
+                mappings_of_layer.insert(mapping_name.to_string(), active_mapping.clone()); // PERF: probably unnecessary clone
                 continue;
             };
 
@@ -81,7 +118,7 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
                 };
 
                 let has_same_specificity_as_last =
-                    mapping.specificity == active_mapping.specificity();
+                    mapping.specificity == active_mapping.specificity;
                 // TODO The "hooks" mapping is special for now, but a way
                 // to control the strategy of specific mappings should
                 // probably be exposed in some way in the config.

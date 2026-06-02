@@ -6,6 +6,15 @@ pub struct InsertOrderMap<K, V> {
     entries: Vec<(K, V)>,
 }
 
+impl<K, V> InsertOrderMap<K, V> {
+    pub fn new() -> Self {
+        Self {
+            order: Default::default(),
+            entries: Default::default(),
+        }
+    }
+}
+
 impl<K: Eq + Hash + Clone, V> InsertOrderMap<K, V> {
     pub fn contains_key<Q>(&self, k: &Q) -> bool
     where
@@ -72,5 +81,16 @@ where
         for (k, v) in iter {
             self.insert(k, v);
         }
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for InsertOrderMap<K, V>
+where
+    K: Eq + Hash + Clone,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut map = InsertOrderMap::new();
+        map.extend(iter);
+        map
     }
 }
