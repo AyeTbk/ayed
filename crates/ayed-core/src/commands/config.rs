@@ -1,4 +1,6 @@
-use crate::{command::CommandRegistry, input::Input, state::regex_syntax_highlight};
+use crate::{
+    command::CommandRegistry, config::Config, input::Input, state::regex_syntax_highlight,
+};
 
 pub fn register_config_commands(cr: &mut CommandRegistry) {
     cr.register(
@@ -6,6 +8,7 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
         "Maps user inputs to command execution as configured in keybinds mappings.",
         |opt, ctx| {
             // hackish support for combo modes
+            // FIXME see if you cant get this to work in the config
             let is_combo = ctx
                 .state
                 .config
@@ -14,6 +17,10 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
             if is_combo {
                 ctx.queue.set_state("mode", "normal");
             }
+
+            // FIXME This whole thing is a mess, and it also sorta functions
+            // like how hooks are handled and some logic is duplicated (arg
+            // substitution handling).
 
             let input_str = opt.raw();
             let input =
@@ -26,11 +33,24 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
             } else if let Some(cmds) = ctx.state.config.get_keybind_else() {
                 if cmds.len() == 1 {
                     if let Some(ch) = input.char() {
-                        let cmd = cmds.first().expect("len is 1");
-                        ctx.queue.push(format!("{cmd} {ch}"));
+                        let mut cmd = cmds.first().expect("len is 1").to_string();
+                        if cmd.find(Config::ARG_MARKER).is_some() {
+                            let mut buf = [0u8; char::MAX_LEN_UTF8];
+                            cmd = cmd.replace(Config::ARG_MARKER, ch.encode_utf8(&mut buf));
+                        } else {
+                            cmd = format!("{cmd} {ch}");
+                        }
+                        ctx.queue.push(cmd);
                     }
                 } else {
                     for cmd in cmds {
+                        let mut cmd = cmd.clone();
+                        if let Some(ch) = input.char() {
+                            if cmd.find(Config::ARG_MARKER).is_some() {
+                                let mut buf = [0u8; char::MAX_LEN_UTF8];
+                                cmd = cmd.replace(Config::ARG_MARKER, ch.encode_utf8(&mut buf));
+                            }
+                        }
                         ctx.queue.push(cmd);
                     }
                 }

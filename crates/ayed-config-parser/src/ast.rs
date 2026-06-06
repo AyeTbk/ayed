@@ -70,6 +70,7 @@ pub struct Escape<'a>(pub Span<'a>);
 impl<'a> Escape<'a> {
     pub fn write(&self, buf: &mut String) {
         match self.0.slice {
+            "$$" => buf.push('$'),
             "$n" => buf.push('\n'),
             "$r" => buf.push('\r'),
             "$t" => buf.push('\t'),

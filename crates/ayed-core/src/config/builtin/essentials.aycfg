@@ -167,7 +167,7 @@ mixin basic-movement {
 mixin basic-deletion {
     keybinds {
         <del> delete -c
-        <backspace> delete-around -c -p
+        <backspace> delete-around --c --p
         <a-backspace> delete-around
     }
 }
@@ -250,7 +250,7 @@ mode normal {
 mode pending {
     keybinds {
         <esc>  set mode normal
-        else  $(pending-command)
+        else  $(pending-command) $(0)
     }
     hooks {
         state-before-modified:mode  set pending-command $""
@@ -362,8 +362,10 @@ mode normal {
         g set mode combo-goto
 
         r set pending-command replace
-        f set pending-command move-to-char
-        # <a-f> set pending-command move-to-char --reverse $($)
+        f set pending-command move-to-char --reanchored
+        <s-f> set pending-command move-to-char --anchored
+        t set pending-command move-to-char --reanchored --before
+        <s-t> set pending-command move-to-char --anchored --before
 
         q warpdrive
     }

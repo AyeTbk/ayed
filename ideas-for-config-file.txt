@@ -43,7 +43,7 @@ mode command {
         <a-C> dupe u
         d delete
         <del> delete
-        <backspace> delete-around -p
+        <backspace> delete-around --p
         <a-backspace> delete-around
         : focus-panel prompt
         i mode-set insert
@@ -55,7 +55,7 @@ mode insert {
 
     keybinds {
         <del> delete
-        <backspace> delete-around -p
+        <backspace> delete-around --p
         <esc> mode-set command
         else insert-char
     }

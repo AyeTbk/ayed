@@ -217,12 +217,14 @@ impl Core {
     fn hooks_of_command(&mut self, command: &str) -> Vec<String> {
         let mut acc = Vec::new();
         let (command_name, command_options) = parse_command(&command);
-        let hooks_map = self.state.config.get("hooks");
-        let hooks = hooks_map.and_then(|h| h.get(command_name));
+        let hooks = self
+            .state
+            .config
+            .get_hooks_of_command(command_name, command_options);
         if let Some(hooks) = hooks {
             for command in hooks {
                 if command.contains(' ') {
-                    acc.push(format!("{}", command));
+                    acc.push(command.clone());
                 } else {
                     acc.push(format!("{} {}", command, command_options));
                 }

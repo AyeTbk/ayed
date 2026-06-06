@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::{
     config::{
-        ConfigModule, ConfigState, TemplatedString, TemplatedStringPart,
+        Config, ConfigModule, ConfigState, TemplatedString, TemplatedStringPart,
         insert_order_map::InsertOrderMap,
     },
     ui::{
@@ -53,7 +53,11 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
                         buf.push_str(&s);
                     }
                     TemplatedStringPart::Substitution(s) => {
-                        let ss = state.get(s).unwrap_or(s);
+                        let ss = if s == "0" {
+                            Config::ARG_MARKER
+                        } else {
+                            state.get(s).unwrap_or(s)
+                        };
                         buf.push_str(&ss);
                     }
                 }

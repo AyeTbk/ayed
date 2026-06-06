@@ -33,7 +33,10 @@ pub mod insert_order_map;
 //
 // command:
 //      Registered command invocation. May need substitution at the point of
-//      invocation for "arg". Maybe use $($) for it?
+//      invocation for "arg".
+//      Currently substitutes $(0) with textual "##{{CMDARG}}##" at the config
+//      module processing step, then string-replaces that for the value of the
+//      actual arg at moment of invocation. (its a bit of a hack)
 
 #[derive(Default)]
 pub struct Config {
@@ -43,6 +46,8 @@ pub struct Config {
 }
 
 impl Config {
+    pub const ARG_MARKER: &str = "##{{CMDARG}}##";
+
     pub fn add_module(&mut self, src: &str) -> Result<(), ()> {
         let module = parse_module(src)?;
         self.modules.push(module);
@@ -91,6 +96,16 @@ impl Config {
             }
         }
         None
+    }
+
+    pub fn get_hooks_of_command(&self, command: &str, options: &str) -> Option<Vec<String>> {
+        Some(
+            self.get("hooks")?
+                .get(command)?
+                .iter()
+                .map(|command| command.replace(Config::ARG_MARKER, options))
+                .collect(),
+        )
     }
 
     pub fn get_syntax(&self) -> &HashMap<String, Vec<Regex>> {

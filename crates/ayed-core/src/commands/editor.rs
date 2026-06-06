@@ -304,40 +304,51 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(Some(selection))
     });
 
-    register_selection_movement(cr, "move-to-char", "nodoc", |opt, ctx| {
-        let opt = opt.remainder();
-        // FIXME in order to support options with pending commands,
-        // hook arg substitution needs to be supported.
-        let Some(ch) = opt.chars().next() else {
-            return Err("missing target char".to_string());
-        };
-        let mut selection = ctx.selection;
-        let cursor = selection.cursor;
-        let start_row = cursor.row;
+    register_selection_movement(
+        cr,
+        "move-to-char",
+        Options::new().doc("nodoc").flag("before"),
+        |opt, ctx| {
+            let before = opt.contains("before");
+            let opt = opt.remainder();
+            // FIXME in order to support options with pending commands,
+            // hook arg substitution needs to be supported.
+            let Some(ch) = opt.chars().next() else {
+                return Err("missing target char".to_string());
+            };
+            let mut selection = ctx.selection;
+            let cursor = selection.cursor;
+            let start_row = cursor.row;
 
-        let mut found_position = None;
-        let mut start_column = cursor.column + 1;
-        'find_pos: for row_i in start_row..ctx.buffer.line_count() {
-            let Some(line) = ctx.buffer.line(row_i) else { break };
+            let mut found_position = None;
+            let mut start_column = cursor.column + 1;
+            'find_pos: for row_i in start_row..ctx.buffer.line_count() {
+                let Some(line) = ctx.buffer.line(row_i) else { break };
 
-            // Find ch in line
-            for (column, chr) in line.chars().enumerate().skip(start_column as _) {
-                if chr == ch {
-                    found_position = Some(Position::new(column as i32, row_i));
-                    break 'find_pos;
+                // Find ch in line
+                for (column, chr) in line.chars().enumerate().skip(start_column as _) {
+                    if chr == ch {
+                        found_position = Some(Position::new(column as i32, row_i));
+                        break 'find_pos;
+                    }
                 }
+
+                start_column = 0;
             }
 
-            start_column = 0;
-        }
+            if let Some(pos) = found_position {
+                let offset = if before { -1 } else { 0 };
+                let new_cursor = ctx
+                    .buffer
+                    .move_position_horizontally(pos, offset)
+                    .unwrap_or(pos);
+                let sel = selection.with_cursor(new_cursor).shrunk_to_cursor();
+                selection = sel;
+            }
 
-        if let Some(pos) = found_position {
-            let sel = selection.with_cursor(pos).shrunk_to_cursor();
-            selection = sel;
-        }
-
-        Ok(Some(selection))
-    });
+            Ok(Some(selection))
+        },
+    );
 
     register_selection_movement(
         cr,
@@ -684,11 +695,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "delete-around",
-        "nodoc",
+        Options::new().doc("nodoc").flag("c").flag("p").flag("n"),
         focused_buffer_command(|opt, ctx| {
-            let contains_cursor = opt.contains("-c");
-            let contains_previous = opt.contains("-p");
-            let contains_next = opt.contains("-n");
+            let contains_cursor = opt.contains("c");
+            let contains_previous = opt.contains("p");
+            let contains_next = opt.contains("n");
             let (delete_before, delete_after) = if !contains_next && !contains_previous {
                 (true, true)
             } else {
