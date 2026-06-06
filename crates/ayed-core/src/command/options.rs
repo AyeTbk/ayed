@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 #[derive(Default)]
 pub struct Options {
+    doc: String,
     flags: HashSet<&'static str>,
 }
 
@@ -10,17 +11,31 @@ impl Options {
         Options::default()
     }
 
+    pub fn doc(mut self, doc: impl Into<String>) -> Self {
+        self.doc = doc.into();
+        self
+    }
+
     pub fn flag(mut self, flag: &'static str) -> Self {
         self.flags.insert(flag);
         self
     }
 
-    pub fn parse(self, opt_input: &str) -> Result<ParsedOptions<'_>, String> {
+    pub fn parse<'a>(&self, opt_input: &'a str) -> Result<ParsedOptions<'a>, String> {
         // Options are separated by spaces ('\x20').
         // flags: --flag
         // switches: --switch=value (TODO not impl yet)
-        let mut opts = ParsedOptions::default();
-        for flag in self.flags {
+        let mut opts = ParsedOptions {
+            raw: opt_input,
+            ..Default::default()
+        };
+
+        if self.flags.is_empty() {
+            opts.remainder = opt_input;
+            return Ok(opts);
+        }
+
+        for flag in &self.flags {
             opts.flags.insert(flag, false);
         }
 
@@ -52,10 +67,17 @@ impl Options {
     }
 }
 
+impl<'a> Into<Options> for &'a str {
+    fn into(self) -> Options {
+        Options::new().doc(self)
+    }
+}
+
 #[derive(Default)]
 pub struct ParsedOptions<'a> {
     flags: HashMap<&'a str, bool>,
     remainder: &'a str,
+    raw: &'a str,
 }
 
 impl<'a> ParsedOptions<'a> {
@@ -65,6 +87,10 @@ impl<'a> ParsedOptions<'a> {
 
     pub fn remainder(&self) -> &str {
         &self.remainder
+    }
+
+    pub fn raw(&self) -> &str {
+        &self.raw
     }
 }
 

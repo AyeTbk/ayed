@@ -22,7 +22,7 @@ use crate::{
 };
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
-    cr.register("lsp-start", |_opt, ctx| {
+    cr.register("lsp-start", "nodoc", |_opt, ctx| {
         let Ok(server_command) = ctx.state.config.get_entry_value("lsp", "server-command") else {
             info!("no lsp server command set, skipping lsp-start");
             return Ok(());
@@ -39,7 +39,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("lsp-stop", |_opt, ctx| {
+    cr.register("lsp-stop", "nodoc", |_opt, ctx| {
         if let Some(client) = ctx.state.lsp_client.take() {
             client.shutdown();
         }
@@ -47,7 +47,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("lsp-poll", |_opt, ctx| {
+    cr.register("lsp-poll", "nodoc", |_opt, ctx| {
         let Some(client) = &mut ctx.state.lsp_client else {
             return Ok(());
         };
@@ -102,7 +102,8 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("lsp-doc-sync-open", |opt, ctx| {
+    cr.register("lsp-doc-sync-open", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(client) = &mut ctx.state.lsp_client else {
             return Ok(());
         };
@@ -129,7 +130,8 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("lsp-doc-sync-change", |opt, ctx| {
+    cr.register("lsp-doc-sync-change", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(client) = &mut ctx.state.lsp_client else {
             return Ok(());
         };
@@ -156,7 +158,8 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("lsp-doc-sync-close", |opt, ctx| {
+    cr.register("lsp-doc-sync-close", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(client) = &mut ctx.state.lsp_client else {
             return Ok(());
         };
@@ -181,6 +184,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "lsp-hover",
+        "nodoc",
         focused_buffer_command(|_opt, ctx| {
             let Some(client) = &mut ctx.state.lsp_client else {
                 return Err("lsp client not started".into());
@@ -203,7 +207,9 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "lsp-completions",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let selections_modified_source = opt.trim();
             if selections_modified_source == "completions-select" {
                 return Ok(());
@@ -230,6 +236,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "lsp-goto",
+        "nodoc",
         focused_buffer_command(|_opt, ctx| {
             let Some(client) = &mut ctx.state.lsp_client else {
                 return Err("lsp client not started".into());

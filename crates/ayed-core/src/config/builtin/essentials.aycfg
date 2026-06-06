@@ -73,7 +73,7 @@ panel prompt {
 }
 panel prompt {
     hooks {
-        completions-select move r anchored
+        completions-select move --anchored r
     }
 }
 
@@ -128,31 +128,31 @@ mixin basic-movement {
     # FIXME those map-input's are dirty. Allow defining reusable commands in config!
     keybinds {
         <up> move u
-        <s-up> move u anchored
+        <s-up> move --anchored u
         <c-up> $[ map-input x ; selections-flip --backward ; move u ; map-input x ; selections-flip --backward ]
-        <cs-up> $[ map-input x ; selections-flip --backward ; move u anchored ; map-input x ; selections-flip --backward ]
+        <cs-up> $[ map-input x ; selections-flip --backward ; move --anchored u ; map-input x ; selections-flip --backward ]
 
         <down> move d
-        <s-down> move d anchored
+        <s-down> move --anchored d
         <c-down> $[ map-input x ; move d ; map-input x ]
-        <cs-down> $[ map-input x ; move d anchored; map-input x ]
+        <cs-down> $[ map-input x ; move --anchored d; map-input x ]
 
         <left> move l
-        <s-left> move l anchored
+        <s-left> move --anchored l
         <c-left> move-regex --reversed \w+\b|[^\s\w]+
         <cs-left> move-regex --reversed --anchored \w+\b|[^\s\w]+
 
         <right> move r
-        <s-right> move r anchored
+        <s-right> move --anchored r
         <c-right> move-regex \w+\b|[^\s\w]+
         <cs-right> move-regex --anchored \w+\b|[^\s\w]+
 
-        <home> move-to-edge line-past-indent
+        <home> move-to-edge --reanchored line-past-indent
         <s-home> move-to-edge --anchored line-past-indent
         <c-home> move-to-edge line-start
         <cs-home> move-to-edge --anchored line-start
 
-        <end> move-to-edge line-past-end
+        <end> move-to-edge --reanchored line-past-end
         <s-end> move-to-edge --anchored line-past-end
         <c-end> move-to-edge line-end
         <cs-end> move-to-edge --anchored line-end
@@ -203,7 +203,7 @@ panel prompt {
 
     prompt-mode search {
         keybinds {
-            <ret> prompt-exec move-regex --primary <PROMPT>
+            <ret> prompt-exec move-regex <PROMPT>
         }
     }
     prompt-mode select {
@@ -289,19 +289,19 @@ mode normal {
         <a-backspace> delete-around
 
         k move u
-        K move u anchored
+        K move --anchored u
         <c-k> $[ map-input x ; selections-flip --backward ; move u ; map-input x ; selections-flip --backward ]
         <c-K> message <cs-letter> just dont work in terminal :(
 
         j move d
-        J move d anchored
+        J move --anchored d
         <c-j> $[ map-input x ; move d ; map-input x ]
 
         h move l
-        H move l anchored
+        H move --anchored l
         <c-h> move-regex --reversed \w+|[^\s\w]+
         l move r
-        L move r anchored
+        L move --anchored r
         <c-l> move-regex \w+|[^\s\w]+
 
         e move-regex \s*\w+\b|\s*[^\s\w]+
@@ -349,7 +349,7 @@ mode normal {
         s $[ panel-focus prompt ; set prompt-mode select ]
 
         / $[ panel-focus prompt ; set prompt-mode search ]
-        n $[ selections-dismiss-extras ; panel-focus prompt ; set prompt-mode search ; prompt-exec move-regex --primary <PROMPT> ]
+        n $[ panel-focus prompt ; set prompt-mode search ; prompt-exec move-regex <PROMPT> ]
 
         <backtab> set mode insert
         i set mode insert
@@ -393,8 +393,8 @@ mode insert-append {
     use mode-insert-append-common
 
     hooks {
-        state-modified:mode $[ selections-flip --forward ; move r anchored ]
-        state-before-modified:mode move l anchored
+        state-modified:mode $[ selections-flip --forward ; move --anchored r ]
+        state-before-modified:mode move --anchored l
     }
 }
 

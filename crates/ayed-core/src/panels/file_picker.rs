@@ -263,6 +263,7 @@ pub mod commands {
     pub fn register_file_picker_commands(cr: &mut CommandRegistry) {
         cr.register(
             "file-picker-confirm",
+            "nodoc",
             focused_buffer_command(|_opt, ctx| {
                 let idx = ctx.state.file_picker.selected_item;
                 let Some(item) = ctx.state.file_picker.list_items.get(idx) else {
@@ -281,23 +282,27 @@ pub mod commands {
             }),
         );
 
-        cr.register("file-picker-select", |opt, ctx| {
-            let opts = Options::new().flag("next").flag("previous").parse(opt)?;
-            let next = opts.contains("next");
-            let previous = opts.contains("previous");
+        cr.register(
+            "file-picker-select",
+            Options::new().doc("nodoc").flag("next").flag("previous"),
+            |opt, ctx| {
+                let next = opt.contains("next");
+                let previous = opt.contains("previous");
 
-            if next {
-                ctx.state.file_picker.select_next();
-            }
-            if previous {
-                ctx.state.file_picker.select_previous();
-            }
+                if next {
+                    ctx.state.file_picker.select_next();
+                }
+                if previous {
+                    ctx.state.file_picker.select_previous();
+                }
 
-            Ok(())
-        });
+                Ok(())
+            },
+        );
 
         cr.register(
             "file-picker-fill-list",
+            "nodoc",
             focused_buffer_command(|_opt, ctx| {
                 let filter = ctx.buffer.line(0).unwrap_or_default();
                 let ignore = get_gitignore_ignores(&ctx.state.working_directory); // FIXME make this "ignore paths source" configurable.

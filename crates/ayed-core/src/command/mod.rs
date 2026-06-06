@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::{
+    command::options::{Options, ParsedOptions},
     panels::Panels,
     state::{Resources, State},
 };
@@ -9,7 +10,8 @@ pub mod helpers;
 pub mod options;
 
 struct Command {
-    func: Box<dyn Fn(&str, ExecuteCommandContext) -> Result<(), String>>,
+    opts: Options,
+    func: Box<dyn Fn(&ParsedOptions, ExecuteCommandContext) -> Result<(), String>>,
 }
 
 #[derive(Default)]
@@ -21,36 +23,52 @@ impl CommandRegistry {
     pub fn register(
         &mut self,
         name: impl Into<String>,
-        func: impl (Fn(&str, ExecuteCommandContext) -> Result<(), String>) + 'static,
+        opts: impl Into<Options>,
+        func: impl (Fn(&ParsedOptions, ExecuteCommandContext) -> Result<(), String>) + 'static,
     ) {
         self.commands.insert(
             name.into(),
             Command {
+                opts: opts.into(),
                 func: Box::new(func),
             },
         );
     }
 
     pub fn register_event(&mut self, name: impl Into<String>) {
-        self.register(name, |_, _| Ok(()));
+        self.register(name, Options::new(), |_, _| Ok(()));
     }
 
     pub fn execute_command(
         &self,
         command: &str,
         ctx: ExecuteCommandContext,
-    ) -> Result<Result<(), String>, String> {
+    ) -> ExecuteCommandResult {
         let (name, options) = parse_command(command);
-        let command = if let Some(command) = self.commands.get(name) {
-            command
+        if let Some(command) = self.commands.get(name) {
+            match command.opts.parse(options) {
+                Ok(parsed_opts) => ExecuteCommandResult {
+                    unknown: false,
+                    output: (command.func)(&parsed_opts, ctx),
+                },
+                Err(err) => ExecuteCommandResult {
+                    unknown: false,
+                    output: Err(format!("couldn't parse options: {err}")),
+                },
+            }
         } else {
             if self.is_hardcoded_event(command) {
-                return Ok(Ok(()));
+                ExecuteCommandResult {
+                    unknown: false,
+                    output: Ok(()),
+                }
             } else {
-                return Err(format!("unknown command '{name}'"));
+                ExecuteCommandResult {
+                    unknown: true,
+                    output: Err(format!("unknown command '{name}'")),
+                }
             }
-        };
-        Ok((command.func)(options, ctx))
+        }
     }
 
     fn is_hardcoded_event(&self, command: &str) -> bool {
@@ -59,6 +77,11 @@ impl CommandRegistry {
             || name.starts_with("state-before-modified:")
             || name.starts_with("state-after-modified:")
     }
+}
+
+pub struct ExecuteCommandResult {
+    pub unknown: bool,
+    pub output: Result<(), String>,
 }
 
 pub struct ExecuteCommandContext<'a> {

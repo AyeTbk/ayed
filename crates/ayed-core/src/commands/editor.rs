@@ -5,7 +5,7 @@ use regex::Regex;
 use crate::{
     command::{
         CommandRegistry,
-        helpers::{ErrorExt, alias, focused_buffer_command},
+        helpers::{ErrorExt, alias, focused_buffer_command, register_selection_movement},
         options::Options,
     },
     config::ConfigState,
@@ -24,7 +24,9 @@ use crate::{
 pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register(
         "buffer-write",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let path = if opt.is_empty() {
                 None
             } else {
@@ -47,40 +49,43 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
-    cr.register("w", alias("buffer-write"));
-    cr.register("wq", |_opt, ctx| {
+    cr.register("w", "nodoc", alias("buffer-write"));
+    cr.register("wq", "nodoc", |_opt, ctx| {
         ctx.queue.push(format!("buffer-write"));
         ctx.queue.push(format!("quit"));
         Ok(())
     });
 
-    cr.register("buffer-close", |opt, ctx| {
-        // Closes active buffer.
+    cr.register(
+        "buffer-close",
+        Options::new().doc("Closes active buffer.").flag("force"),
+        |opt, ctx| {
+            let force = opt.contains("force");
 
-        let force = opt.trim() == "--force";
+            // Validity checks
+            let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
+                return Err("no currently open buffer".into());
+            };
+            let buffer = ctx.resources.buffers.get(buffer_handle);
+            if buffer.is_dirty() && !force {
+                return Err(format!("there are unsaved changes"));
+            }
+            let path = buffer
+                .path()
+                .unwrap_or(Path::new(""))
+                .to_str_or_err()?
+                .to_string();
 
-        // Validity checks
-        let Some(buffer_handle) = ctx.state.active_editor_buffer(&ctx.resources) else {
-            return Err("no currently open buffer".into());
-        };
-        let buffer = ctx.resources.buffers.get(buffer_handle);
-        if buffer.is_dirty() && !force {
-            return Err(format!("there are unsaved changes"));
-        }
-        let path = buffer
-            .path()
-            .unwrap_or(Path::new(""))
-            .to_str_or_err()?
-            .to_string();
+            ctx.queue.emit("buffer-closed", &path);
 
-        ctx.queue.emit("buffer-closed", &path);
+            ctx.queue.push(format!("buffer-close__part2 {path}"));
 
-        ctx.queue.push(format!("buffer-close__part2 {path}"));
+            Ok(())
+        },
+    );
 
-        Ok(())
-    });
-
-    cr.register("buffer-close__part2", |opt, ctx| {
+    cr.register("buffer-close__part2", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(buffer_handle) = ctx.resources.buffer_with_path(Path::new(opt)) else {
             return Err(format!("big oof, no such buffer: {opt}"));
         };
@@ -110,74 +115,78 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("edit", |opt, ctx| {
-        let opts = Options::new().flag("scratch").parse(opt)?;
-        let scratch = opts.contains("scratch");
-        let path = if opts.remainder().is_empty() {
-            "".into()
-        } else {
-            ctx.state.normalize_path(Path::new(opts.remainder()))
-        };
+    cr.register(
+        "edit",
+        Options::new().doc("nodoc").flag("scratch"),
+        |opt, ctx| {
+            let scratch = opt.contains("scratch");
+            let path = if opt.raw().is_empty() {
+                "".into()
+            } else {
+                ctx.state.normalize_path(Path::new(opt.raw()))
+            };
 
-        let buffer_handle;
-        let buffer_opened_path: Option<&Path>;
-        if path.as_os_str().is_empty() && scratch {
-            buffer_handle = ctx.resources.open_scratch();
-            buffer_opened_path = Some(&path);
-        } else {
-            match ctx.resources.buffer_with_path(&path) {
-                Some(handle) => {
-                    buffer_handle = handle;
-                    buffer_opened_path = None;
+            let buffer_handle;
+            let buffer_opened_path: Option<&Path>;
+            if path.as_os_str().is_empty() && scratch {
+                buffer_handle = ctx.resources.open_scratch();
+                buffer_opened_path = Some(&path);
+            } else {
+                match ctx.resources.buffer_with_path(&path) {
+                    Some(handle) => {
+                        buffer_handle = handle;
+                        buffer_opened_path = None;
+                    }
+                    None => {
+                        buffer_handle = ctx.resources.open_file_or_scratch(&path)?;
+                        buffer_opened_path = Some(&path);
+                    }
                 }
+            }
+
+            let view_handle = match ctx.resources.view_with_buffer(buffer_handle) {
+                Some(handle) => handle,
                 None => {
-                    buffer_handle = ctx.resources.open_file_or_scratch(&path)?;
-                    buffer_opened_path = Some(&path);
+                    let view = ctx.resources.views.insert(View {
+                        top_left: Position::ZERO,
+                        buffer: buffer_handle,
+                    });
+
+                    ctx.resources
+                        .buffers
+                        .get_mut(buffer_handle)
+                        .add_view_selections(view, Selections::new());
+
+                    view
                 }
+            };
+
+            ctx.state.active_editor_view = Some(view_handle);
+
+            let buffer = ctx.resources.buffers.get(buffer_handle);
+            if let Some(format) = buffer.forced_format.as_ref() {
+                ctx.queue.set_state(ConfigState::FORMAT, format);
             }
-        }
 
-        let view_handle = match ctx.resources.view_with_buffer(buffer_handle) {
-            Some(handle) => handle,
-            None => {
-                let view = ctx.resources.views.insert(View {
-                    top_left: Position::ZERO,
-                    buffer: buffer_handle,
-                });
+            // The state must be updated before 'buffer-opened' is emitted so that
+            // hooked commands may behave correctly.
+            ctx.queue
+                .set_state(ConfigState::FILE, path.to_str_or_err()?);
 
-                ctx.resources
-                    .buffers
-                    .get_mut(buffer_handle)
-                    .add_view_selections(view, Selections::new());
-
-                view
+            if let Some(path) = buffer_opened_path {
+                ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
             }
-        };
 
-        ctx.state.active_editor_view = Some(view_handle);
-
-        let buffer = ctx.resources.buffers.get(buffer_handle);
-        if let Some(format) = buffer.forced_format.as_ref() {
-            ctx.queue.set_state(ConfigState::FORMAT, format);
-        }
-
-        // The state must be updated before 'buffer-opened' is emitted so that
-        // hooked commands may behave correctly.
-        ctx.queue
-            .set_state(ConfigState::FILE, path.to_str_or_err()?);
-
-        if let Some(path) = buffer_opened_path {
-            ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
-        }
-
-        Ok(())
-    });
-    cr.register("e", alias("edit"));
+            Ok(())
+        },
+    );
+    cr.register("e", "nodoc", alias("edit"));
 
     cr.register(
         "format-set",
-        focused_buffer_command(|opts, ctx| {
-            let format = opts.trim();
+        "nodoc",
+        focused_buffer_command(|opt, ctx| {
+            let format = opt.raw().trim();
             ctx.buffer.forced_format = if format.is_empty() {
                 None
             } else {
@@ -190,7 +199,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "look",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let mut offset = Offset::new(0, 0);
             for ch in opt.chars() {
                 match ch {
@@ -213,7 +224,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "look-set-top",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let new_row = i32::from_str_radix(opt.trim(), 10).map_err(|e| e.to_string())?;
             ctx.view.top_left.row = new_row;
             ctx.view.top_left.row = i32::max(0, ctx.view.top_left.row);
@@ -221,7 +234,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("look-keep-primary-cursor-in-view", |_opt, ctx| {
+    cr.register("look-keep-primary-cursor-in-view", "nodoc", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view_rect = ctx
                 .state
@@ -240,125 +253,97 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register(
-        "move",
-        focused_buffer_command(|opt, mut ctx| {
-            let Some(ch) = opt.chars().next() else {
-                return Err(format!("missing option: (u, d, l, r)"));
+    register_selection_movement(cr, "move", Options::new().doc("nodoc"), |opt, ctx| {
+        let opt = opt.remainder();
+        let Some(ch) = opt.chars().next() else {
+            return Err(format!("missing option: (u, d, l, r)"));
+        };
+        let offset = match ch.to_ascii_lowercase() {
+            'u' => Offset::new(0, -1),
+            'd' => Offset::new(0, 1),
+            'l' => Offset::new(-1, 0),
+            'r' => Offset::new(1, 0),
+            _ => return Err(format!("invalid option: {opt}")),
+        };
+
+        let mut selection = ctx.selection;
+
+        let horizontal_move = offset.column != 0;
+        if horizontal_move {
+            let new_cursor = ctx
+                .buffer
+                .move_position_horizontally(selection.cursor, offset.column)
+                .unwrap_or(selection.cursor);
+
+            selection = selection.with_anchor(new_cursor).with_cursor(new_cursor);
+        } else {
+            let logpos = ctx
+                .buffer
+                .map_true_position_to_logical_position(selection.cursor, &ctx.state.config);
+            if selection.old_logical_cursor_column.is_none() {
+                selection.old_logical_cursor_column = Some(logpos.column);
+            }
+            let desired_logpos = if let Some(column) = selection.old_logical_cursor_column {
+                logpos.with_column(column)
+            } else {
+                logpos
             };
-            let offset = match ch.to_ascii_lowercase() {
-                'u' => Offset::new(0, -1),
-                'd' => Offset::new(0, 1),
-                'l' => Offset::new(-1, 0),
-                'r' => Offset::new(1, 0),
-                _ => return Err(format!("invalid option: {opt}")),
-            };
-            let anchored = opt.contains("anchored");
+            let moved_logpos = ctx
+                .buffer
+                .move_logical_position_vertically(desired_logpos, offset.row, &ctx.state.config)
+                .unwrap_or(logpos);
+            let new_cursor = ctx
+                .buffer
+                .map_logical_position_to_true_position(moved_logpos, &ctx.state.config);
 
-            for selection in ctx.selections.iter_mut() {
-                let horizontal_move = offset.column != 0;
-                if horizontal_move {
-                    let new_cursor = ctx
-                        .buffer
-                        .move_position_horizontally(selection.cursor, offset.column)
-                        .unwrap_or(selection.cursor);
+            selection = selection
+                .with_anchor(new_cursor)
+                .with_provisional_cursor(new_cursor);
+        }
 
-                    *selection = if anchored {
-                        selection.with_cursor(new_cursor)
-                    } else {
-                        selection.with_anchor(new_cursor).with_cursor(new_cursor)
-                    };
-                } else {
-                    let logpos = ctx
-                        .buffer
-                        .map_true_position_to_logical_position(selection.cursor, &ctx.state.config);
-                    if selection.old_logical_cursor_column.is_none() {
-                        selection.old_logical_cursor_column = Some(logpos.column);
-                    }
-                    let desired_logpos = if let Some(column) = selection.old_logical_cursor_column {
-                        logpos.with_column(column)
-                    } else {
-                        logpos
-                    };
-                    let moved_logpos = ctx
-                        .buffer
-                        .move_logical_position_vertically(
-                            desired_logpos,
-                            offset.row,
-                            &ctx.state.config,
-                        )
-                        .unwrap_or(logpos);
-                    let new_cursor = ctx
-                        .buffer
-                        .map_logical_position_to_true_position(moved_logpos, &ctx.state.config);
+        Ok(Some(selection))
+    });
 
-                    *selection = if anchored {
-                        selection.with_provisional_cursor(new_cursor)
-                    } else {
-                        selection
-                            .with_anchor(new_cursor)
-                            .with_provisional_cursor(new_cursor)
-                    };
+    register_selection_movement(cr, "move-to-char", "nodoc", |opt, ctx| {
+        let opt = opt.remainder();
+        // FIXME in order to support options with pending commands,
+        // hook arg substitution needs to be supported.
+        let Some(ch) = opt.chars().next() else {
+            return Err("missing target char".to_string());
+        };
+        let mut selection = ctx.selection;
+        let cursor = selection.cursor;
+        let start_row = cursor.row;
+
+        let mut found_position = None;
+        let mut start_column = cursor.column + 1;
+        'find_pos: for row_i in start_row..ctx.buffer.line_count() {
+            let Some(line) = ctx.buffer.line(row_i) else { break };
+
+            // Find ch in line
+            for (column, chr) in line.chars().enumerate().skip(start_column as _) {
+                if chr == ch {
+                    found_position = Some(Position::new(column as i32, row_i));
+                    break 'find_pos;
                 }
             }
 
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
-            *sels = ctx.selections;
+            start_column = 0;
+        }
 
-            // TODO make this automatic maybe?, keep track of it in TextBuffer
-            // Same for buffer-modified??
-            ctx.queue.emit("selections-modified", "");
+        if let Some(pos) = found_position {
+            let sel = selection.with_cursor(pos).shrunk_to_cursor();
+            selection = sel;
+        }
 
-            Ok(())
-        }),
-    );
+        Ok(Some(selection))
+    });
 
-    cr.register(
-        "move-to-char",
-        focused_buffer_command(|opt, mut ctx| {
-            // FIXME in order to support options with pending commands,
-            // hook arg substitution needs to be supported.
-            let Some(ch) = opt.chars().next() else {
-                return Err("missing target char".to_string());
-            };
-            for selection in ctx.selections.iter_mut() {
-                let cursor = selection.cursor;
-                let start_row = cursor.row;
-
-                let mut found_position = None;
-                let mut start_column = cursor.column + 1;
-                'find_pos: for row_i in start_row..ctx.buffer.line_count() {
-                    let Some(line) = ctx.buffer.line(row_i) else { break };
-
-                    // Find ch in line
-                    for (column, chr) in line.chars().enumerate().skip(start_column as _) {
-                        if chr == ch {
-                            found_position = Some(Position::new(column as i32, row_i));
-                            break 'find_pos;
-                        }
-                    }
-
-                    start_column = 0;
-                }
-
-                if let Some(pos) = found_position {
-                    let sel = selection.with_cursor(pos).shrunk_to_cursor();
-                    *selection = sel;
-                }
-            }
-
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
-            *sels = ctx.selections;
-
-            ctx.queue.emit("selections-modified", "");
-
-            Ok(())
-        }),
-    );
-
-    cr.register(
+    register_selection_movement(
+        cr,
         "move-to-edge",
-        focused_buffer_command(|opt, mut ctx| {
+        Options::new().doc("nodoc"),
+        |opt, ctx| {
             enum Edge {
                 LineStart,
                 LinePastIndent,
@@ -368,14 +353,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 BufferEnd,
             }
 
-            let opts = Options::new()
-                .flag("anchored")
-                .flag("reanchored")
-                .parse(opt)?;
-            let anchored = opts.contains("anchored");
-            let reanchored = opts.contains("reanchored"); // Behaves like kakoune
-
-            let edge = match opts.remainder().trim() {
+            let edge = match opt.remainder().trim() {
                 "line-start" => Edge::LineStart,
                 "line-past-indent" => Edge::LinePastIndent,
                 "line-end" => Edge::LineEnd,
@@ -387,102 +365,72 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 }
             };
 
-            for selection in ctx.selections.iter_mut() {
-                let original_cursor = selection.cursor;
-                let mut cursor = selection.cursor;
-                let mut should_magnetize_to_infinity_and_beyond = false;
+            let mut selection = ctx.selection;
+            let mut cursor = selection.cursor;
+            let mut should_magnetize_to_infinity_and_beyond = false;
 
-                match edge {
-                    Edge::LineStart => cursor = cursor.with_column(0),
-                    Edge::LinePastIndent => {
-                        let line = ctx.buffer.line(cursor.row).expect("cursor should be valid");
-                        if let Some(not_indent_idx) = line.find(|c| !is_whitespace(c)) {
-                            let indent = &line[..not_indent_idx];
-                            let new_column = indent.chars().count() as Column;
-                            cursor = cursor.with_column(new_column);
-                        }
-                    }
-                    Edge::LineEnd => {
-                        let maybe_column = ctx.buffer.line_char_count(cursor.row);
-                        let new_column = i32::max(
-                            maybe_column
-                                .expect("cursor should be valid")
-                                .saturating_sub(1),
-                            0,
-                        );
+            match edge {
+                Edge::LineStart => cursor = cursor.with_column(0),
+                Edge::LinePastIndent => {
+                    let line = ctx.buffer.line(cursor.row).expect("cursor should be valid");
+                    if let Some(not_indent_idx) = line.find(|c| !is_whitespace(c)) {
+                        let indent = &line[..not_indent_idx];
+                        let new_column = indent.chars().count() as Column;
                         cursor = cursor.with_column(new_column);
                     }
-                    Edge::LinePastEnd => {
-                        let maybe_column = ctx.buffer.line_char_count(cursor.row);
-                        let new_column = maybe_column.expect("cursor should be valid");
-                        should_magnetize_to_infinity_and_beyond = true;
-                        cursor = cursor.with_column(new_column);
-                    }
-                    Edge::BufferStart => {
-                        cursor = Position::new(0, 0);
-                    }
-                    Edge::BufferEnd => {
-                        cursor = ctx.buffer.end_position();
-                    }
                 }
-
-                let mut sel = selection.with_cursor(cursor);
-                if reanchored {
-                    sel = sel.with_anchor(original_cursor);
-                } else if !anchored {
-                    sel = sel.with_anchor(cursor);
+                Edge::LineEnd => {
+                    let maybe_column = ctx.buffer.line_char_count(cursor.row);
+                    let new_column = i32::max(
+                        maybe_column
+                            .expect("cursor should be valid")
+                            .saturating_sub(1),
+                        0,
+                    );
+                    cursor = cursor.with_column(new_column);
                 }
-                if should_magnetize_to_infinity_and_beyond {
-                    sel = sel.magnetized_to_infinity_and_beyond();
+                Edge::LinePastEnd => {
+                    let maybe_column = ctx.buffer.line_char_count(cursor.row);
+                    let new_column = maybe_column.expect("cursor should be valid");
+                    should_magnetize_to_infinity_and_beyond = true;
+                    cursor = cursor.with_column(new_column);
                 }
-                *selection = sel;
+                Edge::BufferStart => {
+                    cursor = Position::new(0, 0);
+                }
+                Edge::BufferEnd => {
+                    cursor = ctx.buffer.end_position();
+                }
             }
 
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
-            *sels = ctx.selections;
+            let mut sel = selection.with_cursor(cursor).with_anchor(cursor);
+            if should_magnetize_to_infinity_and_beyond {
+                sel = sel.magnetized_to_infinity_and_beyond();
+            }
+            selection = sel;
 
-            ctx.queue.emit("selections-modified", "");
-
-            Ok(())
-        }),
+            Ok(Some(selection))
+        },
     );
 
-    cr.register("move-regex", |opt, ctx| {
-        let opts = Options::new()
-            .flag("reversed")
-            .flag("anchored")
-            .flag("primary")
-            .flag("line")
-            .parse(opt)?;
-        let reversed = opts.contains("reversed");
-        let anchored = opts.contains("anchored");
-        let primary_selection_only = opts.contains("primary");
-        let stay_within_line = opts.contains("line");
-        let pattern = opts.remainder();
+    register_selection_movement(
+        cr,
+        "move-regex",
+        Options::new().doc("nodoc").flag("reversed").flag("line"),
+        |opt, ctx| {
+            let reversed = opt.contains("reversed");
+            let stay_within_line = opt.contains("line");
+            let pattern = opt.remainder();
 
-        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
-            return Ok(());
-        };
+            let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
 
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-
-        let regex = Regex::new(pattern).map_err(|e| e.to_string())?;
-
-        let view_selections = buffer.view_selections(view_handle).unwrap();
-        let mut selections = if primary_selection_only {
-            vec![view_selections.primary()]
-        } else {
-            view_selections.iter().copied().collect::<Vec<_>>()
-        };
-
-        for selection in selections.iter_mut() {
+            let mut selection = ctx.selection;
             let cursor = selection.cursor;
             let mut row = cursor.row;
             let mut search_start_column = cursor.column;
 
             'line: loop {
-                let Some(line) = buffer.line(row) else { break 'line };
+                let Some(line) = ctx.buffer.line(row) else { break 'line };
                 let mut matches = regex.find_iter(line).collect::<Vec<_>>();
                 if reversed {
                     matches.reverse();
@@ -519,21 +467,21 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 }
 
                 if let Some((new_anchor_column, new_cursor_column)) = needle {
-                    if !anchored {
-                        let mut new_anchor = Position::new(new_anchor_column, row);
-                        // Limit new anchor to where the cursor was
-                        if reversed {
-                            if new_anchor > cursor {
-                                new_anchor = cursor;
-                            }
-                        } else {
-                            if new_anchor < cursor {
-                                new_anchor = cursor;
-                            }
+                    let mut new_anchor = Position::new(new_anchor_column, row);
+                    // Limit new anchor to where the cursor was
+                    if reversed {
+                        if new_anchor > cursor {
+                            new_anchor = cursor;
                         }
-                        *selection = selection.with_anchor(new_anchor);
+                    } else {
+                        if new_anchor < cursor {
+                            new_anchor = cursor;
+                        }
                     }
-                    *selection = selection.with_cursor(Position::new(new_cursor_column, row));
+
+                    selection = selection
+                        .with_cursor(Position::new(new_cursor_column, row))
+                        .with_anchor(new_anchor);
 
                     // Found the match for this selection, onto the next!
                     break 'line;
@@ -551,31 +499,28 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     } else {
                         row += 1;
                         search_start_column = -1;
-                        row_is_out_of_bounds = row >= buffer.line_count();
+                        row_is_out_of_bounds = row >= ctx.buffer.line_count();
                     };
                     if row_is_out_of_bounds {
                         break 'line;
                     }
                 }
             }
-        }
 
-        *buffer.view_selections_mut(view_handle).unwrap() = Selections::from_vec(selections);
-
-        ctx.queue.emit("selections-modified", "");
-
-        Ok(())
-    });
+            Ok(Some(selection))
+        },
+    );
 
     cr.register(
         "select-regex",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
             // TODO Design a command to execute another command with modeline written args
 
             // For every selection, find matches to the regex pattern to make new selections out of.
             // If this results in no selections, don't overwrite the selections and err out,
 
-            let pattern = opt;
+            let pattern = opt.raw();
             let re_pattern = Regex::new(pattern).or_strerr()?;
 
             let mut new_selections = Vec::new();
@@ -616,7 +561,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "insert-char",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let the_char = if opt == r"\n" {
                 '\n'
             } else {
@@ -648,7 +595,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "insert-str",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let the_str = opt.replace(r"\n", "\n");
 
             let sel_count = ctx.selections.count();
@@ -674,7 +623,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "replace",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let Some(ch) = opt.chars().next() else {
                 return Err("missing replacement char".to_string());
             };
@@ -707,6 +658,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "delete",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
             let contains_cursor = opt.contains("-c");
 
@@ -732,6 +684,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "delete-around",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
             let contains_cursor = opt.contains("-c");
             let contains_previous = opt.contains("-p");
@@ -779,19 +732,19 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "indent",
+        Options::new()
+            .doc("nodoc")
+            .flag("more")
+            .flag("less")
+            .flag("reindent")
+            .flag("auto")
+            .flag("auto-dedent"), // To be used with auto, to check whether to dedent or no considering the current line
         focused_buffer_command(|opt, ctx| {
-            let opts = Options::new()
-                .flag("more")
-                .flag("less")
-                .flag("reindent")
-                .flag("auto")
-                .flag("auto-dedent") // To be used with auto, to check whether to dedent or no considering the current line
-                .parse(opt)?;
-            let mut more = opts.contains("more");
-            let less = opts.contains("less");
-            let reindent = opts.contains("reindent");
-            let auto = opts.contains("auto");
-            let auto_dedent = opts.contains("auto-dedent");
+            let mut more = opt.contains("more");
+            let less = opt.contains("less");
+            let reindent = opt.contains("reindent");
+            let auto = opt.contains("auto");
+            let auto_dedent = opt.contains("auto-dedent");
             if !(more || less || reindent || auto) {
                 more = true;
             }
@@ -850,7 +803,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("__auto-indent-shim", |opt, ctx| {
+    cr.register("__auto-indent-shim", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         match opt {
             // TODO find a way to not have to check for both of these (like avoid the raw string)
             "\n" | r"\n" => ctx.queue.push("indent --auto"),
@@ -861,7 +815,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selections-merge-overlapping", |_opt, ctx| {
+    cr.register("selections-merge-overlapping", "nodoc", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
@@ -872,7 +826,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selections-dismiss-extras", |_opt, ctx| {
+    cr.register("selections-dismiss-extras", "nodoc", |_opt, ctx| {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
@@ -885,7 +839,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selections-set", |opt, ctx| {
+    cr.register("selections-set", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
@@ -900,7 +855,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selections-shrink", |_opt, ctx| {
+    cr.register("selections-shrink", "nodoc", |_opt, ctx| {
         let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
@@ -916,78 +871,84 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("selections-flip", |opt, ctx| {
-        let opts = Options::new().flag("forward").flag("backward").parse(opt)?;
-        let forward = opts.contains("forward");
-        let backward = opts.contains("backward");
+    cr.register(
+        "selections-flip",
+        Options::new().doc("nodoc").flag("forward").flag("backward"),
+        |opt, ctx| {
+            let forward = opt.contains("forward");
+            let backward = opt.contains("backward");
 
-        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
-            return Ok(());
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let selections = buffer.view_selections_mut(view_handle).unwrap();
-        for selection in selections.iter_mut() {
-            *selection = if forward {
-                selection.flipped_forward()
-            } else if backward {
-                selection.flipped_forward().flipped()
-            } else {
-                selection.flipped()
+            let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
+                return Ok(());
             };
-        }
-
-        ctx.queue.emit("selections-modified", "");
-
-        Ok(())
-    });
-
-    cr.register("selections-duplicate", |opt, ctx| {
-        let opts = Options::new().flag("up").flag("down").parse(opt)?;
-        let up = opts.contains("up");
-        let down = opts.contains("down");
-
-        let row_offset = -(up as i8) + (down as i8);
-        let offset = Offset::new(0, row_offset as i32);
-
-        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
-            return Ok(());
-        };
-
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let mut selections = buffer.view_selections(view_handle).unwrap().clone();
-
-        let make_dupe = |sel: Selection, offset| {
-            buffer.limit_selection_to_content(
-                &sel.with_anchor(sel.anchor.offset(offset))
-                    .with_cursor(sel.cursor.offset(offset)),
-            )
-        };
-
-        let mut new_extra_sels = Vec::new();
-
-        for (i, &sel) in selections.iter().enumerate() {
-            if i != 0 {
-                new_extra_sels.push(sel);
+            let view = ctx.resources.views.get(view_handle);
+            let buffer = ctx.resources.buffers.get_mut(view.buffer);
+            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            for selection in selections.iter_mut() {
+                *selection = if forward {
+                    selection.flipped_forward()
+                } else if backward {
+                    selection.flipped_forward().flipped()
+                } else {
+                    selection.flipped()
+                };
             }
-            new_extra_sels.push(make_dupe(sel, offset));
-        }
-        selections.extra_selections = new_extra_sels;
-        selections.rotate(1);
 
-        *buffer.view_selections_mut(view_handle).unwrap() = selections;
+            ctx.queue.emit("selections-modified", "");
 
-        ctx.queue.emit("selections-modified", "");
+            Ok(())
+        },
+    );
 
-        Ok(())
-    });
+    cr.register(
+        "selections-duplicate",
+        Options::new().doc("nodoc").flag("up").flag("down"),
+        |opt, ctx| {
+            let up = opt.contains("up");
+            let down = opt.contains("down");
+
+            let row_offset = -(up as i8) + (down as i8);
+            let offset = Offset::new(0, row_offset as i32);
+
+            let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
+                return Ok(());
+            };
+
+            let view = ctx.resources.views.get(view_handle);
+            let buffer = ctx.resources.buffers.get_mut(view.buffer);
+            let mut selections = buffer.view_selections(view_handle).unwrap().clone();
+
+            let make_dupe = |sel: Selection, offset| {
+                buffer.limit_selection_to_content(
+                    &sel.with_anchor(sel.anchor.offset(offset))
+                        .with_cursor(sel.cursor.offset(offset)),
+                )
+            };
+
+            let mut new_extra_sels = Vec::new();
+
+            for (i, &sel) in selections.iter().enumerate() {
+                if i != 0 {
+                    new_extra_sels.push(sel);
+                }
+                new_extra_sels.push(make_dupe(sel, offset));
+            }
+            selections.extra_selections = new_extra_sels;
+            selections.rotate(1);
+
+            *buffer.view_selections_mut(view_handle).unwrap() = selections;
+
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        },
+    );
 
     cr.register(
         "selections-rotate",
+        Options::new().doc("nodoc").flag("reversed"),
         focused_buffer_command(|opt, ctx| {
-            let opts = Options::new().flag("reversed").parse(opt)?;
-            let reversed = opts.contains("reversed");
+            let reversed = opt.contains("reversed");
             let rotate_amount = if reversed { -1 } else { 1 };
 
             let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();

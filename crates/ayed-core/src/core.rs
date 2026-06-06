@@ -152,7 +152,7 @@ impl Core {
             let hooks = self.hooks_of_command(&command);
             // If the command isn't registered, but it has hooks, it is likely
             // an event and not and error.
-            if !res.is_err() {
+            if !res.unknown {
                 self.queue.extend(hooks);
             }
 
@@ -163,19 +163,16 @@ impl Core {
                 self.state.hover_info = None;
             }
 
-            match res {
-                Ok(Err(cmd_err)) => {
-                    self.queue.clear();
-                    let err_msg = format!("{command_name}: {cmd_err}");
-                    self.state.modeline.set_error(err_msg, &self.state.config);
-                    return;
+            if let Err(err_str) = res.output {
+                let err_msg;
+                if res.unknown {
+                    err_msg = err_str;
+                } else {
+                    err_msg = format!("{command_name}: {err_str}");
                 }
-                Err(exec_err) => {
-                    self.queue.clear();
-                    self.state.modeline.set_error(exec_err, &self.state.config);
-                    return;
-                }
-                _ => (),
+                self.queue.clear();
+                self.state.modeline.set_error(err_msg, &self.state.config);
+                return;
             }
         }
 

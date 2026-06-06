@@ -4,7 +4,7 @@ use crate::{
 };
 
 pub fn register_core_commands(cr: &mut CommandRegistry) {
-    cr.register("quit", |_opt, ctx| {
+    cr.register("quit", "nodoc", |_opt, ctx| {
         for (_, view) in ctx.resources.views.iter() {
             let buffer = ctx.resources.buffers.get(view.buffer);
             if buffer.is_dirty() {
@@ -14,24 +14,25 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         ctx.state.quit_requested = true;
         Ok(())
     });
-    cr.register("quit!", |_opt, ctx| {
+    cr.register("quit!", "nodoc", |_opt, ctx| {
         ctx.state.quit_requested = true;
         Ok(())
     });
-    cr.register("q", alias("quit"));
-    cr.register("q!", alias("quit!"));
+    cr.register("q", "nodoc", alias("quit"));
+    cr.register("q!", "nodoc", alias("quit!"));
 
-    cr.register("error", |opt, _ctx| Err(opt.to_string()));
+    cr.register("error", "nodoc", |opt, _ctx| Err(opt.raw().to_string()));
 
-    cr.register("message", |opt, ctx| {
-        ctx.state.modeline.set_message(opt.to_string());
+    cr.register("message", "nodoc", |opt, ctx| {
+        ctx.state.modeline.set_message(opt.raw().to_string());
         Ok(())
     });
 
-    cr.register("state-set", |opt, ctx| {
+    cr.register("state-set", "nodoc", |opt, ctx| {
         let (state, rest) = opt
+            .raw()
             .split_once(|ch: char| ch.is_ascii_whitespace())
-            .ok_or_else(|| format!("bad options `{}`", opt))?;
+            .ok_or_else(|| format!("bad options `{}`", opt.raw()))?;
 
         let state = state.trim();
         let value = rest.trim();
@@ -39,14 +40,15 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         ctx.queue
             .emit(format!("state-before-modified:{state}"), value);
 
-        ctx.queue.push(format!("state-set__part2 {opt}"));
+        ctx.queue.push(format!("state-set__part2 {}", opt.raw()));
 
         Ok(())
     });
-    cr.register("state-set__part2", |opt, ctx| {
+    cr.register("state-set__part2", "nodoc", |opt, ctx| {
         let (state, rest) = opt
+            .raw()
             .split_once(|ch: char| ch.is_ascii_whitespace())
-            .ok_or_else(|| format!("bad options `{}`", opt))?;
+            .ok_or_else(|| format!("bad options `{}`", opt.raw()))?;
 
         let state = state.trim();
         let value = rest.trim();
@@ -56,10 +58,11 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
-    cr.register("set", alias("state-set"));
+    cr.register("set", "nodoc", alias("state-set"));
 
-    cr.register("panel-focus", |opt, ctx| {
+    cr.register("panel-focus", "nodoc", |opt, ctx| {
         let panel_name = opt
+            .raw()
             .split_whitespace()
             .next()
             .ok_or_else(|| format!("missing panel name"))?;
@@ -87,8 +90,8 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("prompt-exec", |opt, ctx| {
-        let command_to_execute_override = opt.trim();
+    cr.register("prompt-exec", "nodoc", |opt, ctx| {
+        let command_to_execute_override = opt.raw().trim();
 
         let view_handle = ctx
             .panels
@@ -138,46 +141,49 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("prompt-history", |opt, ctx| {
-        let opts = Options::new().flag("next").flag("previous").parse(opt)?;
-        let next = opts.contains("next");
-        let previous = opts.contains("previous");
+    cr.register(
+        "prompt-history",
+        Options::new().doc("nodoc").flag("next").flag("previous"),
+        |opt, ctx| {
+            let next = opt.contains("next");
+            let previous = opt.contains("previous");
 
-        let Some(prompt_mode) = ctx.state.config.state_value("prompt-mode") else {
-            return Ok(());
-        };
-        let Some(history) = ctx.state.modeline.histories.get_mut(prompt_mode) else {
-            return Ok(());
-        };
+            let Some(prompt_mode) = ctx.state.config.state_value("prompt-mode") else {
+                return Ok(());
+            };
+            let Some(history) = ctx.state.modeline.histories.get_mut(prompt_mode) else {
+                return Ok(());
+            };
 
-        let view_handle = ctx
-            .panels
-            .panel_with_name(&ctx.state.focused_panel)
-            .and_then(|p| p.view())
-            .ok_or_else(|| "prompt not focused".to_string())?;
+            let view_handle = ctx
+                .panels
+                .panel_with_name(&ctx.state.focused_panel)
+                .and_then(|p| p.view())
+                .ok_or_else(|| "prompt not focused".to_string())?;
 
-        let buffer_handle = ctx.resources.views.get(view_handle).buffer;
-        let buffer = ctx.resources.buffers.get_mut(buffer_handle);
-        if buffer.line(0).is_some() {
-            let max = history.entries.len();
-            let item_idx = &mut history.selected_item;
-            if next {
-                *item_idx = usize::min(item_idx.saturating_add(1), max);
+            let buffer_handle = ctx.resources.views.get(view_handle).buffer;
+            let buffer = ctx.resources.buffers.get_mut(buffer_handle);
+            if buffer.line(0).is_some() {
+                let max = history.entries.len();
+                let item_idx = &mut history.selected_item;
+                if next {
+                    *item_idx = usize::min(item_idx.saturating_add(1), max);
+                }
+                if previous {
+                    *item_idx = item_idx.saturating_sub(1);
+                }
+
+                if *item_idx == max {
+                    buffer.set_line(0, String::new()).unwrap();
+                } else {
+                    let item = &history.entries[*item_idx];
+                    buffer.set_line(0, item.clone()).unwrap();
+
+                    ctx.queue.push("move-to-edge line-past-end");
+                }
             }
-            if previous {
-                *item_idx = item_idx.saturating_sub(1);
-            }
 
-            if *item_idx == max {
-                buffer.set_line(0, String::new()).unwrap();
-            } else {
-                let item = &history.entries[*item_idx];
-                buffer.set_line(0, item.clone()).unwrap();
-
-                ctx.queue.push("move-to-edge line-past-end");
-            }
-        }
-
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 }

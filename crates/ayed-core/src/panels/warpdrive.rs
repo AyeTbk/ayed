@@ -252,7 +252,7 @@ pub mod commands {
     use super::{WarpdriveInputResult, WarpdriveState};
 
     pub fn register_warpdrive_commands(cr: &mut CommandRegistry) {
-        cr.register("warpdrive", |_opt, ctx| {
+        cr.register("warpdrive", "nodoc", |_opt, ctx| {
             let mut ctx = ctx;
             let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
                 return Ok(());
@@ -269,7 +269,8 @@ pub mod commands {
             Ok(())
         });
 
-        cr.register("warpdrive-input", |opt, ctx| {
+        cr.register("warpdrive-input", "nodoc", |opt, ctx| {
+            let opt = opt.raw();
             let warpdrive_panel = ctx
                 .panels
                 .panel_of_type_mut::<Warpdrive>()

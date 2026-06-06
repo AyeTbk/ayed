@@ -21,12 +21,14 @@ static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w[\w!\-]*").u
 static RE_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\.|::|,)(\s*)").unwrap());
 
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
-    cr.register("stderr", |opt, _ctx| {
+    cr.register("stderr", "nodoc", |opt, _ctx| {
+        let opt = opt.raw();
         debug!("{opt}");
         Ok(())
     });
 
-    cr.register("pending-command-run", |opt, ctx| {
+    cr.register("pending-command-run", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
         let Some(cmd) = ctx.state.config.state_value("pending-command") else {
             return Err("pending-command not set!".to_string());
         };
@@ -34,7 +36,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("history-save", |_opt, ctx| {
+    cr.register("history-save", "nodoc", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
@@ -55,7 +57,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("history-undo", |_opt, ctx| {
+    cr.register("history-undo", "nodoc", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
@@ -78,7 +80,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("yank", |_opt, ctx| {
+    cr.register("yank", "nodoc", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
             return Ok(());
         };
@@ -110,9 +112,9 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "paste",
+        Options::new().doc("nodoc").flag("before"),
         focused_buffer_command(|opt, mut ctx| {
-            let opts = Options::new().flag("before").parse(opt)?;
-            let before = opts.contains("before");
+            let before = opt.contains("before");
 
             let enumerated_sels = ctx.selections.iter_mut().enumerate().collect::<Vec<_>>();
             for (i, sel) in enumerated_sels.into_iter().rev() {
@@ -167,77 +169,82 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("completions-select", |opt, ctx| {
-        if ctx.state.completions.items.is_empty() {
-            return Ok(());
-        }
-
-        let opts = Options::new().flag("next").flag("previous").parse(opt)?;
-        let next = opts.contains("next");
-        let previous = opts.contains("previous");
-
-        let cycling_from_original = ctx.state.completions.selected_item == 0;
-        ctx.state.completions.selected_item += next as i32 - (previous as i32);
-        let modulo = ctx.state.completions.items.len() as i32 + 1;
-        ctx.state.completions.selected_item =
-            ctx.state.completions.selected_item.rem_euclid(modulo);
-        let selected_item_idx = i32::max(ctx.state.completions.selected_item - 1, 0) as usize;
-        let cycling_to_original = ctx.state.completions.selected_item == 0;
-
-        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
-            return Ok(());
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let sel_count = buffer.view_selections(view_handle).unwrap().count();
-
-        let inverse_edits = ctx.state.completions.last_completion_inverse_edits.take();
-        let inverse_edits = inverse_edits.unwrap_or_default();
-        let mut new_inverse_edits = Vec::new();
-
-        let item = &ctx.state.completions.items[selected_item_idx];
-
-        for sel_idx in 0..sel_count {
-            if !cycling_from_original {
-                let reverse_edit = inverse_edits.get(sel_idx).unwrap();
-                buffer.apply_edit(reverse_edit)?;
-                // TODO extra edits too
+    cr.register(
+        "completions-select",
+        Options::new().doc("nodoc").flag("next").flag("previous"),
+        |opt, ctx| {
+            if ctx.state.completions.items.is_empty() {
+                return Ok(());
             }
 
-            let selections = buffer.view_selections(view_handle).unwrap();
-            let sel = selections.get(sel_idx).unwrap();
+            let next = opt.contains("next");
+            let previous = opt.contains("previous");
 
-            if !cycling_to_original {
-                let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
-                // TODO extra edits
-                let edit = CompletionEdit {
-                    range: prefix_symbol_range,
-                    text: item.text.to_string(),
-                };
-                let inverse_edit = buffer.apply_edit(&edit)?;
-                new_inverse_edits.push(inverse_edit);
+            let cycling_from_original = ctx.state.completions.selected_item == 0;
+            ctx.state.completions.selected_item += next as i32 - (previous as i32);
+            let modulo = ctx.state.completions.items.len() as i32 + 1;
+            ctx.state.completions.selected_item =
+                ctx.state.completions.selected_item.rem_euclid(modulo);
+            let selected_item_idx = i32::max(ctx.state.completions.selected_item - 1, 0) as usize;
+            let cycling_to_original = ctx.state.completions.selected_item == 0;
+
+            let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
+                return Ok(());
+            };
+            let view = ctx.resources.views.get(view_handle);
+            let buffer = ctx.resources.buffers.get_mut(view.buffer);
+            let sel_count = buffer.view_selections(view_handle).unwrap().count();
+
+            let inverse_edits = ctx.state.completions.last_completion_inverse_edits.take();
+            let inverse_edits = inverse_edits.unwrap_or_default();
+            let mut new_inverse_edits = Vec::new();
+
+            let item = &ctx.state.completions.items[selected_item_idx];
+
+            for sel_idx in 0..sel_count {
+                if !cycling_from_original {
+                    let reverse_edit = inverse_edits.get(sel_idx).unwrap();
+                    buffer.apply_edit(reverse_edit)?;
+                    // TODO extra edits too
+                }
+
+                let selections = buffer.view_selections(view_handle).unwrap();
+                let sel = selections.get(sel_idx).unwrap();
+
+                if !cycling_to_original {
+                    let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
+                    // TODO extra edits
+                    let edit = CompletionEdit {
+                        range: prefix_symbol_range,
+                        text: item.text.to_string(),
+                    };
+                    let inverse_edit = buffer.apply_edit(&edit)?;
+                    new_inverse_edits.push(inverse_edit);
+                }
             }
-        }
 
-        ctx.state.completions.last_completion_inverse_edits = Some(new_inverse_edits);
+            ctx.state.completions.last_completion_inverse_edits = Some(new_inverse_edits);
 
-        // Show selected item documentation in the hover info panel, if possible.
-        if cycling_to_original {
-            ctx.state.hover_info = None;
-        } else {
-            ctx.state.hover_info = item.documentation.clone();
-        }
+            // Show selected item documentation in the hover info panel, if possible.
+            if cycling_to_original {
+                ctx.state.hover_info = None;
+            } else {
+                ctx.state.hover_info = item.documentation.clone();
+            }
 
-        ctx.queue.emit("buffer-modified", buffer.path_str());
-        ctx.queue.emit("selections-modified", "completions-select");
+            ctx.queue.emit("buffer-modified", buffer.path_str());
+            ctx.queue.emit("selections-modified", "completions-select");
 
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 
     // Check that completion menu should be displayed. Gathers completions if so. Clears them otherwise.
     cr.register(
         "completions-check",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let selections_modified_source = opt.trim();
             if selections_modified_source == "completions-select" {
                 return Ok(());
@@ -258,6 +265,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "completions-clear",
+        "nodoc",
         focused_buffer_command(|_opt, ctx| {
             ctx.state.completions.items.clear();
             ctx.state.completions.selected_item = 0;
@@ -269,6 +277,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
     // Gathers completions from the various sources, filling the list of active completion items.
     cr.register(
         "completions-gather",
+        "nodoc",
         focused_buffer_command(|_opt, ctx| {
             let cursor = ctx.selections.primary().cursor;
 
@@ -336,7 +345,9 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "completions-source-buffer",
+        "nodoc",
         focused_buffer_command(|opt, ctx| {
+            let opt = opt.raw();
             let selections_modified_source = opt.trim();
             if selections_modified_source == "completions-select" {
                 return Ok(());

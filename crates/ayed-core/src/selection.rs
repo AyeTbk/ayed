@@ -23,6 +23,7 @@ impl Selections {
         }
     }
 
+    #[deprecated]
     pub fn from_vec(mut v: Vec<Selection>) -> Self {
         let primary_selection = if v.is_empty() {
             Selection::new()
@@ -33,6 +34,18 @@ impl Selections {
             primary_selection,
             extra_selections: v,
         }
+    }
+
+    pub fn from_vec_2(mut v: Vec<Selection>) -> Result<Self, ()> {
+        let primary_selection = if v.is_empty() {
+            return Err(());
+        } else {
+            v.remove(0)
+        };
+        Ok(Selections {
+            primary_selection,
+            extra_selections: v,
+        })
     }
 
     pub fn parse(src: &str) -> Result<Self, String> {
@@ -356,6 +369,12 @@ impl Selection {
 
     fn cursor_is_at_start(&self) -> bool {
         self.cursor <= self.anchor
+    }
+}
+
+impl PartialEq for Selection {
+    fn eq(&self, other: &Self) -> bool {
+        (self.cursor, self.anchor).eq(&(other.cursor, other.anchor))
     }
 }
 
