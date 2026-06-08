@@ -523,6 +523,21 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register(
+        "line",
+        "nodoc",
+        focused_buffer_command(|opt, ctx| {
+            let row_number = opt.raw().parse::<i32>().map_err(|e| e.to_string())?;
+            let row = (row_number - 1).clamp(0, ctx.buffer.last_row());
+            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            *sels = Selections::new_with(Selection::with_position(Position::new(0, row)), &[]);
+
+            ctx.queue.emit("selections-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
         "select-regex",
         "nodoc",
         focused_buffer_command(|opt, ctx| {

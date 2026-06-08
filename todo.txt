@@ -1,0 +1,30 @@
+- better, context aware, language aware, configurable indent handling
+- fix warpdrive mishandling of logical content (ie: when tabs are present)
+- fix look doesnt follow cursor past end of screen somehow just check out this line...
+- fix cell styling errror when cursor is at the last visible cell of a line
+- fix saving messes up/loses file permissions (+x confirmed via dtm)
+- fix tmux rendering whackiness (moving the terminal cursor too much?)
+
+# Config
+- better error message
+
+# Completions
+- dont suggest completions automatically after ','
+   - this maybe ties into better "suggest completions automatically"
+- fix completions: EnumVariant before methods
+- fix completions: do show the current prefix if in the item list
+- investigate #[derive(...)] completion
+
+# Commands and keybinds
+- 'pending mode' commands
+    - add surround selection with ' " or matching pairs
+- add matching-pair movement 'm'
+- add split selections à la kakoune
+- make "trim surrounding ws" an easier keybind compared to _
+- add force buffer-close command
+- add redo command
+- fix paste pasting a line when nothing to paste
+
+# Syntax highlight
+- return keyword
+- fix syntax highlighting weird on chars (sometimes works, sometimes not)
