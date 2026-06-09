@@ -1,7 +1,6 @@
 - better, context aware, language aware, configurable indent handling
 - fix warpdrive mishandling of logical content (ie: when tabs are present)
 - fix look doesnt follow cursor past end of screen somehow just check out this line...
-- fix cell styling errror when cursor is at the last visible cell of a line
 - fix saving messes up/loses file permissions (+x confirmed via dtm)
 - fix tmux rendering whackiness (moving the terminal cursor too much?)
 

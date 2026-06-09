@@ -121,10 +121,9 @@ impl Tui {
 
         write!(screen, "{}{}", ResetColor, Attribute::Reset)?;
 
+        let mut style = Style::default();
         for (y, line) in rbuf.buffer.into_iter().enumerate() {
             write!(screen, "{}", MoveTo(0 as _, y as _))?;
-
-            let mut style = Style::default();
             for cell in line {
                 Self::render_cell(&mut screen, &cell, &mut style)?
             }
