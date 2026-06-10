@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
+use ayed_lsp_client::LspClient;
+
 use crate::{
     config::Config,
     input::Input,
@@ -13,12 +15,11 @@ use crate::{
     ui::{Rect, Size, Style},
 };
 
-mod text_buffer_history;
-use ayed_lsp_client::LspClient;
-pub use text_buffer_history::TextBufferHistory;
-
 mod text_buffer;
-pub use text_buffer::TextBuffer;
+pub use text_buffer::{TextBuffer, TextEdit};
+
+mod text_buffer_history;
+pub use text_buffer_history::TextBufferHistory;
 
 mod view;
 pub use view::View;
@@ -33,9 +34,7 @@ mod resources;
 pub use resources::Resources;
 
 mod completions;
-pub use completions::{
-    CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource, Completions,
-};
+pub use completions::{CompletionItem, CompletionItemKind, CompletionSource, Completions};
 
 mod modeline;
 pub use modeline::{Align, ModelineInfo, ModelineState};
@@ -45,7 +44,6 @@ pub struct State {
     pub is_async_task_ready: Arc<AtomicBool>,
     pub active_editor_view: Option<Handle<View>>,
     pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
-    pub edit_histories: HashMap<Handle<TextBuffer>, TextBufferHistory>,
     pub completions: Completions,
     pub register: Register,
     pub config: Config,

@@ -45,7 +45,7 @@ impl Panel for Prompt {
         ctx.resources
             .buffers
             .get_mut(buffer)
-            .add_view_selections(view, Selections::new());
+            .set_view_selections(view, Selections::new());
         self.view_handle = Some(view);
     }
 

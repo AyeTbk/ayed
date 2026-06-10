@@ -17,8 +17,9 @@ use log::{debug, info};
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command},
     position::{Column, Position, Row},
+    range::Range,
     selection::Selection,
-    state::{CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource},
+    state::{CompletionItem, CompletionItemKind, CompletionSource, TextEdit},
 };
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
@@ -86,7 +87,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                     let Some(location) = locations.into_iter().next() else { continue };
 
                     let filepath = lsp_uri_to_filepath(location.uri);
-                    let range = lsp_range_to_tuple(location.range);
+                    let range = lsp_range_to_range(location.range);
                     let sel = Selection::from_range(range);
                     let selstr = sel.to_string();
                     // FIXME Hardcoded value. This adjustment might not be necessary if I add a config for "minimum distance between cursor and view edge" kind of thing
@@ -276,11 +277,12 @@ fn lsp_position_to_position(pos: ayed_lsp_client::types::Position) -> Position {
     }
 }
 
-fn lsp_range_to_tuple(range: ayed_lsp_client::types::Range) -> (Position, Position) {
+fn lsp_range_to_range(range: ayed_lsp_client::types::Range) -> Range {
     (
         lsp_position_to_position(range.start),
         lsp_position_to_position(range.end),
     )
+        .into()
 }
 
 fn lsp_uri_to_filepath(uri: ayed_lsp_client::types::DocumentUri) -> PathBuf {
@@ -355,9 +357,9 @@ fn lsp_completion_item_kind_to_completion_item_kind(kind: i32) -> CompletionItem
     }
 }
 
-fn lsp_text_edit_to_completion_edit(edit: ayed_lsp_client::types::TextEdit) -> CompletionEdit {
-    CompletionEdit {
-        range: lsp_range_to_tuple(edit.range),
+fn lsp_text_edit_to_completion_edit(edit: ayed_lsp_client::types::TextEdit) -> TextEdit {
+    TextEdit {
+        range: lsp_range_to_range(edit.range),
         text: edit.new_text,
     }
 }

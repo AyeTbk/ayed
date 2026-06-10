@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
-use crate::position::{Column, Position, Row};
+use crate::{
+    position::{Column, Position, Row},
+    range::Range,
+};
 
 #[derive(Debug, Clone)]
 pub struct Selections {
@@ -247,12 +250,12 @@ impl Selection {
         }
     }
 
-    pub fn to_range(&self) -> (Position, Position) {
-        (self.start(), self.end().offset((1, 0)))
+    pub fn to_range(&self) -> Range {
+        (self.start(), self.end().offset((1, 0))).into()
     }
 
-    pub fn from_range(range: (Position, Position)) -> Self {
-        Self::new().with_start_and_end(range.0, range.1.offset((-1, 0)))
+    pub fn from_range(range: Range) -> Self {
+        Self::new().with_start_and_end(range.start, range.end.offset((-1, 0)))
     }
 
     pub fn shrunk_to_cursor(&self) -> Self {

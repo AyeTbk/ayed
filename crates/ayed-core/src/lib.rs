@@ -6,9 +6,9 @@ pub mod input;
 mod logger;
 mod panels;
 mod position;
+mod range;
 mod selection;
 mod slotmap;
 mod state;
 pub mod ui;
-
 mod utils;

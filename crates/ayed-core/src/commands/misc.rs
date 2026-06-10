@@ -10,10 +10,8 @@ use regex::Regex;
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     position::{Column, Position},
-    state::{
-        CompletionEdit, CompletionItem, CompletionItemKind, CompletionSource, TextBuffer,
-        TextBufferHistory,
-    },
+    range::Range,
+    state::{CompletionItem, CompletionItemKind, CompletionSource, TextBuffer, TextEdit},
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
@@ -36,49 +34,44 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
-    cr.register("history-save", "nodoc", |_opt, ctx| {
-        let Some(view_handle) = ctx.state.active_editor_view else {
-            return Ok(());
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-
-        let history_entry = ctx.state.edit_histories.entry(view.buffer);
-        use std::collections::hash_map::Entry;
-        match history_entry {
-            Entry::Occupied(mut history) => {
-                history.get_mut().save_state(buffer);
+    cr.register(
+        "undo",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let undid = ctx.buffer.undo()?;
+            if !undid {
+                ctx.queue.push("message  nothing to undo");
+            } else {
+                ctx.queue.emit("buffer-modified", "");
+                ctx.queue.emit("selections-modified", "");
             }
-            Entry::Vacant(history) => {
-                history.insert(TextBufferHistory::new(buffer));
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "redo",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let redid = ctx.buffer.redo()?;
+            if !redid {
+                ctx.queue.push("message  nothing to redo");
+            } else {
+                ctx.queue.emit("buffer-modified", "");
+                ctx.queue.emit("selections-modified", "");
             }
-        }
+            Ok(())
+        }),
+    );
 
-        Ok(())
-    });
-
-    cr.register("history-undo", "nodoc", |_opt, ctx| {
-        let Some(view_handle) = ctx.state.active_editor_view else {
-            return Ok(());
-        };
-        let view = ctx.resources.views.get(view_handle);
-        let buffer = ctx.resources.buffers.get_mut(view.buffer);
-
-        let undid = ctx
-            .state
-            .edit_histories
-            .get_mut(&view.buffer)
-            .is_some_and(|history| history.undo(buffer));
-
-        if undid {
-            ctx.queue.emit("buffer-modified", "");
-            ctx.queue.emit("selections-modified", "");
-        } else {
-            ctx.queue.push("message no remaining history");
-        }
-
-        Ok(())
-    });
+    cr.register(
+        "history-checkpoint",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            ctx.buffer.checkpoint();
+            Ok(())
+        }),
+    );
 
     cr.register("yank", "nodoc", |_opt, ctx| {
         let Some(view_handle) = ctx.state.active_editor_view else {
@@ -116,6 +109,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         focused_buffer_command(|opt, mut ctx| {
             let before = opt.contains("before");
 
+            // TODO fix this paste command, it behaves weird.
+
             let enumerated_sels = ctx.selections.iter_mut().enumerate().collect::<Vec<_>>();
             for (i, sel) in enumerated_sels.into_iter().rev() {
                 let mut text = ctx
@@ -151,16 +146,16 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 };
 
                 if insert_at > ctx.buffer.end_position() {
-                    ctx.buffer.insert_char_at(ctx.buffer.end_position(), '\n')?;
+                    ctx.buffer.insert_char_at('\n', ctx.buffer.end_position())?;
                     text = text.strip_suffix('\n').unwrap_or(text);
                 }
 
-                let inserted_sel = ctx.buffer.insert_str_at(insert_at, text)?;
+                let inserted_sel = ctx.buffer.insert_str_at(text, insert_at)?;
                 *sel = inserted_sel;
             }
 
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
-            *sels = ctx.selections;
+            ctx.buffer
+                .set_view_selections(ctx.view_handle, ctx.selections);
 
             ctx.queue.emit("buffer-modified", "");
             ctx.queue.emit("selections-modified", "");
@@ -214,7 +209,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 if !cycling_to_original {
                     let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
                     // TODO extra edits
-                    let edit = CompletionEdit {
+                    let edit = TextEdit {
                         range: prefix_symbol_range,
                         text: item.text.to_string(),
                     };
@@ -255,7 +250,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             ctx.queue.push("completions-clear"); // TODO check if this should even be a command rather than a fn call.
 
-            let prefix_exists = prefix_range.0 != prefix_range.1;
+            let prefix_exists = !prefix_range.is_empty();
             if prefix_exists || position_follows_a_separator(ctx.buffer, cursor) {
                 ctx.queue.push("completions-gather"); // TODO check if this should even be a command rather than a fn call.
             }
@@ -282,7 +277,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             let cursor = ctx.selections.primary().cursor;
 
             let prefix_range = get_prefix_symbol_range(ctx.buffer, cursor);
-            ctx.state.completions.original_symbol_start = prefix_range.0;
+            ctx.state.completions.original_symbol_start = prefix_range.start;
             let prefix = ctx.buffer.range_text(prefix_range)?;
 
             let mut items_by_labels: HashMap<String, HashMap<CompletionItemKind, CompletionItem>> =
@@ -385,7 +380,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
     );
 }
 
-fn get_prefix_symbol_range(buffer: &TextBuffer, cursor: Position) -> (Position, Position) {
+fn get_prefix_symbol_range(buffer: &TextBuffer, cursor: Position) -> Range {
     let row = cursor.row;
     let line = buffer.line(row).unwrap();
     let cursor_byte_idx = char_index_to_byte_index(line, cursor.column as _).unwrap();
@@ -394,10 +389,13 @@ fn get_prefix_symbol_range(buffer: &TextBuffer, cursor: Position) -> (Position, 
         if matsh.start() < cursor_byte_idx && matsh.end() >= cursor_byte_idx {
             let start_column = byte_index_to_char_index(line, matsh.start()).unwrap() as Column;
             let end_column = cursor_byte_idx as Column;
-            maybe_range = Some(((start_column, row).into(), (end_column, row).into()))
+            maybe_range = Some(Range::from((
+                (start_column, row).into(),
+                (end_column, row).into(),
+            )))
         }
     }
-    maybe_range.unwrap_or((cursor, cursor))
+    maybe_range.unwrap_or(Range::from((cursor, cursor)))
 }
 
 fn position_follows_a_separator(buffer: &TextBuffer, cursor: Position) -> bool {

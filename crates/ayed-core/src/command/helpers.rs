@@ -124,7 +124,7 @@ pub fn register_selection_movement(
         ctx.queue.emit("selections-modified", "");
 
         if let Ok(updated_sels) = Selections::from_vec_2(updated_selections) {
-            *buffer.view_selections_mut(view_handle).unwrap() = updated_sels;
+            buffer.set_view_selections(view_handle, updated_sels);
             Ok(())
         } else {
             Err(format!("no selection left!"))

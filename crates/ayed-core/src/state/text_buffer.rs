@@ -7,9 +7,10 @@ use std::{
 use crate::{
     config::Config,
     position::{Column, Offset, Position, Row},
+    range::Range,
     selection::{Selection, Selections},
     slotmap::Handle,
-    state::CompletionEdit,
+    state::TextBufferHistory,
     utils::string_utils::{
         byte_index_to_char_index, char_count, char_index_to_byte_index,
         char_index_to_byte_index_end,
@@ -31,7 +32,8 @@ pub struct TextBuffer {
     pub selections: HashMap<Handle<View>, Selections>,
     pub path: Option<PathBuf>,
     pub dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
-    pub history_dirty: Cell<bool>, // Used to prevent saving changes to the undo/redo stack when there is none.
+
+    pub history: TextBufferHistory,
 
     /// Version for the buffer's content. Must increment for every change, including undos. For LSP.
     pub content_version: Cell<i32>,
@@ -46,7 +48,7 @@ impl TextBuffer {
             selections: Default::default(),
             path: None,
             dirty: Default::default(),
-            history_dirty: Default::default(),
+            history: Default::default(),
             content_version: Default::default(),
             forced_format: None,
         }
@@ -62,7 +64,7 @@ impl TextBuffer {
             selections: Default::default(),
             path: Some(path.to_path_buf()),
             dirty: Default::default(),
-            history_dirty: Default::default(),
+            history: Default::default(),
             content_version: Default::default(),
             forced_format: None,
         })
@@ -130,16 +132,10 @@ impl TextBuffer {
 
     fn mark_dirty(&self) {
         self.dirty.set(true);
-        self.history_dirty.set(true);
         self.content_version.update(|n| n + 1);
     }
 
-    pub fn take_history_dirty(&self) -> bool {
-        let d = self.history_dirty.get();
-        self.history_dirty.set(false);
-        d
-    }
-
+    #[deprecated = "use set_view_selections"]
     pub fn add_view_selections(&mut self, view: Handle<View>, selections: Selections) {
         self.selections.insert(view, selections);
     }
@@ -148,8 +144,18 @@ impl TextBuffer {
         self.selections.get(&view)
     }
 
+    #[deprecated = "use set_view_selections"]
     pub fn view_selections_mut(&mut self, view: Handle<View>) -> Option<&mut Selections> {
         self.selections.get_mut(&view)
+    }
+
+    pub fn set_view_selections(
+        &mut self,
+        view: Handle<View>,
+        selections: Selections,
+    ) -> Option<Selections> {
+        let val = self.selections.insert(view, selections);
+        val
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -361,7 +367,7 @@ impl TextBuffer {
         Position::new(column, row)
     }
 
-    pub fn limit_range_to_content(&self, range: (Position, Position)) -> (Position, Position) {
+    pub fn limit_range_to_content(&self, range: Range) -> Range {
         fn limit_range_edge_to_content(this: &TextBuffer, position: Position) -> Position {
             let row = position.row.clamp(0, this.last_row());
             let column = position
@@ -370,9 +376,9 @@ impl TextBuffer {
             Position::new(column, row)
         }
 
-        let start = limit_range_edge_to_content(self, range.0);
-        let end = limit_range_edge_to_content(self, range.1);
-        (start, end)
+        let start = limit_range_edge_to_content(self, range.start);
+        let end = limit_range_edge_to_content(self, range.end);
+        (start, end).into()
     }
 
     pub fn move_position_horizontally(
@@ -430,29 +436,34 @@ impl TextBuffer {
     }
 
     /// Applies the edit and returns the inverse edit that would undo the edit.
-    pub fn apply_edit(&mut self, edit: &CompletionEdit) -> Result<CompletionEdit, String> {
+    pub fn apply_edit(&mut self, edit: &TextEdit) -> Result<TextEdit, String> {
+        let selections_backup = self.selections.clone();
+
         let original_text = self.range_text(edit.range)?;
-        let mut inverse_edit = CompletionEdit {
-            range: (edit.range.0, edit.range.0),
+        let mut inverse_edit = TextEdit {
+            range: (edit.range.start, edit.range.start).into(),
             text: original_text,
         };
 
-        let should_delete = edit.range.0 != edit.range.1;
+        let should_delete = edit.range.end != edit.range.start;
         if should_delete {
             self.delete_range(edit.range)?;
         }
 
         let should_insert = !edit.text.is_empty();
         if should_insert {
-            let selection = self.insert_str_at2(edit.range.0, &edit.text)?;
-            inverse_edit.range = selection.to_range();
+            let insert_range = self.insert_str(edit.range.end, &edit.text)?;
+            inverse_edit.range = insert_range;
         }
+
+        self.history
+            .record_edit(inverse_edit.clone(), &selections_backup, &self.selections);
 
         Ok(inverse_edit)
     }
 
-    /// Returns a selection over the inserted text.
-    pub fn insert_str_at2(&mut self, at: Position, s: &str) -> Result<Selection, String> {
+    /// Dont use directly. Use TextEdit and `.apply_edit(...)` .
+    fn insert_str(&mut self, at: Position, s: &str) -> Result<Range, String> {
         let at = self.limit_position_to_content(at);
 
         let row_idx = at.row as usize;
@@ -478,23 +489,23 @@ impl TextBuffer {
 
         let range_row_diff = (lines_count as i32) - 1;
         let range_end = Position::new(range_end_column as i32, at.row + range_row_diff);
-        let mut range = (at, range_end);
+        let mut range = (at, range_end).into();
         self.adjust_selections_after_insert_str(range);
 
         // A range that ends at column position 0 is the same as one that
         // ends past the line separator of the previous line, but that
         // second case is the correct way to form a selection from the range.
-        if range.1.column == 0 {
-            let prev_row = range.1.row - 1;
-            let prev_line_last_column = self.line_char_count(prev_row).unwrap();
-            range.1 = Position::new(prev_line_last_column + 1, prev_row);
+        if range.end.column == 0 && range.end.row != 0 {
+            let prev_row = range.end.row - 1;
+            let prev_line_last_column = self.line_char_count(prev_row).unwrap_or_default();
+            range.end = Position::new(prev_line_last_column + 1, prev_row);
         }
 
-        Ok(Selection::from_range(range))
+        Ok(range)
     }
 
-    fn adjust_selections_after_insert_str(&mut self, insert_range: (Position, Position)) {
-        for selections in self.selections() {
+    fn adjust_selections_after_insert_str(&mut self, insert_range: Range) {
+        for selections in self.selections_mut() {
             for selection in selections.iter_mut() {
                 let cursor = Self::adjust_position_after_insert_str(selection.cursor, insert_range);
                 let anchor = Self::adjust_position_after_insert_str(selection.anchor, insert_range);
@@ -503,62 +514,59 @@ impl TextBuffer {
         }
     }
 
-    fn adjust_position_after_insert_str(
-        pos: Position,
-        insert_range: (Position, Position),
-    ) -> Position {
-        if pos < insert_range.0 {
+    fn adjust_position_after_insert_str(pos: Position, insert_range: Range) -> Position {
+        if pos < insert_range.start {
             return pos;
         }
-        let row_diff = insert_range.1.row - insert_range.0.row;
+        let row_diff = insert_range.end.row - insert_range.start.row;
         let row = pos.row + row_diff;
         let column;
-        if pos.row == insert_range.0.row {
-            let column_diff = pos.column - insert_range.0.column;
-            column = insert_range.1.column + column_diff;
+        if pos.row == insert_range.start.row {
+            let column_diff = pos.column - insert_range.start.column;
+            column = insert_range.end.column + column_diff;
         } else {
             column = pos.column;
         }
         Position { column, row }
     }
 
-    fn delete_range(&mut self, range: (Position, Position)) -> Result<(), String> {
-        // FIXME Check validity of range. Should create a Range type.
-        let mut range = self.limit_range_to_content(range);
+    /// Dont use directly. Use TextEdit and `.apply_edit(...)` .
+    fn delete_range(&mut self, range: Range) -> Result<(), String> {
+        let mut range = self.limit_range_to_content(range).normalized();
 
         // Check if there is actual work to be done.
-        if range.0 == range.1 {
+        if range.is_empty() {
             return Ok(());
         }
 
-        if self.line_char_count(range.1.row).unwrap() < range.1.column {
-            if range.1.row != self.last_row() {
+        if self.line_char_count(range.end.row).unwrap() < range.end.column {
+            if range.end.row != self.last_row() {
                 // Fixup the range to properly handle a line terminator at the end of it
-                range.1 = Position::new(0, range.1.row + 1);
+                range.end = Position::new(0, range.end.row + 1);
             } else {
                 // Prevent trying to deleting past the end of the buffer by collapsing the range.
-                range.1.column -= 1;
+                range.end.column -= 1;
             }
         }
 
         let mut line_left = String::new();
         {
-            let row_range = range.0.row as usize..=range.1.row as usize;
+            let row_range = range.start.row as usize..=range.end.row as usize;
             let mut range_lines = self.lines.splice(row_range, [String::new()]);
             let first_range_line = range_lines.next().unwrap();
             let last_range_line_owned = range_lines.next_back();
             let last_range_line = last_range_line_owned.as_ref().unwrap_or(&first_range_line);
 
             let first_range_line_end_idx =
-                char_index_to_byte_index(&first_range_line, range.0.column as usize).unwrap();
+                char_index_to_byte_index(&first_range_line, range.start.column as usize).unwrap();
             let last_range_line_start_idx =
-                char_index_to_byte_index(&last_range_line, range.1.column as usize).unwrap();
+                char_index_to_byte_index(&last_range_line, range.end.column as usize).unwrap();
 
             line_left.push_str(&first_range_line[..first_range_line_end_idx]);
             line_left.push_str(&last_range_line[last_range_line_start_idx..]);
         }
 
-        std::mem::swap(&mut line_left, &mut self.lines[range.0.row as usize]);
+        std::mem::swap(&mut line_left, &mut self.lines[range.start.row as usize]);
 
         self.mark_dirty();
 
@@ -567,8 +575,8 @@ impl TextBuffer {
         Ok(())
     }
 
-    fn adjust_selections_after_delete_range(&mut self, delete_range: (Position, Position)) {
-        for selections in self.selections() {
+    fn adjust_selections_after_delete_range(&mut self, delete_range: Range) {
+        for selections in self.selections_mut() {
             for selection in selections.iter_mut() {
                 let cursor =
                     Self::adjust_position_after_delete_range(selection.cursor, delete_range);
@@ -579,37 +587,31 @@ impl TextBuffer {
         }
     }
 
-    fn adjust_position_after_delete_range(
-        pos: Position,
-        delete_range: (Position, Position),
-    ) -> Position {
-        if pos < delete_range.0 {
+    fn adjust_position_after_delete_range(pos: Position, delete_range: Range) -> Position {
+        if pos < delete_range.start {
             return pos;
         }
-        let is_within_range = delete_range.0 <= pos && pos < delete_range.1; // FIXME Range type method
-        if is_within_range {
-            return delete_range.0;
+        if delete_range.contains(pos) {
+            return delete_range.start;
         }
-        let row_diff = delete_range.1.row - delete_range.0.row;
+        let row_diff = delete_range.end.row - delete_range.start.row;
         let row = pos.row - row_diff;
         let column;
-        if pos.row == delete_range.1.row {
-            let column_diff = pos.column - delete_range.1.column;
-            column = delete_range.0.column + column_diff;
+        if pos.row == delete_range.end.row {
+            let column_diff = pos.column - delete_range.end.column;
+            column = delete_range.start.column + column_diff;
         } else {
             column = pos.column;
         }
         Position { column, row }
     }
 
-    pub fn range_text(&mut self, range: (Position, Position)) -> Result<String, String> {
-        if range.0 > range.1 {
-            return Err("bad range".into());
-        }
-        if range.0 == range.1 {
+    pub fn range_text(&mut self, range: Range) -> Result<String, String> {
+        let range = range.normalized();
+        if range.is_empty() {
             return Ok(String::new());
         }
-        let sel = Selection::new().with_start_and_end(range.0, range.1.offset((-1, 0)));
+        let sel = Selection::new().with_start_and_end(range.start, range.end.offset((-1, 0)));
         if let Some(s) = self.selection_text(&sel) {
             Ok(s)
         } else {
@@ -617,23 +619,27 @@ impl TextBuffer {
         }
     }
 
-    pub fn insert_str_at(&mut self, at: Position, s: &str) -> Result<Selection, String> {
-        // FIXME clean this shit up
-        self.insert_str_at2(at, s)
+    pub fn insert_str_at<S>(&mut self, s: S, at: Position) -> Result<Selection, String>
+    where
+        S: Into<String>,
+    {
+        let revedit = self.apply_edit(&TextEdit::insert_str_at(s, at))?;
+        Ok(Selection::from_range(revedit.range))
     }
 
-    pub fn insert_char_at(&mut self, at: Position, ch: char) -> Result<(), String> {
-        let mut buf = [0u8; 4];
-        let s = ch.encode_utf8(&mut buf);
-        self.insert_str_at2(at, s).map(|_| ())
-    }
-
-    pub fn delete_at(&mut self, at: Position) -> Result<(), String> {
-        self.delete_range((at, at.offset((1, 0))))
+    pub fn insert_char_at(&mut self, ch: char, at: Position) -> Result<(), String> {
+        self.apply_edit(&TextEdit::insert_char_at(ch, at))?;
+        Ok(())
     }
 
     pub fn delete_selection(&mut self, selection: &Selection) -> Result<(), String> {
-        self.delete_range(selection.to_range())
+        self.apply_edit(&TextEdit::delete_selection(selection))?;
+        Ok(())
+    }
+
+    pub fn delete_at(&mut self, at: Position) -> Result<(), String> {
+        self.apply_edit(&TextEdit::delete_at(at))?;
+        Ok(())
     }
 
     pub fn end_position(&self) -> Position {
@@ -644,8 +650,94 @@ impl TextBuffer {
         Position::new(column, row)
     }
 
-    fn selections(&mut self) -> impl Iterator<Item = &mut Selections> {
+    pub fn undo(&mut self) -> Result<bool, String> {
+        if !self.history.can_undo() {
+            return Ok(false);
+        }
+
+        let mut history = std::mem::take(&mut self.history);
+        history.record_checkpoint();
+
+        let edit_group = history.current_edit_group_mut().expect("can undo");
+        for edit in edit_group.edits.iter_mut().rev() {
+            let revedit = self.apply_edit(edit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
+            *edit = revedit;
+        }
+        self.selections = edit_group.selections_before.clone();
+        history.current_group_edge_idx = history.current_group_edge_idx.saturating_sub(1);
+
+        self.history = history;
+
+        Ok(true)
+    }
+
+    pub fn redo(&mut self) -> Result<bool, String> {
+        if !self.history.can_redo() {
+            return Ok(false);
+        }
+
+        let mut history = std::mem::take(&mut self.history);
+
+        history.current_group_edge_idx = history.current_group_edge_idx + 1;
+
+        let edit_group = history.current_edit_group_mut().expect("can redo");
+        for revedit in edit_group.edits.iter_mut() {
+            let edit = self.apply_edit(revedit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
+            *revedit = edit;
+        }
+        self.selections = edit_group.selections_after.clone();
+
+        self.history = history;
+
+        Ok(true)
+    }
+
+    pub fn checkpoint(&mut self) {
+        self.history.record_checkpoint();
+    }
+
+    fn selections_mut(&mut self) -> impl Iterator<Item = &mut Selections> {
         self.selections.values_mut()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TextEdit {
+    pub range: Range,
+    pub text: String,
+}
+
+impl TextEdit {
+    pub fn insert_str_at(s: impl Into<String>, at: Position) -> Self {
+        Self {
+            range: Range::from(at),
+            text: s.into(),
+        }
+    }
+
+    pub fn insert_char_at(ch: char, at: Position) -> Self {
+        let mut buf = [0u8; char::MAX_LEN_UTF8];
+        let s = ch.encode_utf8(&mut buf);
+        Self::insert_str_at(s, at)
+    }
+
+    pub fn delete_range(range: Range) -> Self {
+        Self {
+            range,
+            text: String::new(),
+        }
+    }
+
+    pub fn delete_selection(selection: &Selection) -> Self {
+        Self::delete_range(selection.to_range())
+    }
+
+    pub fn delete_at(at: Position) -> Self {
+        Self::delete_range((at, at.offset((1, 0))).into())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.range.is_empty() && self.text.is_empty()
     }
 }
 

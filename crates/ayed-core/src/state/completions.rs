@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::position::Position;
+use crate::{position::Position, state::text_buffer::TextEdit};
 
 #[derive(Default)]
 pub struct Completions {
@@ -15,7 +15,7 @@ pub struct Completions {
     /// Unfiltered items from completion sources.
     pub source_items: BTreeMap<CompletionSource, Vec<CompletionItem>>,
     /// The last completion inverse edits, kept to undo the edits when cycling through choices.
-    pub last_completion_inverse_edits: Option<Vec<CompletionEdit>>,
+    pub last_completion_inverse_edits: Option<Vec<TextEdit>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
@@ -41,16 +41,9 @@ pub struct CompletionItem {
     pub label: String,
     // TODO add filter text field
     pub text: String,
-    pub extra_edits: Vec<CompletionEdit>,
+    pub extra_edits: Vec<TextEdit>,
     pub kind: CompletionItemKind,
     pub source: CompletionSource,
     pub type_annotation: Option<String>,
     pub documentation: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CompletionEdit {
-    /// A range that is [inclusive, exclusive[
-    pub range: (Position, Position),
-    pub text: String,
 }

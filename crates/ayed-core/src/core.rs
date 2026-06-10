@@ -40,7 +40,7 @@ impl Core {
         // // DEBUG DEBUG DEBUG
         // let make_item = |s: &str| CompletionItem {
         //     label: s.to_string(),
-        //     edit: CompletionEdit {
+        //     edit: TextEdit {
         //         range: (Position::ZERO, Position::ZERO),
         //         text: s.to_string(),
         //     },

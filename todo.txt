@@ -3,11 +3,15 @@
 - fix look doesnt follow cursor past end of screen somehow just check out this line...
 - fix saving messes up/loses file permissions (+x confirmed via dtm)
 - fix tmux rendering whackiness (moving the terminal cursor too much?)
+- mouse support
+- motion history
+- system clipboard support
 
 # Config
 - better error message
 
 # Completions
+- handle "extra edits" (theres a // TODO in the code)
 - dont suggest completions automatically after ','
    - this maybe ties into better "suggest completions automatically"
 - fix completions: EnumVariant before methods
@@ -15,13 +19,17 @@
 - investigate #[derive(...)] completion
 
 # Commands and keybinds
+- fix all edits operations relying on selections being in order to work properly
+    (try splitting a full line selection into two sels, rotate selections, then delete)
+- fix select-regex command selects too much on multibyte char.
+- add split selections lines command <a-s>.
+- add keep/drop selection on match regex.
 - 'pending mode' commands
     - add surround selection with ' " or matching pairs
 - add matching-pair movement 'm'
 - add split selections à la kakoune
 - make "trim surrounding ws" an easier keybind compared to _
 - add force buffer-close command
-- add redo command
 - fix paste pasting a line when nothing to paste
 
 # Syntax highlight

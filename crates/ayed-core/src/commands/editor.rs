@@ -120,7 +120,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Options::new().doc("nodoc").flag("scratch"),
         |opt, ctx| {
             let scratch = opt.contains("scratch");
-            let path = if opt.raw().is_empty() {
+            let path = if opt.remainder().is_empty() {
                 "".into()
             } else {
                 ctx.state.normalize_path(Path::new(opt.raw()))
@@ -155,7 +155,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     ctx.resources
                         .buffers
                         .get_mut(buffer_handle)
-                        .add_view_selections(view, Selections::new());
+                        .set_view_selections(view, Selections::new());
 
                     view
                 }
@@ -528,8 +528,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         focused_buffer_command(|opt, ctx| {
             let row_number = opt.raw().parse::<i32>().map_err(|e| e.to_string())?;
             let row = (row_number - 1).clamp(0, ctx.buffer.last_row());
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
-            *sels = Selections::new_with(Selection::with_position(Position::new(0, row)), &[]);
+            let sels = Selections::new_with(Selection::with_position(Position::new(0, row)), &[]);
+            ctx.buffer.set_view_selections(ctx.view_handle, sels);
 
             ctx.queue.emit("selections-modified", "");
 
@@ -575,9 +575,10 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             if new_selections.is_empty() {
                 return Err("no selections left".to_string());
             }
-            let sels = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            let mut sels = Selections::new();
             sels.primary_selection = new_selections.remove(0);
             sels.extra_selections = new_selections;
+            ctx.buffer.set_view_selections(ctx.view_handle, sels);
 
             ctx.queue.emit("selections-modified", "");
 
@@ -609,7 +610,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 else {
                     continue;
                 };
-                ctx.buffer.insert_char_at(sel.cursor, the_char)?;
+                ctx.buffer.insert_char_at(the_char, sel.cursor)?;
             }
 
             ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
@@ -637,7 +638,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 else {
                     continue;
                 };
-                ctx.buffer.insert_str_at(sel.cursor, &the_str)?;
+                ctx.buffer.insert_str_at(&the_str, sel.cursor)?;
             }
 
             ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
@@ -659,7 +660,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let sel_count = ctx.selections.count();
 
             for sel_idx in (0..sel_count).rev() {
-                let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+                let mut selections = ctx.buffer.view_selections(ctx.view_handle).unwrap().clone();
                 let Some(sel) = selections.get_mut(sel_idx) else {
                     continue;
                 };
@@ -667,11 +668,12 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 let delete_sel = sel.clone();
                 let after_sel = delete_sel.end().offset((1, 0));
                 *sel = sel.shrunk_to_cursor();
+                ctx.buffer.set_view_selections(ctx.view_handle, selections);
 
                 // TODO Should these operations somehow be made "transactionally"?
                 // like, if it fails, the buffer isnt left unclean?
                 // Could TextEdit based buffer modifications make this simple-ish?
-                ctx.buffer.insert_char_at(after_sel, ch)?;
+                ctx.buffer.insert_char_at(ch, after_sel)?;
                 ctx.buffer.delete_selection(&delete_sel)?;
             }
 
@@ -690,8 +692,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             let sel_count = ctx.selections.count();
 
+            let selections = ctx.buffer.view_selections(ctx.view_handle).unwrap().clone();
             for sel_idx in (0..sel_count).rev() {
-                let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
                 let Some(mut sel) = selections.get(sel_idx) else {
                     continue;
                 };
@@ -723,8 +725,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             let sel_count = ctx.selections.count();
 
+            let selections = ctx.buffer.view_selections(ctx.view_handle).unwrap().clone();
             for sel_idx in (0..sel_count).rev() {
-                let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
                 let Some(mut sel) = selections.get(sel_idx) else {
                     continue;
                 };
@@ -819,7 +821,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 }
 
                 ctx.buffer
-                    .insert_str_at(Position::new(0, row), &new_indentation)?;
+                    .insert_str_at(new_indentation, Position::new(0, row))?;
             }
 
             ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
@@ -845,8 +847,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
-            *selections = selections.overlapping_selections_merged()
+            let selections = buffer.view_selections(view_handle).unwrap();
+            buffer.set_view_selections(view_handle, selections.overlapping_selections_merged());
         }
 
         Ok(())
@@ -856,8 +858,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            let mut selections = buffer.view_selections(view_handle).unwrap().clone();
             selections.dismiss_extras();
+            buffer.set_view_selections(view_handle, selections);
         }
 
         ctx.queue.emit("selections-modified", "");
@@ -873,8 +876,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         let view = ctx.resources.views.get_mut(view_handle);
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let selections = buffer.view_selections_mut(view_handle).unwrap();
-        *selections = Selections::parse(&opt)?;
+        buffer.set_view_selections(view_handle, Selections::parse(&opt)?);
 
         ctx.queue.emit("selections-modified", "");
 
@@ -887,10 +889,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         };
         let view = ctx.resources.views.get(view_handle);
         let buffer = ctx.resources.buffers.get_mut(view.buffer);
-        let selections = buffer.view_selections_mut(view_handle).unwrap();
+        let mut selections = buffer.view_selections(view_handle).unwrap().clone();
         for selection in selections.iter_mut() {
             *selection = selection.shrunk_to_cursor();
         }
+        buffer.set_view_selections(view_handle, selections);
 
         ctx.queue.emit("selections-modified", "");
 
@@ -909,7 +912,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             };
             let view = ctx.resources.views.get(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
-            let selections = buffer.view_selections_mut(view_handle).unwrap();
+            let mut selections = buffer.view_selections(view_handle).unwrap().clone();
             for selection in selections.iter_mut() {
                 *selection = if forward {
                     selection.flipped_forward()
@@ -919,6 +922,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     selection.flipped()
                 };
             }
+            buffer.set_view_selections(view_handle, selections);
 
             ctx.queue.emit("selections-modified", "");
 
@@ -962,7 +966,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             selections.extra_selections = new_extra_sels;
             selections.rotate(1);
 
-            *buffer.view_selections_mut(view_handle).unwrap() = selections;
+            buffer.set_view_selections(view_handle, selections);
 
             ctx.queue.emit("selections-modified", "");
 
@@ -977,8 +981,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let reversed = opt.contains("reversed");
             let rotate_amount = if reversed { -1 } else { 1 };
 
-            let selections = ctx.buffer.view_selections_mut(ctx.view_handle).unwrap();
+            let mut selections = ctx.buffer.view_selections(ctx.view_handle).unwrap().clone();
             selections.rotate(rotate_amount);
+            ctx.buffer.set_view_selections(ctx.view_handle, selections);
 
             ctx.queue.emit("selections-modified", "");
 

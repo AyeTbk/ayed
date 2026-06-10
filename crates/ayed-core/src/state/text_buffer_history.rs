@@ -1,73 +1,98 @@
 use std::collections::HashMap;
 
-use crate::{selection::Selections, slotmap::Handle};
+use crate::{selection::Selections, slotmap::Handle, state::TextEdit};
 
-use super::{TextBuffer, View};
+use super::View;
 
+// Undo/redo stack.
+// Edit history and motion history are separate.
+// Edit history happens in edit groups, the boundaries of which are
+// defined by "recording" checkpoints. Edit groups have a snapshot
+// of all selections before and after the edits of the group. Groups
+// as a whole are undo/redo steps.
+// Motion history is separate. Dont bother with it for now. Make
+// edit history work, and motion history can be tacked on later.
+// Unlike edits, motions arent grouped or checkpointed.
+// Undoing edits may or may not undo motions, figure out what feels
+// best to use.
+// TODO motion history
+
+type AllSelections = HashMap<Handle<View>, Selections>;
+
+#[derive(Debug, Default)]
 pub struct TextBufferHistory {
-    initial_state: State,
-    state_stack: Vec<State>, // Top of stack is the current state
+    pub current_group_edge_idx: usize,
+    pub edit_groups: Vec<EditGroup>,
 }
 
 impl TextBufferHistory {
-    pub fn new(buffer: &TextBuffer) -> Self {
-        let initial_state = Self::extract_state(buffer);
-        Self {
-            state_stack: vec![initial_state.clone()],
-            initial_state,
+    pub fn record_edit(
+        &mut self,
+        edit: TextEdit,
+        selections_before: &AllSelections,
+        selections_after: &AllSelections,
+    ) {
+        // Get rid of potential redo groups.
+        self.edit_groups.drain(self.current_group_edge_idx..);
+
+        // If the current edit group doesn't exist, or exists but is complete,
+        // add a new group and make it the current.
+        if matches!(
+            self.current_edit_group().map(|g| g.is_complete),
+            None | Some(true)
+        ) {
+            self.edit_groups.push(Default::default());
+            self.current_group_edge_idx = self.current_group_edge_idx + 1;
         }
+
+        let edit_group = self
+            .current_edit_group_mut()
+            .expect("none case should be handled above");
+
+        if edit_group.edits.is_empty() {
+            edit_group.selections_before = selections_before.clone();
+        }
+        edit_group.selections_after = selections_after.clone();
+        edit_group.edits.push(edit);
     }
 
-    pub fn save_state(&mut self, buffer: &TextBuffer) {
-        let state = Self::extract_state(buffer);
-        let all_selections = state.all_selections.clone();
-
-        // TODO text buffer dirty is a bit basic, make it more robust. Some changes that arent actual changes get recorded (ex: delete-around in an empty buffer)
-        // Only add a new state if needed
-        if buffer.take_history_dirty() {
-            self.state_stack.push(state);
+    pub fn record_checkpoint(&mut self) {
+        let Some(edit_group) = self.current_edit_group_mut() else {
+            return;
+        };
+        if edit_group.is_complete {
+            return;
         }
-
-        // Always update current state's selections
-        let current_state = self.state_stack.last_mut().expect("should never be empty");
-        current_state.all_selections = all_selections;
+        edit_group.is_complete = true;
     }
 
-    pub fn undo(&mut self, buffer: &mut TextBuffer) -> bool {
-        // Dismiss the current state
-        self.state_stack.pop();
-
-        if self.state_stack.is_empty() {
-            // Oops, the initial state copy was popped.
-            // That means no changes..?
-            self.state_stack.push(self.initial_state.clone());
-            return false;
-        }
-
-        // Restore the previous state
-        if let Some(state) = self.state_stack.last().cloned() {
-            buffer.lines = state.whole_content;
-            buffer.selections = state.all_selections;
-            true
-        } else {
-            unreachable!()
-        }
+    pub fn can_undo(&self) -> bool {
+        self.current_group_edge_idx != 0
     }
 
-    pub fn redo(&mut self, _buffer: &mut TextBuffer) -> bool {
-        todo!()
+    pub fn can_redo(&self) -> bool {
+        self.current_group_edge_idx != self.edit_groups.len()
     }
 
-    fn extract_state(buffer: &TextBuffer) -> State {
-        State {
-            whole_content: buffer.lines.clone(),
-            all_selections: buffer.selections.clone(),
-        }
+    fn current_edit_group(&self) -> Option<&EditGroup> {
+        let idx = self.current_edit_group_idx()?;
+        Some(&self.edit_groups[idx])
+    }
+
+    pub fn current_edit_group_mut(&mut self) -> Option<&mut EditGroup> {
+        let idx = self.current_edit_group_idx()?;
+        Some(&mut self.edit_groups[idx])
+    }
+
+    fn current_edit_group_idx(&self) -> Option<usize> {
+        (self.current_group_edge_idx).checked_sub(1)
     }
 }
 
-#[derive(Clone)]
-struct State {
-    whole_content: Vec<String>,
-    all_selections: HashMap<Handle<View>, Selections>,
+#[derive(Debug, Default)]
+pub struct EditGroup {
+    pub edits: Vec<TextEdit>,
+    pub selections_before: AllSelections,
+    pub selections_after: AllSelections,
+    pub is_complete: bool,
 }
