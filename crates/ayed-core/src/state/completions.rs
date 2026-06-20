@@ -13,7 +13,7 @@ pub struct Completions {
     pub original_symbol_start: Position,
 
     /// Unfiltered items from completion sources.
-    pub source_items: BTreeMap<CompletionSource, Vec<CompletionItem>>,
+    pub source_items: BTreeMap<CompletionSource, CompletionSourceData>,
     /// The last completion inverse edits, kept to undo the edits when cycling through choices.
     pub last_completion_inverse_edits: Option<Vec<TextEdit>>,
 }
@@ -22,6 +22,11 @@ pub struct Completions {
 pub enum CompletionSource {
     Buffer,
     Lsp,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct CompletionSourceData {
+    pub items: Vec<CompletionItem>,
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
@@ -44,6 +49,7 @@ pub struct CompletionItem {
     pub extra_edits: Vec<TextEdit>,
     pub kind: CompletionItemKind,
     pub source: CompletionSource,
+    pub source_idx: u32,
     pub type_annotation: Option<String>,
     pub documentation: Option<String>,
 }

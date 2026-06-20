@@ -3,6 +3,12 @@ commands {
     do-thing $[ move u ; move d ]
 }
 
+# Multimappings: set multiple values for different mappings sharing the same key.
+keybinds, keybinds-doc {
+    s  buffer-write, Save file
+    k  buffer-close, Close file
+}
+
 # You could define mixins like this...
 mixin basic-movements {
     keybinds {

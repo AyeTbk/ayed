@@ -1,13 +1,22 @@
 use serde_json::{Value, json};
 
-use crate::types::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
+use crate::types::{CompletionItem, Position, TextDocumentIdentifier, TextDocumentPositionParams};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum RequestType {
+    #[default]
     Initialize,
     SuggestCompletion,
+    ResolveCompletion,
     Hover,
     Definition,
+}
+
+#[derive(Debug)]
+pub struct PendingRequest {
+    pub id: i32,
+    pub typ: RequestType,
+    pub json: Value,
 }
 
 #[derive(Debug)]
@@ -16,6 +25,9 @@ pub enum Request {
     SuggestCompletion {
         text_document: TextDocumentIdentifier,
         position: Position,
+    },
+    ResolveCompletion {
+        item: CompletionItem,
     },
     Hover {
         text_document: TextDocumentIdentifier,
@@ -29,69 +41,102 @@ pub enum Request {
 
 impl Request {
     pub fn typ(&self) -> RequestType {
-        match self {
-            Self::Initialize => RequestType::Initialize,
-            Self::SuggestCompletion { .. } => RequestType::SuggestCompletion,
-            Self::Hover { .. } => RequestType::Hover,
-            Self::Definition { .. } => RequestType::Definition,
+        match &self {
+            Request::Initialize => RequestType::Initialize,
+            Request::SuggestCompletion { .. } => RequestType::SuggestCompletion,
+            Request::ResolveCompletion { .. } => RequestType::ResolveCompletion,
+            Request::Hover { .. } => RequestType::Hover,
+            Request::Definition { .. } => RequestType::Definition,
         }
     }
 }
 
-pub fn convert_request_to_json(req: Request, request_id: i32) -> Value {
-    const JSON_RPC_VERSION: &str = "2.0";
-    use Request as R;
-    match req {
-        R::Initialize => json!({
-            "jsonrpc": JSON_RPC_VERSION,
-            "id": request_id,
-            "method": "initialize",
-            "params": {
-                "processId": Value::Null,
-                "capabilities": {
-                    "general": Value::Null,
-                    "workspace": Value::Null,
-                    "text_document": Value::Null,
+const JSON_RPC_VERSION: &str = "2.0";
+
+pub fn build_initialize_request_json(request_id: i32) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "initialize",
+        "params": {
+            "processId": Value::Null,
+            "capabilities": {
+                "general": Value::Null,
+                "workspace": Value::Null,
+                "textDocument": {
+                    "completion": {
+                        "completionItem": {
+                            "documentationFormat": ["plaintext"],
+                            "resolveSupport": {
+                                "properties": [
+                                    "additionalTextEdits",
+                                    "documentation",
+                                    // "detail", // don't async resolve this one for now, for simplicity.
+                                ]
+                            }
+                        }
+                    }
                 },
-                "root_uri": Value::Null,
-                "workspace_folders": [],
             },
-        }),
-        R::SuggestCompletion {
-            text_document,
-            position,
-        } => json!({
-            "jsonrpc": JSON_RPC_VERSION,
-            "id": request_id,
-            "method": "textDocument/completion",
-            "params": TextDocumentPositionParams {
-                text_document: text_document,
-                position: position,
-            },
-        }),
-        R::Hover {
-            text_document,
-            position,
-        } => json!({
-            "jsonrpc": JSON_RPC_VERSION,
-            "id": request_id,
-            "method": "textDocument/hover",
-            "params": TextDocumentPositionParams {
-                text_document: text_document,
-                position: position,
-            },
-        }),
-        R::Definition {
-            text_document,
-            position,
-        } => json!({
-            "jsonrpc": JSON_RPC_VERSION,
-            "id": request_id,
-            "method": "textDocument/definition",
-            "params": TextDocumentPositionParams {
-                text_document: text_document,
-                position: position,
-            },
-        }),
-    }
+            "rootUri": Value::Null,
+            "workspaceFolders": [],
+        },
+    })
+}
+
+pub fn build_suggest_completion_request_json(
+    request_id: i32,
+    text_document: TextDocumentIdentifier,
+    position: Position,
+) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "textDocument/completion",
+        "params": TextDocumentPositionParams {
+            text_document: text_document,
+            position: position,
+        },
+    })
+}
+
+pub fn build_resolve_completion_request_json(request_id: i32, item: &CompletionItem) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "completionItem/resolve",
+        "params": item,
+    })
+}
+
+pub fn build_hover_request_json(
+    request_id: i32,
+    text_document: TextDocumentIdentifier,
+    position: Position,
+) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "textDocument/hover",
+        "params": TextDocumentPositionParams {
+            text_document: text_document,
+            position: position,
+        },
+    })
+}
+
+pub fn build_definition_request_json(
+    request_id: i32,
+    text_document: TextDocumentIdentifier,
+    position: Position,
+) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "textDocument/definition",
+        "params": TextDocumentPositionParams {
+            text_document: text_document,
+            position: position,
+        },
+    })
 }

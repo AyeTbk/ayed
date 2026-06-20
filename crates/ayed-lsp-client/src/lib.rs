@@ -6,8 +6,10 @@ use std::{
 
 pub mod types;
 
+mod completion;
+pub use completion::Completion;
+
 mod notification;
-use log::debug;
 pub use notification::Notification;
 
 mod request;
@@ -24,8 +26,12 @@ use serde_json::Value;
 
 use crate::{
     notification::convert_notification_to_json,
-    request::{RequestType, convert_request_to_json},
-    types::{CompletionItem, Location},
+    request::{
+        PendingRequest, RequestType, build_definition_request_json, build_hover_request_json,
+        build_initialize_request_json, build_resolve_completion_request_json,
+        build_suggest_completion_request_json,
+    },
+    types::{CompletionItem, CompletionItemId, Location, Position, TextDocumentIdentifier},
 };
 
 const INITIALIZE_REQUEST_ID: i32 = 1;
@@ -33,10 +39,14 @@ const INITIALIZE_REQUEST_ID: i32 = 1;
 pub struct LspClient {
     transport: SubprocessTransport,
     state: State,
-    pending_requests: Vec<Request>,
+
+    pending_requests: Vec<PendingRequest>,
     pending_notifications: Vec<Notification>,
+
     request_counter: i32,
-    request_type_per_id: HashMap<i32, RequestType>,
+    request_metadata: HashMap<i32, RequestMetadata>,
+
+    completion: Completion,
 }
 
 impl LspClient {
@@ -48,14 +58,16 @@ impl LspClient {
             pending_requests: Vec::new(),
             pending_notifications: Vec::new(),
             request_counter: INITIALIZE_REQUEST_ID,
-            request_type_per_id: HashMap::new(),
+            request_metadata: HashMap::new(),
+            completion: Default::default(),
         }
     }
 
     pub fn initialize(&mut self) {
         assert!(self.state == State::Offline);
 
-        self.send_request(Request::Initialize);
+        self.queue_initialize_request();
+        self.send_messages();
 
         self.state = State::Initializing;
     }
@@ -64,12 +76,95 @@ impl LspClient {
         self.transport.shutdown();
     }
 
-    pub fn queue_request(&mut self, req: Request) {
-        self.pending_requests.push(req);
-    }
-
     pub fn queue_notification(&mut self, notif: Notification) {
         self.pending_notifications.push(notif);
+    }
+
+    pub fn queue_initialize_request(&mut self) {
+        let id = self.take_request_id();
+        let json = build_initialize_request_json(id);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::Initialize,
+            json,
+        });
+    }
+
+    pub fn queue_suggest_completion_request(
+        &mut self,
+        text_document: TextDocumentIdentifier,
+        position: Position,
+    ) {
+        let id = self.take_request_id();
+        let json = build_suggest_completion_request_json(id, text_document, position);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::SuggestCompletion,
+            json,
+        });
+    }
+
+    // NOTE: for internal use only
+    fn queue_resolve_completion_request(&mut self, completion_item_idx: u32) {
+        let completion_item_id = CompletionItemId {
+            idx: completion_item_idx as u32,
+            generation: self.completion.generation(),
+        };
+        let id = self.take_request_id();
+        let maybe_item = self.completion.items().get(completion_item_id.idx as usize);
+        if let Some(item) = maybe_item
+            && completion_item_id.generation == self.completion.generation()
+        {
+            let json = build_resolve_completion_request_json(id, item);
+            self.queue_request(PendingRequest {
+                id,
+                typ: RequestType::ResolveCompletion,
+                json,
+            });
+
+            self.request_metadata_mut(id).completion_item_id = completion_item_id;
+        } else {
+            log::warn!("ignoring stale completion item resolve request");
+        }
+    }
+
+    pub fn queue_hover_request(
+        &mut self,
+        text_document: TextDocumentIdentifier,
+        position: Position,
+    ) {
+        let id = self.take_request_id();
+        let json = build_hover_request_json(id, text_document, position);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::Hover,
+            json,
+        });
+    }
+
+    pub fn queue_definition_request(
+        &mut self,
+        text_document: TextDocumentIdentifier,
+        position: Position,
+    ) {
+        let id = self.take_request_id();
+        let json = build_definition_request_json(id, text_document, position);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::Definition,
+            json,
+        });
+    }
+
+    fn take_request_id(&mut self) -> i32 {
+        let id = self.request_counter;
+        self.request_counter += 1;
+        id
+    }
+
+    fn queue_request(&mut self, req: PendingRequest) {
+        self.request_metadata_mut(req.id).typ = req.typ;
+        self.pending_requests.push(req);
     }
 
     pub fn is_online(&self) -> bool {
@@ -78,6 +173,10 @@ impl LspClient {
 
     pub fn is_just_initialized(&self) -> bool {
         self.state == State::Initialized
+    }
+
+    pub fn completion_items(&self) -> &[CompletionItem] {
+        self.completion.items()
     }
 
     pub fn tick(&mut self) {
@@ -112,6 +211,10 @@ impl LspClient {
     }
 
     fn tick_online(&mut self) {
+        self.send_messages()
+    }
+
+    fn send_messages(&mut self) {
         for notif in std::mem::take(&mut self.pending_notifications) {
             self.send_notification(notif);
         }
@@ -120,24 +223,19 @@ impl LspClient {
         }
     }
 
-    fn send_json(&mut self, content: &Value) {
-        let json_string = serde_json::to_string(content).unwrap();
-        self.send_message(json_string);
-    }
-
-    fn send_request(&mut self, req: Request) {
-        let request_type = req.typ();
-        let id = self.request_counter;
-        self.request_counter += 1;
-        let lsp_request = convert_request_to_json(req, id);
-        self.request_type_per_id.insert(id, request_type);
-        let req_string = serde_json::to_string(&lsp_request).unwrap();
+    fn send_request(&mut self, req: PendingRequest) {
+        let req_string = serde_json::to_string(&req.json).unwrap();
         self.send_message(req_string);
     }
 
     fn send_notification(&mut self, notif: Notification) {
         let notif_json = convert_notification_to_json(notif);
         self.send_json(&notif_json);
+    }
+
+    fn send_json(&mut self, content: &Value) {
+        let json_string = serde_json::to_string(content).unwrap();
+        self.send_message(json_string);
     }
 
     fn send_message(&mut self, content: String) {
@@ -147,7 +245,7 @@ impl LspClient {
 
     fn recv_server_messages(&mut self) -> (Vec<ServerResponse>, Vec<Value>) {
         if let Ok(err) = self.transport.recv_server_err.try_recv() {
-            debug!("lsp server err: {}", String::from_utf8_lossy(&err))
+            log::debug!("lsp server err: {}", String::from_utf8_lossy(&err))
         }
 
         let mut responses = Vec::new();
@@ -172,15 +270,23 @@ impl LspClient {
         let (resps, notifs) = self.recv_server_messages();
 
         for notif in notifs {
-            debug!("{:?}", notif);
+            log::debug!("{:?}", notif);
         }
 
         let mut responses = Vec::new();
         for resp in resps {
             let Some(mut resp_result) = resp.result else {
-                debug!("server response (id: {}) is malformed", resp.id);
+                log::debug!("server response (id: {}) is malformed", resp.id);
                 continue;
             };
+            if let Some(resp_error) = resp.error {
+                log::debug!(
+                    "server responded with an error (id: {}): {:?}",
+                    resp.id,
+                    resp_error
+                );
+                continue;
+            }
 
             use serde_json::Value;
 
@@ -192,11 +298,18 @@ impl LspClient {
                 let items = items_arr
                     .into_iter()
                     .filter_map(|item| {
+                        if let Some(p) = item.pointer("/additionalTextEdits") {
+                            log::debug!("{:?}", p);
+                        }
                         let item: CompletionItem = serde_json::from_value(item).ok()?;
                         Some(item)
                     })
                     .collect();
                 Some(items)
+            };
+            let get_completion_resolve_result = |result: &mut Value| -> Option<CompletionItem> {
+                let item: CompletionItem = serde_json::from_value(result.take()).unwrap(); //.ok()?;
+                Some(item)
             };
             let get_hover_result = |result: &mut Value| -> Option<String> {
                 if let Value::String(text) = result.pointer_mut("/contents/value")?.take() {
@@ -217,15 +330,37 @@ impl LspClient {
                 Some(loc)
             };
 
-            let Some(request_type) = self.request_type_per_id.remove(&resp.id) else {
-                debug!("lsp response without associated request. id {}", resp.id);
+            let Some(request_metadata) = self.request_metadata.remove(&resp.id) else {
+                log::debug!("lsp response without associated request. id {}", resp.id);
                 continue;
             };
-            match request_type {
+            match request_metadata.typ {
                 RequestType::Initialize => unimplemented!("not supposed to happen"),
                 RequestType::SuggestCompletion => {
                     if let Some(items) = get_completion_result(&mut resp_result) {
-                        responses.push(Response::CompletionSuggestions { items });
+                        // Cool, we got the completion items, but they are incomplete.
+                        // Let's resolve the remaining information before indicating that
+                        // the items are ready.
+                        self.completion.set_items(items);
+                        for i in 0..self.completion.items().len() {
+                            self.queue_resolve_completion_request(i as u32);
+                        }
+                    } else {
+                        unimplemented!("{resp_result:?}");
+                    }
+                }
+                RequestType::ResolveCompletion => {
+                    if let Some(item) = get_completion_resolve_result(&mut resp_result) {
+                        let idx = request_metadata.completion_item_id.idx;
+                        let generation = request_metadata.completion_item_id.generation;
+                        if self.completion.resolve_item(idx, generation, item) {
+                            if self.completion.all_items_are_resolved() {
+                                responses.push(Response::CompletionSuggestionsAvailable);
+                            }
+                        }
+                    } else if resp_result == Value::Null {
+                        log::warn!("completion item resolve got null response.");
+                        continue;
                     } else {
                         unimplemented!("{resp_result:?}");
                     }
@@ -239,7 +374,7 @@ impl LspClient {
                 }
                 RequestType::Definition => {
                     if let Some(locations) = get_definition_result(&mut resp_result) {
-                        responses.push(Response::GotoDefinitionInfo { locations });
+                        responses.push(Response::GoToDefinitionInfo { locations });
                     } else {
                         unimplemented!("{resp_result:?}");
                     }
@@ -249,6 +384,16 @@ impl LspClient {
 
         responses
     }
+
+    fn request_metadata_mut(&mut self, request_id: i32) -> &mut RequestMetadata {
+        self.request_metadata.entry(request_id).or_default()
+    }
+}
+
+#[derive(Default)]
+struct RequestMetadata {
+    typ: RequestType,
+    completion_item_id: CompletionItemId,
 }
 
 #[derive(Debug, PartialEq)]

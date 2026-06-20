@@ -6,11 +6,15 @@
 - mouse support
 - motion history
 - system clipboard support
+- Buffer tracked positions ("markers") system
+    - express selections in terms of markers? idk
 
 # Config
 - better error message
+- multimapping
 
 # Completions
+- figure out how to make LSP completions work for items not in scope (ex: typing 'Sig' to complete 'Signature' and auto import `cranelift::ir::Signature`)
 - handle "extra edits" (theres a // TODO in the code)
 - dont suggest completions automatically after ','
    - this maybe ties into better "suggest completions automatically"

@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use ayed_lsp_client::{
-    LspClient, Notification, Request, Response,
+    LspClient, Notification, Response,
     types::{
         DocumentUri, LanguageId, TextDocumentIdentifier, TextDocumentItem,
         VersionedTextDocumentIdentifier, extract_completion_item_documentation,
@@ -35,6 +35,7 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
         let mut client = LspClient::new(server_command, ctx.state.is_async_task_ready.clone());
         client.initialize();
+        info!("lsp server '{server_command}' started");
 
         ctx.state.lsp_client = Some(client);
         Ok(())
@@ -72,18 +73,33 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
         for response in client.receive_responses() {
             match response {
+                Response::CompletionSuggestionsAvailable => {
+                    let items = client.completion_items().to_vec();
+                    let items = lsp_completion_items_to_completion_items(items);
+
+                    let sources = &mut ctx.state.completions.source_items;
+                    let source_data = sources.entry(CompletionSource::Lsp).or_default();
+
+                    source_data.items = items;
+
+                    ctx.queue.emit("completion-sources-modified", "");
+                }
+                Response::CompletionSuggestionResolved { idx } => {
+                    let resolved_item = client.completion_items()[idx as usize].clone();
+                    // This sucks and I should rework this shit.
+                    for item in &mut ctx.state.completions.items {
+                        if item.source != CompletionSource::Lsp || item.source_idx != idx {
+                            continue;
+                        }
+                        *item = lsp_completion_item_to_completion_item(idx as usize, resolved_item);
+                        ctx.queue.push("completions-show-selected-documentation");
+                        break;
+                    }
+                }
                 Response::HoverInfo { text } => {
                     ctx.state.hover_info = Some(text);
                 }
-                Response::CompletionSuggestions { items } => {
-                    let items = lsp_completion_items_to_completion_items(items);
-                    ctx.state
-                        .completions
-                        .source_items
-                        .insert(CompletionSource::Lsp, items);
-                    ctx.queue.emit("completion-sources-modified", "");
-                }
-                Response::GotoDefinitionInfo { locations } => {
+                Response::GoToDefinitionInfo { locations } => {
                     let Some(location) = locations.into_iter().next() else { continue };
 
                     let filepath = lsp_uri_to_filepath(location.uri);
@@ -197,10 +213,10 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
             let cursor = ctx.selections.primary().cursor;
 
-            client.queue_request(Request::Hover {
-                text_document: TextDocumentIdentifier::new(path),
-                position: position_to_lsp_position(cursor),
-            });
+            client.queue_hover_request(
+                TextDocumentIdentifier::new(path),
+                position_to_lsp_position(cursor),
+            );
 
             Ok(())
         }),
@@ -226,10 +242,10 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
             let cursor = ctx.selections.primary().cursor;
 
-            client.queue_request(Request::SuggestCompletion {
-                text_document: TextDocumentIdentifier::new(path),
-                position: position_to_lsp_position(cursor),
-            });
+            client.queue_suggest_completion_request(
+                TextDocumentIdentifier::new(path),
+                position_to_lsp_position(cursor),
+            );
 
             Ok(())
         }),
@@ -249,10 +265,10 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
             let cursor = ctx.selections.primary().cursor;
 
-            client.queue_request(Request::Definition {
-                text_document: TextDocumentIdentifier::new(path),
-                position: position_to_lsp_position(cursor),
-            });
+            client.queue_definition_request(
+                TextDocumentIdentifier::new(path),
+                position_to_lsp_position(cursor),
+            );
 
             Ok(())
         }),
@@ -293,24 +309,30 @@ fn lsp_uri_to_filepath(uri: ayed_lsp_client::types::DocumentUri) -> PathBuf {
 }
 
 fn lsp_completion_items_to_completion_items(
-    mut items: Vec<ayed_lsp_client::types::CompletionItem>,
+    items: Vec<ayed_lsp_client::types::CompletionItem>,
 ) -> Vec<CompletionItem> {
+    // NOTE: dont filter anything out in this function!
+    // Indices need to match with the raw lsp items.
+
     // FIXME sorting and filtering shouldnt happen in LSP commands,
     //          it should be happening in the more generalized completions code.
-    items.sort_by(|a, b| {
-        fn get_key(e: &ayed_lsp_client::types::CompletionItem) -> &String {
-            e.sort_text.as_ref().unwrap_or(&e.label)
-        }
-        get_key(a).cmp(get_key(b))
-    });
+
+    // items.sort_by(|a, b| {
+    //     fn get_key(e: &ayed_lsp_client::types::CompletionItem) -> &String {
+    //         e.sort_text.as_ref().unwrap_or(&e.label)
+    //     }
+    //     get_key(a).cmp(get_key(b))
+    // });
     let converted_items = items
         .into_iter()
-        .map(lsp_completion_item_to_completion_item)
+        .enumerate()
+        .map(|(i, item)| lsp_completion_item_to_completion_item(i, item))
         .collect();
     converted_items
 }
 
 fn lsp_completion_item_to_completion_item(
+    idx: usize,
     item: ayed_lsp_client::types::CompletionItem,
 ) -> CompletionItem {
     let extra_edits = item
@@ -338,6 +360,7 @@ fn lsp_completion_item_to_completion_item(
         extra_edits,
         kind,
         source: CompletionSource::Lsp,
+        source_idx: idx as u32,
         type_annotation,
         documentation,
     }

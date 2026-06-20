@@ -439,7 +439,7 @@ impl TextBuffer {
     pub fn apply_edit(&mut self, edit: &TextEdit) -> Result<TextEdit, String> {
         let selections_backup = self.selections.clone();
 
-        let original_text = self.range_text(edit.range)?;
+        let original_text = self.range_text(edit.range);
         let mut inverse_edit = TextEdit {
             range: (edit.range.start, edit.range.start).into(),
             text: original_text,
@@ -452,7 +452,7 @@ impl TextBuffer {
 
         let should_insert = !edit.text.is_empty();
         if should_insert {
-            let insert_range = self.insert_str(edit.range.end, &edit.text)?;
+            let insert_range = self.insert_str(edit.range.start, &edit.text)?;
             inverse_edit.range = insert_range;
         }
 
@@ -606,16 +606,16 @@ impl TextBuffer {
         Position { column, row }
     }
 
-    pub fn range_text(&mut self, range: Range) -> Result<String, String> {
+    pub fn range_text(&self, range: Range) -> String {
         let range = range.normalized();
         if range.is_empty() {
-            return Ok(String::new());
+            return String::new();
         }
         let sel = Selection::new().with_start_and_end(range.start, range.end.offset((-1, 0)));
         if let Some(s) = self.selection_text(&sel) {
-            Ok(s)
+            s
         } else {
-            Ok(String::new())
+            String::new()
         }
     }
 
@@ -623,8 +623,8 @@ impl TextBuffer {
     where
         S: Into<String>,
     {
-        let revedit = self.apply_edit(&TextEdit::insert_str_at(s, at))?;
-        Ok(Selection::from_range(revedit.range))
+        let invedit = self.apply_edit(&TextEdit::insert_str_at(s, at))?;
+        Ok(Selection::from_range(invedit.range))
     }
 
     pub fn insert_char_at(&mut self, ch: char, at: Position) -> Result<(), String> {
@@ -660,8 +660,8 @@ impl TextBuffer {
 
         let edit_group = history.current_edit_group_mut().expect("can undo");
         for edit in edit_group.edits.iter_mut().rev() {
-            let revedit = self.apply_edit(edit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
-            *edit = revedit;
+            let invedit = self.apply_edit(edit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
+            *edit = invedit;
         }
         self.selections = edit_group.selections_before.clone();
         history.current_group_edge_idx = history.current_group_edge_idx.saturating_sub(1);
@@ -681,9 +681,9 @@ impl TextBuffer {
         history.current_group_edge_idx = history.current_group_edge_idx + 1;
 
         let edit_group = history.current_edit_group_mut().expect("can redo");
-        for revedit in edit_group.edits.iter_mut() {
-            let edit = self.apply_edit(revedit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
-            *revedit = edit;
+        for invedit in edit_group.edits.iter_mut() {
+            let edit = self.apply_edit(invedit)?; // FIXME if this ? happends, history wont be reassigned to the buffer.
+            *invedit = edit;
         }
         self.selections = edit_group.selections_after.clone();
 
@@ -692,12 +692,42 @@ impl TextBuffer {
         Ok(true)
     }
 
+    /// Completes the current edit group of the undo/redo stack.
     pub fn checkpoint(&mut self) {
         self.history.record_checkpoint();
     }
 
+    /// Overwrites the 'after selections' of the current edit group of the
+    /// undo/redo stack with the buffer's current selections.
+    /// Use when a command ajusts the selections right after making edits.
+    pub fn overwrite_history_current_selections_after(&mut self) {
+        self.history
+            .overwrite_current_selections_after(&self.selections);
+    }
+
     fn selections_mut(&mut self) -> impl Iterator<Item = &mut Selections> {
         self.selections.values_mut()
+    }
+
+    /// The number lines that will be added above the given row.
+    /// Don't use it, it's for a workaround to avoid implementing the correct solution.
+    pub fn line_delta_above_row(&self, edit: &TextEdit, row: Row) -> i32 {
+        if edit.range.start.row > row {
+            return 0;
+        }
+        let mut delta = 0;
+        let deleted_text = self.range_text(edit.range);
+        for ch in deleted_text.chars() {
+            if ch == '\n' {
+                delta -= 1;
+            }
+        }
+        for ch in edit.text.chars() {
+            if ch == '\n' {
+                delta += 1;
+            }
+        }
+        delta
     }
 }
 

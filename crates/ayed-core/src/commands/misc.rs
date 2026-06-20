@@ -11,7 +11,10 @@ use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     position::{Column, Position},
     range::Range,
-    state::{CompletionItem, CompletionItemKind, CompletionSource, TextBuffer, TextEdit},
+    state::{
+        CompletionItem, CompletionItemKind, CompletionSource, CompletionSourceData, TextBuffer,
+        TextEdit,
+    },
     utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
@@ -157,6 +160,8 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             ctx.buffer
                 .set_view_selections(ctx.view_handle, ctx.selections);
 
+            ctx.buffer.overwrite_history_current_selections_after();
+
             ctx.queue.emit("buffer-modified", "");
             ctx.queue.emit("selections-modified", "");
 
@@ -186,7 +191,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
                 return Ok(());
             };
-            let view = ctx.resources.views.get(view_handle);
+            let view = ctx.resources.views.get_mut(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let sel_count = buffer.view_selections(view_handle).unwrap().count();
 
@@ -196,42 +201,75 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             let item = &ctx.state.completions.items[selected_item_idx];
 
-            for sel_idx in 0..sel_count {
-                if !cycling_from_original {
-                    let reverse_edit = inverse_edits.get(sel_idx).unwrap();
-                    buffer.apply_edit(reverse_edit)?;
-                    // TODO extra edits too
-                }
+            // Stuff to adjust panel's position // FIXME should be replaced by a system where the buffer keeps track of positions, you know the idea
+            let current_panel_row = ctx.state.completions.original_symbol_start.row;
+            let mut panel_row_fix = 0;
 
+            if !cycling_from_original {
+                for inverse_edit in inverse_edits.iter().rev() {
+                    panel_row_fix += buffer.line_delta_above_row(inverse_edit, current_panel_row);
+                    buffer.apply_edit(inverse_edit)?;
+                }
+            }
+
+            for sel_idx in 0..sel_count {
                 let selections = buffer.view_selections(view_handle).unwrap();
                 let sel = selections.get(sel_idx).unwrap();
 
                 if !cycling_to_original {
                     let prefix_symbol_range = get_prefix_symbol_range(buffer, sel.cursor);
-                    // TODO extra edits
                     let edit = TextEdit {
                         range: prefix_symbol_range,
                         text: item.text.to_string(),
                     };
                     let inverse_edit = buffer.apply_edit(&edit)?;
                     new_inverse_edits.push(inverse_edit);
+
+                    // Apply extra edits only for the first selection, assuming
+                    // they are only used for importing required modules/stuff.
+                    if sel_idx == 0 {
+                        for extra_edit in &item.extra_edits {
+                            panel_row_fix +=
+                                buffer.line_delta_above_row(extra_edit, current_panel_row);
+                            let extra_inverse_edit = buffer.apply_edit(&extra_edit)?;
+                            new_inverse_edits.push(extra_inverse_edit);
+                        }
+                    }
                 }
             }
 
+            ctx.state.completions.original_symbol_start.row += panel_row_fix;
+            view.top_left.row += panel_row_fix;
+
             ctx.state.completions.last_completion_inverse_edits = Some(new_inverse_edits);
 
-            // Show selected item documentation in the hover info panel, if possible.
-            if cycling_to_original {
-                ctx.state.hover_info = None;
-            } else {
-                ctx.state.hover_info = item.documentation.clone();
-            }
+            ctx.queue.push("completions-show-selected-documentation");
 
             ctx.queue.emit("buffer-modified", buffer.path_str());
             ctx.queue.emit("selections-modified", "completions-select");
 
             Ok(())
         },
+    );
+
+    // FIXME this should probably be hooked to a completions-on-select event as opposed to being queued directly.
+    cr.register(
+        "completions-show-selected-documentation",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let hover_info;
+            let selected_item_idx = ctx.state.completions.selected_item - 1;
+            if selected_item_idx == -1 {
+                hover_info = None;
+            } else {
+                let selected_item = &ctx.state.completions.items[selected_item_idx as usize];
+                hover_info = selected_item.documentation.clone();
+            }
+
+            ctx.state.hover_info = hover_info;
+
+            Ok(())
+        }),
     );
 
     // Check that completion menu should be displayed. Gathers completions if so. Clears them otherwise.
@@ -278,16 +316,16 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             let prefix_range = get_prefix_symbol_range(ctx.buffer, cursor);
             ctx.state.completions.original_symbol_start = prefix_range.start;
-            let prefix = ctx.buffer.range_text(prefix_range)?;
+            let prefix = ctx.buffer.range_text(prefix_range);
 
             let mut items_by_labels: HashMap<String, HashMap<CompletionItemKind, CompletionItem>> =
                 HashMap::new();
-            for (_source, source_items) in &ctx.state.completions.source_items {
+            for (_source, source_data) in &ctx.state.completions.source_items {
                 // TODO hashmap of {label, hashmap of {kind, item}}
                 // fill things up naively, then check over every label entries
                 // for anything that has plaintext kind. For them, if there are
                 // also other kinds, remove plaintext kind.
-                for i in source_items {
+                for i in &source_data.items {
                     // TODO Consider not just starts_with(), but also contains()
                     // but with lower "priority".
                     // Make case insensitive but higher priority if case matches.
@@ -350,19 +388,20 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             let content = ctx.buffer.content_to_string();
             let mut symbols = BTreeSet::new();
-            let mut completions = Vec::new();
+            let mut items = Vec::new();
             for matsh in RE_SYMBOL.find_iter(&content) {
                 let symbol = matsh.as_str();
                 if symbol.len() < 3 || symbols.contains(symbol) {
                     continue;
                 }
                 symbols.insert(symbol.to_string());
-                completions.push(CompletionItem {
+                items.push(CompletionItem {
                     label: symbol.to_string(),
                     text: symbol.to_string(),
                     extra_edits: Vec::new(),
                     kind: CompletionItemKind::Plaintext,
                     source: CompletionSource::Buffer,
+                    source_idx: 0,
                     type_annotation: None,
                     documentation: None,
                 });
@@ -371,7 +410,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             ctx.state
                 .completions
                 .source_items
-                .insert(CompletionSource::Buffer, completions);
+                .insert(CompletionSource::Buffer, CompletionSourceData { items });
 
             ctx.queue.emit("completion-sources-modified", "");
 

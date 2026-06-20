@@ -1,8 +1,9 @@
-use crate::types::{CompletionItem, Location};
+use crate::types::Location;
 
 #[derive(Debug)]
 pub enum Response {
-    CompletionSuggestions { items: Vec<CompletionItem> },
+    CompletionSuggestionsAvailable,
+    CompletionSuggestionResolved { idx: u32 }, // TODO remove, this is dead code, i swaerr
     HoverInfo { text: String },
-    GotoDefinitionInfo { locations: Vec<Location> },
+    GoToDefinitionInfo { locations: Vec<Location> },
 }

@@ -10,7 +10,7 @@ pub struct Location {
     pub range: Range,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionItem {
     pub label: String,
@@ -20,11 +20,14 @@ pub struct CompletionItem {
     pub kind: Option<i32>,
     pub detail: Option<String>,
     pub documentation: Option<Value>,
+    pub data: Option<Value>,
 }
 
 pub fn extract_completion_item_documentation(value: Option<Value>) -> Option<String> {
     let extract_string = |v: Value| {
-        let Value::String(s) = v else { return None; };
+        let Value::String(s) = v else {
+            return None;
+        };
         return Some(s);
     };
     match value? {
@@ -34,7 +37,14 @@ pub fn extract_completion_item_documentation(value: Option<Value>) -> Option<Str
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// Id for client side completion items identification. Not in the spec.
+#[derive(Debug, Default)]
+pub struct CompletionItemId {
+    pub idx: u32,
+    pub generation: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextEdit {
     pub range: Range,

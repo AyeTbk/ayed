@@ -66,6 +66,11 @@ impl TextBufferHistory {
         edit_group.is_complete = true;
     }
 
+    pub fn overwrite_current_selections_after(&mut self, selections_after: &AllSelections) {
+        let Some(edit_group) = self.current_edit_group_mut() else { return };
+        edit_group.selections_after = selections_after.clone();
+    }
+
     pub fn can_undo(&self) -> bool {
         self.current_group_edge_idx != 0
     }
