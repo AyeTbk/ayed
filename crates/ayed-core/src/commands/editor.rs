@@ -238,7 +238,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view_rect = ctx
                 .state
-                .focused_view_rect(&ctx.panels, &ctx.resources)
+                .focused_view_content_rect(&ctx.panels, &ctx.resources)
                 .unwrap();
             let view = ctx.resources.views.get_mut(view_handle);
             let cursor = {

@@ -128,6 +128,10 @@ pub trait Panel: Any {
     fn set_rect(&mut self, rect: Rect);
     fn render(&self, ctx: &PanelContext) -> Vec<UiPanel>;
 
+    fn content_rect(&self) -> Rect {
+        self.rect()
+    }
+
     fn on_focus(&mut self, _ctx: &mut PanelContext) {}
     fn on_unfocus(&mut self, _ctx: &mut PanelContext) {}
 

@@ -203,7 +203,8 @@ impl Core {
         self.state.modeline_rect = self.panels.panel_of_type::<Prompt>().unwrap().rect();
 
         // Needed for positioning Completion panel.
-        self.state.focused_panel_view_rect =
-            self.state.focused_view_rect(&self.panels, &self.resources);
+        self.state.focused_panel_view_rect = self
+            .state
+            .focused_view_content_rect(&self.panels, &self.resources);
     }
 }

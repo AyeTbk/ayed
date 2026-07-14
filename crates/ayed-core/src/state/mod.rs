@@ -74,9 +74,13 @@ impl State {
             .or(self.active_editor_view)
     }
 
-    pub fn focused_view_rect(&self, panels: &Panels, resources: &Resources) -> Option<Rect> {
+    pub fn focused_view_content_rect(
+        &self,
+        panels: &Panels,
+        resources: &Resources,
+    ) -> Option<Rect> {
         let focused_panel = panels.panel_with_name(&self.focused_panel)?;
-        let panel_rect = focused_panel.rect();
+        let panel_rect = focused_panel.content_rect();
         let view_handle = focused_panel.view().or(self.active_editor_view);
         let top_left = view_handle
             .map(|handle| resources.views.get(handle).top_left)

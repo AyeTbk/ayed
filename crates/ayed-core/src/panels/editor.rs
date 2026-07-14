@@ -20,6 +20,7 @@ pub struct Editor {
     view: Option<Handle<View>>,
     rect: Rect,
     line_numbers: Option<LineNumbers>,
+    cached_lines_number_width: std::cell::Cell<i32>, // FIXME this smells
 }
 
 impl Panel for Editor {
@@ -32,6 +33,11 @@ impl Panel for Editor {
 
     fn rect(&self) -> Rect {
         self.rect
+    }
+
+    fn content_rect(&self) -> Rect {
+        self.rect
+            .grown(0, 0, -self.cached_lines_number_width.get(), 0)
     }
 
     fn set_rect(&mut self, rect: Rect) {
@@ -57,6 +63,7 @@ impl Editor {
             view: Some(view),
             rect: Rect::default(),
             line_numbers: Default::default(),
+            cached_lines_number_width: Default::default(),
         }
     }
 
@@ -90,6 +97,7 @@ impl Editor {
             );
             panels.push(line_numbers.render(ctx, line_numbers_rect));
         }
+        self.cached_lines_number_width.set(line_numbers_width);
 
         // Render editor
         let mut ed_rect = self.rect.grown(0, 0, -line_numbers_width, 0);
