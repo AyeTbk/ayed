@@ -8,6 +8,7 @@ pub enum RequestType {
     Initialize,
     SuggestCompletion,
     ResolveCompletion,
+    SignatureHelp,
     Hover,
     Definition,
 }
@@ -17,38 +18,6 @@ pub struct PendingRequest {
     pub id: i32,
     pub typ: RequestType,
     pub json: Value,
-}
-
-#[derive(Debug)]
-pub enum Request {
-    Initialize,
-    SuggestCompletion {
-        text_document: TextDocumentIdentifier,
-        position: Position,
-    },
-    ResolveCompletion {
-        item: CompletionItem,
-    },
-    Hover {
-        text_document: TextDocumentIdentifier,
-        position: Position,
-    },
-    Definition {
-        text_document: TextDocumentIdentifier,
-        position: Position,
-    },
-}
-
-impl Request {
-    pub fn typ(&self) -> RequestType {
-        match &self {
-            Request::Initialize => RequestType::Initialize,
-            Request::SuggestCompletion { .. } => RequestType::SuggestCompletion,
-            Request::ResolveCompletion { .. } => RequestType::ResolveCompletion,
-            Request::Hover { .. } => RequestType::Hover,
-            Request::Definition { .. } => RequestType::Definition,
-        }
-    }
 }
 
 const JSON_RPC_VERSION: &str = "2.0";
@@ -74,6 +43,15 @@ pub fn build_initialize_request_json(request_id: i32) -> Value {
                                     // "detail", // don't async resolve this one for now, for simplicity.
                                 ]
                             }
+                        }
+                    },
+                    "signatureHelp": {
+                        "signatureInformation": {
+                            "documentationFormat": ["plaintext"],
+                            "parameterInformation": {
+                                "labelOffsetSupport": true,
+                            },
+                            "activeParameterSupport": true,
                         }
                     }
                 },
@@ -106,6 +84,22 @@ pub fn build_resolve_completion_request_json(request_id: i32, item: &CompletionI
         "id": request_id,
         "method": "completionItem/resolve",
         "params": item,
+    })
+}
+
+pub fn build_signature_help_request_json(
+    request_id: i32,
+    text_document: TextDocumentIdentifier,
+    position: Position,
+) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "textDocument/signatureHelp",
+        "params": TextDocumentPositionParams {
+            text_document: text_document,
+            position: position,
+        },
     })
 }
 

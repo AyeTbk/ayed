@@ -75,6 +75,8 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
             }
 
             // Apply substitutions
+            // FIXME This implicitly overrides entries with the same key, when it would
+            // FIXME probably be better to merge them. ex: multiple callbacks to the same hooks on multiple lines instead of a list.
             let entries: MappingEntries<Vec<String>> = cond_mapping
                 .entries
                 .iter()

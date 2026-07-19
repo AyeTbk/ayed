@@ -96,6 +96,9 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                         break;
                     }
                 }
+                Response::SignatureHelp { text } => {
+                    ctx.state.modeline.set_message(text);
+                }
                 Response::HoverInfo { text } => {
                     ctx.state.hover_info = Some(text);
                 }
@@ -243,6 +246,29 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             let cursor = ctx.selections.primary().cursor;
 
             client.queue_suggest_completion_request(
+                TextDocumentIdentifier::new(path),
+                position_to_lsp_position(cursor),
+            );
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "lsp-signature-help",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let Some(client) = &mut ctx.state.lsp_client else {
+                return Ok(());
+            };
+
+            let Some(path) = ctx.buffer.path() else {
+                return Err("save the file before you can goto".into());
+            };
+
+            let cursor = ctx.selections.primary().cursor;
+
+            client.queue_signature_help_request(
                 TextDocumentIdentifier::new(path),
                 position_to_lsp_position(cursor),
             );

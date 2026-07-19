@@ -913,18 +913,27 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let view = ctx.resources.views.get(view_handle);
             let buffer = ctx.resources.buffers.get_mut(view.buffer);
             let mut selections = buffer.view_selections(view_handle).unwrap().clone();
+            let mut anything_changed = false;
             for selection in selections.iter_mut() {
-                *selection = if forward {
+                let flipped_sel = if forward {
                     selection.flipped_forward()
                 } else if backward {
                     selection.flipped_forward().flipped()
                 } else {
                     selection.flipped()
                 };
+
+                if *selection != flipped_sel {
+                    anything_changed = true;
+                }
+
+                *selection = flipped_sel;
             }
             buffer.set_view_selections(view_handle, selections);
 
-            ctx.queue.emit("selections-modified", "");
+            if anything_changed {
+                ctx.queue.emit("selections-modified", "");
+            }
 
             Ok(())
         },

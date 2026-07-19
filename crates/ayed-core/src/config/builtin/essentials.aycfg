@@ -85,7 +85,7 @@ hooks {
 }
 mode insert.* {
     hooks {
-        selections-modified lsp-completions
+        selections-modified $[ lsp-completions ; lsp-signature-help ]
     }
 }
 # DEBUG help for LSP
@@ -99,16 +99,12 @@ mode combo-user {
 }
 mode combo-lsp {
     keybinds {
-        s lsp-start
-        e lsp-stop
+        s lsp-signature-help
         h lsp-hover
-        c lsp-completions
     }
     keybinds-doc {
-        s Initialize LSP client
-        e Shutdown LSP client
+        s Signature help
         h Hover information
-        c Suggest completions
     }
 }
 

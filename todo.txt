@@ -36,3 +36,4 @@
 # Syntax highlight
 - return keyword
 - fix syntax highlighting weird on chars (sometimes works, sometimes not)
+- fix syntax highlighting not supporting lines with TAB indent

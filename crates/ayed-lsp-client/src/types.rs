@@ -19,7 +19,7 @@ pub struct CompletionItem {
     pub additional_text_edits: Option<Vec<TextEdit>>,
     pub kind: Option<i32>,
     pub detail: Option<String>,
-    pub documentation: Option<Value>,
+    pub documentation: Option<Value>, // FIXME use the client capabilities to specify the exact type.
     pub data: Option<Value>,
 }
 
@@ -44,6 +44,40 @@ pub struct CompletionItemId {
     pub generation: u32,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureHelp {
+    pub signatures: Vec<SignatureInformation>,
+    pub active_signature: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureInformation {
+    pub label: String,
+    pub documentation: Option<Documentation>,
+    pub parameters: Option<Vec<ParameterInformation>>,
+    pub active_parameter: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParameterInformation {
+    pub label: (u32, u32),
+    pub documentation: Option<Documentation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum Documentation {
+    String(String),
+    MarkupContent {
+        kind: String,
+        value: String,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextEdit {
@@ -52,6 +86,7 @@ pub struct TextEdit {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TextDocumentIdentifier {
     pub uri: DocumentUri,
 }
@@ -65,6 +100,7 @@ impl TextDocumentIdentifier {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VersionedTextDocumentIdentifier {
     pub uri: DocumentUri,
     pub version: i32,

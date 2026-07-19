@@ -13,7 +13,6 @@ mod notification;
 pub use notification::Notification;
 
 mod request;
-pub use request::Request;
 
 mod response;
 pub use response::Response;
@@ -29,9 +28,9 @@ use crate::{
     request::{
         PendingRequest, RequestType, build_definition_request_json, build_hover_request_json,
         build_initialize_request_json, build_resolve_completion_request_json,
-        build_suggest_completion_request_json,
+        build_signature_help_request_json, build_suggest_completion_request_json,
     },
-    types::{CompletionItem, CompletionItemId, Location, Position, TextDocumentIdentifier},
+    types::{CompletionItem, CompletionItemId, Location, Position, SignatureHelp, TextDocumentIdentifier},
 };
 
 const INITIALIZE_REQUEST_ID: i32 = 1;
@@ -126,6 +125,20 @@ impl LspClient {
         } else {
             log::warn!("ignoring stale completion item resolve request");
         }
+    }
+
+    pub fn queue_signature_help_request(
+        &mut self,
+        text_document: TextDocumentIdentifier,
+        position: Position,
+    ) {
+        let id = self.take_request_id();
+        let json = build_signature_help_request_json(id, text_document, position);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::SignatureHelp,
+            json,
+        });
     }
 
     pub fn queue_hover_request(
@@ -275,6 +288,9 @@ impl LspClient {
 
         let mut responses = Vec::new();
         for resp in resps {
+            // log::debug!("{resp:?}"); // DEBUG
+            // FIXME parse all those json values directly with serde instead of hand wrangling some shit.
+            // FIXME and some of those responses can be null while others cant so the code right below is a problem.
             let Some(mut resp_result) = resp.result else {
                 log::debug!("server response (id: {}) is malformed", resp.id);
                 continue;
@@ -364,6 +380,18 @@ impl LspClient {
                     } else {
                         unimplemented!("{resp_result:?}");
                     }
+                }
+                RequestType::SignatureHelp => {
+                    let Ok(sighelp) = serde_json::from_value::<SignatureHelp>(resp_result) else {
+                        log::debug!("lsp signature help: received bad json");
+                        continue;
+                    };
+                    let Some(active_signature) = sighelp.active_signature else {
+                        log::debug!("lsp signature help: no active signature");
+                        continue;
+                    };
+                    let text = sighelp.signatures[active_signature as usize].label.to_string();
+                    responses.push(Response::SignatureHelp { text });
                 }
                 RequestType::Hover => {
                     if let Some(text) = get_hover_result(&mut resp_result) {
