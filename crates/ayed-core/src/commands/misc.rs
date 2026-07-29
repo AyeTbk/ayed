@@ -4,18 +4,13 @@ use std::{
     sync::LazyLock,
 };
 
-use log::debug;
 use regex::Regex;
 
 use crate::{
-    command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
-    position::{Column, Position},
-    range::Range,
-    state::{
+    command::{CommandRegistry, helpers::focused_buffer_command, options::Options}, position::{Column, Position}, range::Range, selection::Selection, state::{
         CompletionItem, CompletionItemKind, CompletionSource, CompletionSourceData, TextBuffer,
         TextEdit,
-    },
-    utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
+    }, utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
 static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w[\w!\-]*").unwrap());
@@ -24,7 +19,7 @@ static RE_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\.|::|,)(\
 pub fn register_misc_commands(cr: &mut CommandRegistry) {
     cr.register("stderr", "nodoc", |opt, _ctx| {
         let opt = opt.raw();
-        debug!("{opt}");
+        log::debug!("{opt}");
         Ok(())
     });
 
@@ -45,7 +40,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             if !undid {
                 ctx.queue.push("message  nothing to undo");
             } else {
-                ctx.queue.emit("buffer-modified", "");
+                ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
                 ctx.queue.emit("selections-modified", "");
             }
             Ok(())
@@ -60,7 +55,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             if !redid {
                 ctx.queue.push("message  nothing to redo");
             } else {
-                ctx.queue.emit("buffer-modified", "");
+                ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
                 ctx.queue.emit("selections-modified", "");
             }
             Ok(())
@@ -162,7 +157,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
 
             ctx.buffer.overwrite_history_current_selections_after();
 
-            ctx.queue.emit("buffer-modified", "");
+            ctx.queue.emit("buffer-modified", ctx.buffer.path_str());
             ctx.queue.emit("selections-modified", "");
 
             Ok(())
@@ -413,6 +408,88 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                 .insert(CompletionSource::Buffer, CompletionSourceData { items });
 
             ctx.queue.emit("completion-sources-modified", "");
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "diagnostics-hover",
+        "Show the message of the diagnostic under the primary cursor.",
+        focused_buffer_command(|_, ctx| {
+            let Some(path) = ctx.buffer.path() else { return Ok(()) };
+            let diags = ctx.state.diagnostics.for_file(path);
+            let cursor = ctx.selections.primary().cursor;
+
+            for diag in diags {
+                if diag.range.contains(cursor) {
+                    ctx.state.hover_info = Some(diag.message.clone());
+                }
+            }
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "diagnostics-move-to",
+        Options::new()
+            .doc("Move to the next/previous diagnostic in the buffer.")
+            .flag("next")
+            .flag("previous"),
+        focused_buffer_command(|opt, ctx| {
+            let previous = opt.contains("previous");
+            let next = opt.contains("next") || !previous;
+
+            let Some(path) = ctx.buffer.path() else { return Ok(()) };
+            let diags = ctx.state.diagnostics.for_file(path);
+
+            let cursor = ctx.selections.primary().cursor;
+
+            let mut nearest_before_cursor = None;
+            let mut nearest_after_cursor = None;
+            for diag in diags {
+                if diag.range.contains(cursor) {
+                    continue;
+                }
+
+                if diag.range.end <= cursor {
+                    let dist = cursor - diag.range.end;
+                    if nearest_before_cursor.is_none() {
+                        nearest_before_cursor = Some((dist, diag));
+                    }
+                    if let Some((nearest_dist, nearest_diag)) = &mut nearest_before_cursor {
+                        if dist < *nearest_dist {
+                            *nearest_dist = dist;
+                            *nearest_diag = diag;
+                        }
+                    }
+                } else if diag.range.start > cursor {
+                    let dist = diag.range.start - cursor;
+                    if nearest_after_cursor.is_none() {
+                        nearest_after_cursor = Some((dist, diag));
+                    }
+                    if let Some((nearest_dist, nearest_diag)) = &mut nearest_after_cursor {
+                        if dist < *nearest_dist {
+                            *nearest_dist = dist;
+                            *nearest_diag = diag;
+                        }
+                    }
+                }
+            }
+
+            let mut nearest_diag = None;
+            if let Some(nearest) = nearest_before_cursor && previous {
+                nearest_diag = Some(nearest.1);
+            }
+            if let Some(nearest) = nearest_after_cursor && next {
+                nearest_diag = Some(nearest.1);
+            }
+            if let Some(nearest_diag) = nearest_diag {
+                let sel = Selection::with_position(nearest_diag.range.start);
+                ctx.queue.push(format!("selections-set {}", sel));
+            } else {
+                return Err("no further diagnostics found".to_string());
+            }
 
             Ok(())
         }),

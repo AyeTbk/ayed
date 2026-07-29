@@ -6,14 +6,14 @@ use std::{
 use ayed_core::{
     core::Core,
     input::{self, Input},
-    ui::{Color, Size, Style},
+    ui::{Color, Size, Style, style::UnderlineKind},
 };
 
 use crossterm::{
-    ExecutableCommand,
+    Command, ExecutableCommand,
     cursor::MoveTo,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style::{Attribute, ResetColor, SetBackgroundColor, SetForegroundColor, SetUnderlineColor},
     terminal::{
         BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
         disable_raw_mode, enable_raw_mode,
@@ -155,6 +155,13 @@ impl Tui {
             let cmd = SetBackgroundColor(convert_color_to_crossterm(style.background_color));
             write!(screen, "{}", cmd)?;
         }
+        if style.underline_color != cell.style.underline_color {
+            style.underline_color = cell.style.underline_color;
+            let cmd = SetUnderlineColor(convert_color_to_crossterm(style.underline_color));
+            let mut buf = String::new();
+            cmd.write_ansi(&mut buf).unwrap();
+            write!(screen, "{buf}")?;
+        }
         if style.invert != cell.style.invert {
             style.invert = cell.style.invert;
             if style.invert {
@@ -173,10 +180,10 @@ impl Tui {
         }
         if style.underlined != cell.style.underlined {
             style.underlined = cell.style.underlined;
-            if style.underlined {
-                write!(screen, "{}", Attribute::Underlined)?;
-            } else {
-                write!(screen, "{}", Attribute::NoUnderline)?;
+            match style.underlined {
+                Some(UnderlineKind::Line) => write!(screen, "{}", Attribute::Underlined)?,
+                Some(UnderlineKind::Squiggle) => write!(screen, "{}", Attribute::Undercurled)?,
+                None => write!(screen, "{}", Attribute::NoUnderline)?,
             }
         }
         // Write out char

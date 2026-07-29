@@ -2,17 +2,17 @@
 pub struct Style {
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,
+    pub underline_color: Option<Color>,
     pub invert: bool,
     pub bold: bool,
-    pub underlined: bool,
+    pub underlined: Option<UnderlineKind>,
 }
 
-impl Style {
-    pub fn with_foreground_color(&self, color: Color) -> Self {
-        let mut this = *self;
-        this.foreground_color = Some(color);
-        this
-    }
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum UnderlineKind {
+    #[default]
+    Line,
+    Squiggle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,6 +36,26 @@ impl Color {
     pub const BLUE: Self = Self { r: 0, g: 0, b: 255 };
     pub const RED: Self = Self { r: 255, g: 0, b: 0 };
     pub const DARK_RED: Self = Self { r: 128, g: 0, b: 0 };
+    pub const YELLOW: Self = Self {
+        r: 255,
+        g: 255,
+        b: 0,
+    };
+    pub const ERROR: Self = Self {
+        r: 170,
+        g: 50,
+        b: 60,
+    };
+    pub const WARNING: Self = Self {
+        r: 220,
+        g: 190,
+        b: 85,
+    };
+    pub const INFO: Self = Self {
+        r: 100,
+        g: 85,
+        b: 210,
+    };
 
     pub fn from_hex(hex: &str) -> Result<Color, ()> {
         // Valid hexcodes are made exclusively of ascii characters, so working on bytes is ok.

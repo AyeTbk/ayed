@@ -7,12 +7,7 @@ use crate::{
         CommandRegistry,
         helpers::{ErrorExt, alias, focused_buffer_command, register_selection_movement},
         options::Options,
-    },
-    config::ConfigState,
-    position::{Column, Offset, Position},
-    selection::{Selection, Selections},
-    state::View,
-    utils::{
+    }, config::ConfigState, position::{Column, Offset, Position, Row}, selection::{Selection, Selections}, state::View, utils::{
         path_ext::PathExt,
         string_utils::{
             byte_index_to_char_index, char_count,
@@ -92,8 +87,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         // Cleanup buffer resource
         ctx.resources.buffers.remove(buffer_handle);
-        // TODO clean other buffer related stuff like highlights and
-        // change history.
+        ctx.state.per_buffer.remove(&buffer_handle);
 
         // Cleanup views resources
         let mut views_to_cleanup = Vec::new();
@@ -120,10 +114,23 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Options::new().doc("nodoc").flag("scratch"),
         |opt, ctx| {
             let scratch = opt.contains("scratch");
+            let mut position = Position::ZERO;
             let path = if opt.remainder().is_empty() {
                 "".into()
             } else {
-                ctx.state.normalize_path(Path::new(opt.raw()))
+                let mut path_str = opt.remainder();
+                // Parse :line:column notation - TODO make this better, and probably a seperate function too
+                if let Some((stem1, suffix1)) = path_str.rsplit_once(':') {
+                    path_str = stem1;
+                    if let Some((stem2, suffix2)) = path_str.rsplit_once(':') {
+                        path_str = stem2;
+                        position.column = suffix1.parse::<Column>().unwrap() - 1;
+                        position.row = suffix2.parse::<Row>().unwrap() - 1;
+                    } else {
+                        position.row = suffix1.parse::<Column>().unwrap() - 1;
+                    }
+                }
+                ctx.state.normalize_path(Path::new(path_str))
             };
 
             let buffer_handle;
@@ -164,6 +171,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             ctx.state.active_editor_view = Some(view_handle);
 
             let buffer = ctx.resources.buffers.get(buffer_handle);
+            position = buffer.limit_position_to_content(position);
             if let Some(format) = buffer.forced_format.as_ref() {
                 ctx.queue.set_state(ConfigState::FORMAT, format);
             }
@@ -172,6 +180,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             // hooked commands may behave correctly.
             ctx.queue
                 .set_state(ConfigState::FILE, path.to_str_or_err()?);
+
+            let sel = Selection::new().with_start_and_end(position, position);
+            ctx.queue.push(format!("selections-set {}", sel));
 
             if let Some(path) = buffer_opened_path {
                 ctx.queue.emit("buffer-opened", path.to_str_or_err()?);

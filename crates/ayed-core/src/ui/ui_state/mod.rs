@@ -48,13 +48,16 @@ impl PreparedUiPanel {
             if style.background_color.is_none() {
                 style.background_color = sr.style.background_color
             }
+            if style.underline_color.is_none() {
+                style.underline_color = sr.style.underline_color
+            }
             if !style.invert {
                 style.invert = sr.style.invert
             }
             if !style.bold {
                 style.bold = sr.style.bold
             }
-            if !style.underlined {
+            if style.underlined.is_none() {
                 style.underlined = sr.style.underlined
             }
         }

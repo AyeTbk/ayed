@@ -1,5 +1,10 @@
 use crate::{
-    command::CommandRegistry, config::Config, input::Input, state::regex_syntax_highlight,
+    command::CommandRegistry,
+    config::Config,
+    input::Input,
+    selection::Selection,
+    state::{Highlight, regex_syntax_highlight},
+    ui::{Color, Style, style::UnderlineKind, ui_state::StyledRegion},
 };
 
 pub fn register_config_commands(cr: &mut CommandRegistry) {
@@ -71,9 +76,34 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
             let buffer = ctx.resources.buffers.get(buffer_handle);
             let syntax = ctx.state.config.get_syntax();
             let syntax_style = ctx.state.config.get_syntax_sytle();
-            let highlights = regex_syntax_highlight(buffer, syntax, syntax_style);
+            let mut highlights = regex_syntax_highlight(buffer, syntax, syntax_style);
 
-            ctx.state.highlights.insert(buffer_handle, highlights);
+            // FIXME improve this whole highlights mess and separate syntax from diagnostics etc
+            if let Some(path) = buffer.path() {
+                for diag in ctx.state.diagnostics.for_file(path) {
+                    let diag_sel = Selection::from_range(diag.range);
+                    highlights.push(Highlight {
+                        styled_region: StyledRegion {
+                            from: diag_sel.start(),
+                            to: diag_sel.end(),
+                            style: Style {
+                                underline_color: Some(Color::RED), // TODO based on color theme!
+                                underlined: Some(UnderlineKind::Squiggle),
+                                ..Default::default()
+                            },
+                            priority: 233,
+                            ..Default::default()
+                        },
+                    });
+                }
+            }
+
+            ctx.state
+                .per_buffer
+                .entry(buffer_handle)
+                .or_default()
+                .highlights = highlights;
+
             Ok(())
         },
     );

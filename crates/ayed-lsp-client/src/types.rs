@@ -3,6 +3,14 @@ use std::path::Path;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Notification {
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: Option<Value>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Location {
@@ -23,6 +31,63 @@ pub struct CompletionItem {
     pub data: Option<Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishDiagnosticsParams {
+    pub uri: DocumentUri,
+    pub version: Option<i32>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostic {
+    pub range: Range,
+    pub severity: Option<i32>, // type DiagnosticSeverity
+    pub code: Option<DiagnosticCode>,
+    pub code_description: Option<CodeDescription>,
+    pub source: Option<String>,
+    pub message: String,
+    pub tags: Option<Vec<i32>>, // type DiagnosticTag
+    pub related_information: Option<Vec<DiagnosticRelatedInformation>>,
+    // pub data: Option<Value>,
+}
+
+pub struct DiagnosticSeverity;
+impl DiagnosticSeverity {
+    pub const ERROR: i32 = 1;
+    pub const WARNING: i32 = 2;
+    pub const INFORMATION: i32 = 3;
+    pub const HINT: i32 = 4;
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum DiagnosticCode {
+    Integer(i32),
+    String(String),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeDescription {
+    pub href: String,
+}
+
+pub struct DiagnosticTag;
+impl DiagnosticTag {
+    pub const UNNECESSARY: i32 = 1;
+    pub const DEPRECATED: i32 = 2;
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticRelatedInformation {
+    pub location: Location,
+    pub message: String,
+}
+
+#[deprecated]
 pub fn extract_completion_item_documentation(value: Option<Value>) -> Option<String> {
     let extract_string = |v: Value| {
         let Value::String(s) = v else {
@@ -72,10 +137,7 @@ pub struct ParameterInformation {
 #[serde(untagged)]
 pub enum Documentation {
     String(String),
-    MarkupContent {
-        kind: String,
-        value: String,
-    }
+    MarkupContent { kind: String, value: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

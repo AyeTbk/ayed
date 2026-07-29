@@ -254,7 +254,8 @@ impl Editor {
 
         // FIXME Same as above, doesnt support highlights that span multiple fragments
         // Syntax highlight
-        if let Some(highlights) = ctx.state.highlights.get(&view.buffer) {
+        if let Some(per_buffer) = ctx.state.per_buffer.get(&view.buffer) {
+            let highlights = &per_buffer.highlights;
             spans.extend(highlights.iter().map(|hl| {
                 let from = view.map_logical_position_to_view_position(hl.styled_region.from);
                 let to = view.map_logical_position_to_view_position(hl.styled_region.to);

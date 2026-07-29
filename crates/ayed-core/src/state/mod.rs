@@ -12,7 +12,7 @@ use crate::{
     panels::{Panels, list_picker::ListPickerState},
     position::Column,
     slotmap::Handle,
-    ui::{Rect, Size, Style},
+    ui::{Color, Rect, Size, Style},
 };
 
 mod text_buffer;
@@ -33,6 +33,9 @@ pub use register::Register;
 mod resources;
 pub use resources::Resources;
 
+mod diagnostics;
+pub use diagnostics::{Diagnostic, DiagnosticKind, DiagnosticSource, Diagnostics};
+
 mod completions;
 pub use completions::{
     CompletionItem, CompletionItemKind, CompletionSource, CompletionSourceData, Completions,
@@ -45,7 +48,8 @@ pub use modeline::{Align, ModelineInfo, ModelineState};
 pub struct State {
     pub is_async_task_ready: Arc<AtomicBool>,
     pub active_editor_view: Option<Handle<View>>,
-    pub highlights: HashMap<Handle<TextBuffer>, Vec<Highlight>>,
+    pub per_buffer: HashMap<Handle<TextBuffer>, PerBufferState>,
+    pub diagnostics: Diagnostics,
     pub completions: Completions,
     pub register: Register,
     pub config: Config,
@@ -63,6 +67,11 @@ pub struct State {
     pub delta_time: f32,
     pub working_directory: PathBuf,
     pub lsp_client: Option<LspClient>, // TODO Should be one per server type / configured file extension, i guess?
+}
+
+#[derive(Default)]
+pub struct PerBufferState {
+    pub highlights: Vec<Highlight>,
 }
 
 impl State {
@@ -120,6 +129,27 @@ impl State {
         };
 
         let mut infos = vec![mode_info, input_info];
+
+        let diagnostics_stats = self.diagnostics.stats();
+        let diagnostics_info = [
+            (diagnostics_stats.error_count, "⊙", Color::ERROR),
+            (diagnostics_stats.warning_count, "⊙", Color::WARNING),
+            (diagnostics_stats.other_count, "⊙", Color::INFO),
+        ];
+        for (count, icon, color) in diagnostics_info {
+            if count < 1 {
+                continue;
+            }
+            let info = ModelineInfo {
+                text: format!("{icon}{count}",),
+                style: Style {
+                    foreground_color: Some(color),
+                    ..Default::default()
+                },
+                align: Align::Left,
+            };
+            infos.push(info);
+        }
 
         if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
             let buffer = resources.buffers.get(active_editor_buffer_handle);

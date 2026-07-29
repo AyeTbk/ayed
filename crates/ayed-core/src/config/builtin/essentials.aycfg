@@ -36,6 +36,11 @@ mode normal {
 }
 
 
+# Essential for diagnostics
+hooks {
+    selections-modified diagnostics-hover
+}
+
 # Essential for completions
 completions {
     placement cursor
@@ -232,6 +237,12 @@ panel list-picker {
             buffer-modified file-picker-filter-list
         }
     }
+    list-picker-mode diagnostics {
+        hooks {
+            state-modified:panel diagnostics-picker-filter-list
+            buffer-modified diagnostics-picker-filter-list
+        }
+    }
 }
 
 # Essential for pending commands
@@ -420,11 +431,13 @@ hooks {
 mode combo-user {
     keybinds {
         e $[ set list-picker-mode file ; panel-focus list-picker ]
+        d $[ set list-picker-mode diagnostics ; panel-focus list-picker ]
         f set mode combo-file
         n message nothing
     }
     keybinds-doc {
         e File picker
+        d Diagnostics
         f File management
         n Nothing
     }
@@ -455,6 +468,8 @@ mode combo-goto {
         H move-to-edge --anchored line-start
         l move-to-edge line-past-end
         L move-to-edge --anchored line-past-end
+        n diagnostics-move-to
+        p diagnostics-move-to --previous
         d lsp-goto
     }
     keybinds-doc {
@@ -466,6 +481,8 @@ mode combo-goto {
         H Line start (anchored)
         l Line end
         L Line end (anchored)
+        n Next diagnostic
+        p Previous diagnostic
         d Goto definition (LSP)
     }
 }

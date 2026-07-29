@@ -19,7 +19,10 @@ use crate::{
     position::{Column, Position, Row},
     range::Range,
     selection::Selection,
-    state::{CompletionItem, CompletionItemKind, CompletionSource, TextEdit},
+    state::{
+        CompletionItem, CompletionItemKind, CompletionSource, Diagnostic, DiagnosticKind,
+        DiagnosticSource, TextEdit,
+    },
 };
 
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
@@ -115,6 +118,19 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                     ctx.queue.push(format!("edit {}", filepath.display()));
                     ctx.queue.push(format!("selections-set {}", selstr));
                     ctx.queue.push(format!("look-set-top {}", new_view_top));
+                }
+                Response::FileDiagnostics { file, diagnostics } => {
+                    let filepath = lsp_uri_to_filepath(file);
+                    let diags = lsp_diagnostics_to_diagnostics(diagnostics);
+                    ctx.state
+                        .diagnostics
+                        .sources
+                        .entry(DiagnosticSource::Lsp)
+                        .or_default()
+                        .insert(filepath, diags);
+
+                    // FIXME this smells
+                    ctx.queue.push("generate-highlights");
                 }
             }
         }
@@ -332,6 +348,41 @@ fn lsp_uri_to_filepath(uri: ayed_lsp_client::types::DocumentUri) -> PathBuf {
         unimplemented!("unknown lsp uri format: {uri:?}");
     };
     PathBuf::from(path)
+}
+
+fn lsp_diagnostics_to_diagnostics(
+    diags: Vec<ayed_lsp_client::types::Diagnostic>,
+) -> Vec<Diagnostic> {
+    diags
+        .into_iter()
+        .map(lsp_diagnostic_to_diagnostic)
+        .collect()
+}
+
+fn lsp_diagnostic_to_diagnostic(diag: ayed_lsp_client::types::Diagnostic) -> Diagnostic {
+    use ayed_lsp_client::types::DiagnosticSeverity as LspSeverity;
+    let kind = match diag.severity {
+        Some(LspSeverity::ERROR) => DiagnosticKind::Error,
+        Some(LspSeverity::WARNING) => DiagnosticKind::Warning,
+        _ => DiagnosticKind::Lint,
+    };
+
+    let mut range = lsp_range_to_range(diag.range);
+    if range.is_empty() {
+        range.end = range.end.offset((1, 0));
+    }
+
+    let mut message = diag.message;
+    if let Some(info) = diag.related_information {
+        message.push('\n');
+        message.push_str(&format!("{info:?}"));
+    }
+
+    Diagnostic {
+        kind,
+        range,
+        message,
+    }
 }
 
 fn lsp_completion_items_to_completion_items(

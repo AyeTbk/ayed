@@ -30,7 +30,9 @@ use crate::{
         build_initialize_request_json, build_resolve_completion_request_json,
         build_signature_help_request_json, build_suggest_completion_request_json,
     },
-    types::{CompletionItem, CompletionItemId, Location, Position, SignatureHelp, TextDocumentIdentifier},
+    types::{
+        CompletionItem, CompletionItemId, Location, Position, SignatureHelp, TextDocumentIdentifier,
+    },
 };
 
 const INITIALIZE_REQUEST_ID: i32 = 1;
@@ -280,13 +282,42 @@ impl LspClient {
     }
 
     pub fn receive_responses(&mut self) -> Vec<Response> {
-        let (resps, notifs) = self.recv_server_messages();
-
-        for notif in notifs {
-            log::debug!("{:?}", notif);
-        }
+        let (resps, notifications) = self.recv_server_messages();
 
         let mut responses = Vec::new();
+
+        for notification in notifications {
+            let notif: types::Notification;
+            match serde_json::from_value::<types::Notification>(notification) {
+                Ok(ok) => notif = ok,
+                Err(err) => {
+                    log::debug!("{:?}", err);
+                    continue;
+                }
+            };
+
+            match notif.method.as_str() {
+                "textDocument/publishDiagnostics" => {
+                    let Some(params) = notif.params else {
+                        continue;
+                    };
+                    let diag_params: types::PublishDiagnosticsParams;
+                    match serde_json::from_value::<types::PublishDiagnosticsParams>(params) {
+                        Ok(ok) => diag_params = ok,
+                        Err(err) => {
+                            log::debug!("{:?}", err);
+                            continue;
+                        }
+                    }
+                    responses.push(Response::FileDiagnostics {
+                        file: diag_params.uri,
+                        diagnostics: diag_params.diagnostics,
+                    });
+                }
+                _ => log::debug!("unsupported notif: {:?}", notif),
+            }
+        }
+
         for resp in resps {
             // log::debug!("{resp:?}"); // DEBUG
             // FIXME parse all those json values directly with serde instead of hand wrangling some shit.
@@ -390,7 +421,9 @@ impl LspClient {
                         log::debug!("lsp signature help: no active signature");
                         continue;
                     };
-                    let text = sighelp.signatures[active_signature as usize].label.to_string();
+                    let text = sighelp.signatures[active_signature as usize]
+                        .label
+                        .to_string();
                     responses.push(Response::SignatureHelp { text });
                 }
                 RequestType::Hover => {

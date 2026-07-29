@@ -67,13 +67,16 @@ impl RenderBuffer {
                 if style.background_color.is_none() || is_new_for_panel {
                     style.background_color = sr.style.background_color
                 }
+                if style.underline_color.is_none() || is_new_for_panel {
+                    style.underline_color = sr.style.underline_color
+                }
                 if !style.invert || is_new_for_panel {
                     style.invert = sr.style.invert
                 }
                 if !style.bold || is_new_for_panel {
                     style.bold = sr.style.bold
                 }
-                if !style.underlined || is_new_for_panel {
+                if style.underlined.is_none() || is_new_for_panel {
                     style.underlined = sr.style.underlined
                 }
             }

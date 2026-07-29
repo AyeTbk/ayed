@@ -23,8 +23,8 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
                 return Ok(());
             }
 
-            ctx.queue.push(command);
             ctx.queue.push("panel-focus editor");
+            ctx.queue.push(command);
 
             Ok(())
         }),
@@ -48,8 +48,13 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
         },
     );
 
-    // == File picker stuff ==
+    register_file_picker_commands(cr);
+    register_diagnostics_picker_commands(cr);
+}
 
+// == File picker stuff ==
+
+fn register_file_picker_commands(cr: &mut CommandRegistry) {
     cr.register(
         "file-picker-filter-list",
         "nodoc",
@@ -73,22 +78,18 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register(
-        "file-picker-fill-list",
-        "nodoc",
-        focused_buffer_command(|_opt, ctx| {
-            let ignore = get_gitignore_ignores(&ctx.state.working_directory); // FIXME make this "ignore paths source" configurable.
-            match file_picker_fill_list(&ctx.state, "", &ignore) {
-                Ok(list) => {
-                    ctx.state.list_picker.raw_items = list.clone();
-                    ctx.state.list_picker.items = file_list_to_file_tree(list);
-                }
-                Err(err) => return Err(err.to_string()),
+    cr.register("file-picker-fill-list", "nodoc", |_opt, ctx| {
+        let ignore = get_gitignore_ignores(&ctx.state.working_directory); // FIXME make this "ignore paths source" configurable.
+        match file_picker_fill_list(&ctx.state, "", &ignore) {
+            Ok(list) => {
+                ctx.state.list_picker.raw_items = list.clone();
+                ctx.state.list_picker.items = file_list_to_file_tree(list);
             }
-            ctx.state.list_picker.reselect();
-            Ok(())
-        }),
-    );
+            Err(err) => return Err(err.to_string()),
+        }
+        ctx.state.list_picker.reselect();
+        Ok(())
+    });
 }
 
 fn get_gitignore_ignores(cwd: &Path) -> Vec<PathBuf> {
@@ -245,4 +246,38 @@ fn file_list_to_file_tree(list: Vec<ListPickerItem>) -> Vec<ListPickerItem> {
     aux(0, &nodes, "", 0, &mut out);
 
     return out;
+}
+
+// == Diagnostics picker stuff ==
+
+fn register_diagnostics_picker_commands(cr: &mut CommandRegistry) {
+    cr.register(
+        "diagnostics-picker-filter-list",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let filter = ctx.buffer.line(0).unwrap_or_default();
+            let filters: Vec<&str> = filter.split_ascii_whitespace().collect();
+
+            let mut filtered_list = Vec::new();
+            'raw_item: for (path, diag) in ctx.state.diagnostics.iter() {
+                // Does filtering this even makes sense?
+                for filter in &filters {
+                    if !diag.message.contains(filter) {
+                        continue 'raw_item;
+                    }
+                }
+                let command = format!("edit {}:{}", path.to_string_lossy(), diag.range.start.offset((1,1)));
+                filtered_list.push(ListPickerItem {
+                    kind: ListPickerItemKind::Item,
+                    label: diag.message.clone(),
+                    command: command,
+                    filter_text: String::new(),
+                });
+            }
+
+            ctx.state.list_picker.items = filtered_list;
+            ctx.state.list_picker.reselect();
+            Ok(())
+        }),
+    );
 }

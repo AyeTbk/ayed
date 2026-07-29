@@ -1,6 +1,8 @@
 use serde_json::{Value, json};
 
-use crate::types::{CompletionItem, Position, TextDocumentIdentifier, TextDocumentPositionParams};
+use crate::types::{
+    CompletionItem, DiagnosticTag, Position, TextDocumentIdentifier, TextDocumentPositionParams,
+};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum RequestType {
@@ -53,6 +55,15 @@ pub fn build_initialize_request_json(request_id: i32) -> Value {
                             },
                             "activeParameterSupport": true,
                         }
+                    },
+                    "publishDiagnosticsClientCapabilities": {
+                        "relatedInformation": true,
+                        "tagSupport": {
+                            "valueSet": [DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED],
+                        },
+                        "versionSupport": true,
+                        "codeDescriptionSupport": true,
+                        // "dataSupport": true,
                     }
                 },
             },
