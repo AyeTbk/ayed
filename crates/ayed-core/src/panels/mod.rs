@@ -15,8 +15,8 @@ pub use self::prompt::Prompt;
 pub mod status_bar;
 pub use self::status_bar::StatusBar;
 
-pub mod file_picker;
-pub use self::file_picker::FilePicker;
+pub mod list_picker;
+pub use self::list_picker::ListPicker;
 
 pub mod hover_info;
 pub use self::hover_info::HoverInfo;
@@ -42,7 +42,7 @@ impl Default for Panels {
                 Box::new(Prompt::default()),
                 Box::new(StatusBar::default()),
                 Box::new(Warpdrive::default()),
-                Box::new(FilePicker::default()),
+                Box::new(ListPicker::default()),
                 Box::new(HoverInfo::default()),
                 Box::new(Combo::default()),
                 Box::new(Completions::default()),

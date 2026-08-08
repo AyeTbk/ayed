@@ -207,9 +207,9 @@ hooks {
     panel-focus  set prompt-mode $""
 }
 
-# Essential for file-picker
+# Essential for list-picker
 @override
-panel file-picker {
+panel list-picker {
     use basic-movement
     use basic-deletion
 
@@ -217,18 +217,20 @@ panel file-picker {
         <esc> panel-focus editor
         <c-space> panel-focus editor
 
-        <ret> file-picker-confirm
+        <ret> list-picker-confirm
 
-        <up> file-picker-select --previous
-        <down> file-picker-select --next
+        <up> list-picker-select --previous
+        <down> list-picker-select --next
 
         else insert-char
     }
 }
-panel file-picker {
-    hooks {
-        state-modified:panel file-picker-fill-list
-        buffer-modified file-picker-fill-list
+panel list-picker {
+    list-picker-mode file {
+        hooks {
+            state-modified:panel file-picker-fill-list
+            buffer-modified file-picker-filter-list
+        }
     }
 }
 
@@ -417,7 +419,7 @@ hooks {
 
 mode combo-user {
     keybinds {
-        e panel-focus file-picker
+        e $[ set list-picker-mode file ; panel-focus list-picker ]
         f set mode combo-file
         n message nothing
     }

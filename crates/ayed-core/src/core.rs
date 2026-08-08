@@ -5,7 +5,7 @@ use crate::{
     commands, config,
     input::Input,
     logger::Logger,
-    panels::{self, Editor, FilePicker, PanelContext, Panels, Prompt},
+    panels::{self, Editor, PanelContext, Panels, Prompt},
     state::{Resources, State},
     ui::{Size, ui_state::UiState},
 };
@@ -33,7 +33,6 @@ impl Core {
         this.state.config = config::make_builtin_config();
 
         panels::warpdrive::commands::register_warpdrive_commands(&mut this.commands);
-        panels::file_picker::commands::register_file_picker_commands(&mut this.commands);
 
         this.state.working_directory = std::env::current_dir().unwrap();
 
@@ -199,7 +198,6 @@ impl Core {
         };
         self.state.editor_line_numbers_width = editor_panel.line_numbers_width(&ctx);
 
-        self.state.file_picker_rect = self.panels.panel_of_type::<FilePicker>().unwrap().rect();
         self.state.modeline_rect = self.panels.panel_of_type::<Prompt>().unwrap().rect();
 
         // Needed for positioning Completion panel.
