@@ -9,7 +9,7 @@ use ayed_lsp_client::{
     LspClient, Notification, Response,
     types::{
         DocumentUri, LanguageId, TextDocumentIdentifier, TextDocumentItem,
-        VersionedTextDocumentIdentifier, extract_completion_item_documentation,
+        VersionedTextDocumentIdentifier,
     },
 };
 use log::{debug, info};
@@ -430,7 +430,7 @@ fn lsp_completion_item_to_completion_item(
     } else {
         None
     };
-    let documentation = extract_completion_item_documentation(item.documentation);
+    let documentation = item.documentation.map(|d| d.text().to_string());
     CompletionItem {
         label: item.label,
         text: item.text_edit.new_text,

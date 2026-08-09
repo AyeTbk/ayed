@@ -27,8 +27,31 @@ pub struct CompletionItem {
     pub additional_text_edits: Option<Vec<TextEdit>>,
     pub kind: Option<i32>,
     pub detail: Option<String>,
-    pub documentation: Option<Value>, // FIXME use the client capabilities to specify the exact type.
+    pub documentation: Option<CompletionItemDocumentation>,
     pub data: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CompletionItemDocumentation {
+    Markup(MarkupContent),
+    String(String),
+}
+
+impl CompletionItemDocumentation {
+    pub fn text(&self) -> &str {
+        match self {
+            Self::Markup(mc) => &mc.value,
+            Self::String(s) => s,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkupContent {
+    kind: String,
+    value: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -85,21 +108,6 @@ impl DiagnosticTag {
 pub struct DiagnosticRelatedInformation {
     pub location: Location,
     pub message: String,
-}
-
-#[deprecated]
-pub fn extract_completion_item_documentation(value: Option<Value>) -> Option<String> {
-    let extract_string = |v: Value| {
-        let Value::String(s) = v else {
-            return None;
-        };
-        return Some(s);
-    };
-    match value? {
-        Value::String(s) => Some(s),
-        Value::Object(mut map) => extract_string(map.remove("value")?),
-        _ => None,
-    }
 }
 
 /// Id for client side completion items identification. Not in the spec.

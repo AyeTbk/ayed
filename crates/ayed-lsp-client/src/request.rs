@@ -37,7 +37,7 @@ pub fn build_initialize_request_json(request_id: i32) -> Value {
                 "textDocument": {
                     "completion": {
                         "completionItem": {
-                            "documentationFormat": ["plaintext"],
+                            "documentationFormat": ["plaintext", "markdown"],
                             "resolveSupport": {
                                 "properties": [
                                     "additionalTextEdits",

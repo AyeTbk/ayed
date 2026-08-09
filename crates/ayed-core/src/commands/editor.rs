@@ -7,7 +7,12 @@ use crate::{
         CommandRegistry,
         helpers::{ErrorExt, alias, focused_buffer_command, register_selection_movement},
         options::Options,
-    }, config::ConfigState, position::{Column, Offset, Position, Row}, selection::{Selection, Selections}, state::View, utils::{
+    },
+    config::ConfigState,
+    position::{Column, Offset, Position, Row},
+    selection::{Selection, Selections},
+    state::View,
+    utils::{
         path_ext::PathExt,
         string_utils::{
             byte_index_to_char_index, char_count,
