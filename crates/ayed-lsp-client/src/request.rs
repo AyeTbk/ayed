@@ -56,15 +56,22 @@ pub fn build_initialize_request_json(request_id: i32) -> Value {
                             "activeParameterSupport": true,
                         }
                     },
-                    "publishDiagnosticsClientCapabilities": {
+                    "publishDiagnostics": {
                         "relatedInformation": true,
                         "tagSupport": {
                             "valueSet": [DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED],
                         },
-                        "versionSupport": true,
+                        "versionSupport": false,
                         "codeDescriptionSupport": true,
-                        // "dataSupport": true,
-                    }
+                        "dataSupport": false,
+                    },
+                    // Pull diagnostics, not for now!
+                    // "diagnostics": {
+                    //     "relatedDocumentSupport": true,
+                    //     "relatedInformation": true,
+                    //     "codeDescriptionSupport": true,
+                    //     "dataSupport": false,
+                    // }
                 },
             },
             "rootUri": Value::Null,

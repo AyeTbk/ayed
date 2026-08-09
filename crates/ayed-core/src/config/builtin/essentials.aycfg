@@ -83,6 +83,7 @@ hooks {
     time-tick lsp-poll
     buffer-opened lsp-doc-sync-open
     buffer-modified lsp-doc-sync-change
+    buffer-saved lsp-doc-sync-save
     buffer-closed lsp-doc-sync-close
 
     buffer-opened lsp-start

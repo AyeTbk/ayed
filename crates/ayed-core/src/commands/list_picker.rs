@@ -1,12 +1,12 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
 };
 
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     panels::list_picker::{ListPickerItem, ListPickerItemKind},
-    state::State,
+    state::{Diagnostic, DiagnosticKind, State},
 };
 
 pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
@@ -258,21 +258,53 @@ fn register_diagnostics_picker_commands(cr: &mut CommandRegistry) {
             let filter = ctx.buffer.line(0).unwrap_or_default();
             let filters: Vec<&str> = filter.split_ascii_whitespace().collect();
 
-            let mut filtered_list = Vec::new();
-            'raw_item: for (path, diag) in ctx.state.diagnostics.iter() {
+            use DiagnosticKind as Dk;
+
+            let mut kind_buckets = HashMap::<Dk, Vec<(&Path, &Diagnostic)>>::new();
+            let mut previous_kind = Dk::Lint; // randomly picked idc
+            'bucket: for (path, diag) in ctx.state.diagnostics.iter() {
                 // Does filtering this even makes sense?
                 for filter in &filters {
                     if !diag.message.contains(filter) {
-                        continue 'raw_item;
+                        continue 'bucket;
                     }
                 }
-                let command = format!("edit {}:{}", path.to_string_lossy(), diag.range.start.offset((1,1)));
+                // Lump ExtraInfos with the previous entry.
+                let kind = if diag.kind == Dk::ExtraInfo {
+                    previous_kind
+                } else {
+                    previous_kind = diag.kind;
+                    diag.kind
+                };
+
+                kind_buckets.entry(kind).or_default().push((path, diag));
+            }
+
+            let mut filtered_list = Vec::new();
+            for kind in [Dk::Error, Dk::Warning, Dk::Lint] {
+                let bucket = kind_buckets.remove(&kind).unwrap_or_default();
+                if bucket.is_empty() {
+                    continue;
+                }
                 filtered_list.push(ListPickerItem {
-                    kind: ListPickerItemKind::Item,
-                    label: diag.message.clone(),
-                    command: command,
+                    kind: ListPickerItemKind::Section,
+                    label: format!("{kind:?}s"),
+                    command: String::new(),
                     filter_text: String::new(),
                 });
+                for (path, diag) in bucket {
+                    let command = format!(
+                        "edit {}:{}",
+                        path.to_string_lossy(),
+                        diag.range.start.offset((1, 1))
+                    );
+                    filtered_list.push(ListPickerItem {
+                        kind: ListPickerItemKind::Item,
+                        label: format!("  {}", diag.message),
+                        command: command,
+                        filter_text: String::new(),
+                    });
+                }
             }
 
             ctx.state.list_picker.items = filtered_list;

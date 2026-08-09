@@ -38,6 +38,7 @@ impl Diagnostics {
             match diag.kind {
                 DiagnosticKind::Error => stats.error_count += 1,
                 DiagnosticKind::Warning => stats.warning_count += 1,
+                DiagnosticKind::ExtraInfo => (/* ignore this one :) */),
                 _ => stats.other_count += 1,
             }
         }
@@ -57,10 +58,14 @@ pub enum DiagnosticSource {
     Lsp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DiagnosticKind {
     Error,
     Warning,
     Lint,
+    // A fake lint that is actually just some extra info for an other lint.
+    // Only exists to provide half-assed support for hint-severity LSP diagnostics.
+    ExtraInfo,
 }
 
 pub struct Diagnostic {

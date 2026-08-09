@@ -41,6 +41,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             ctx.buffer.write()?;
 
             if let Some(path) = ctx.buffer.path() {
+                ctx.queue
+                    .push(format!("buffer-saved {}", path.to_string_lossy()));
+
                 let denormalized_path = ctx.state.denormalize_path(path);
                 ctx.queue
                     .push(format!("message written to {denormalized_path:?}",));

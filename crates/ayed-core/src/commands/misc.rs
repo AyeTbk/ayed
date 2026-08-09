@@ -7,10 +7,15 @@ use std::{
 use regex::Regex;
 
 use crate::{
-    command::{CommandRegistry, helpers::focused_buffer_command, options::Options}, position::{Column, Position}, range::Range, selection::Selection, state::{
+    command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
+    position::{Column, Position},
+    range::Range,
+    selection::Selection,
+    state::{
         CompletionItem, CompletionItemKind, CompletionSource, CompletionSourceData, TextBuffer,
         TextEdit,
-    }, utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
+    },
+    utils::string_utils::{byte_index_to_char_index, char_index_to_byte_index},
 };
 
 static RE_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w[\w!\-]*").unwrap());
@@ -424,6 +429,7 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             for diag in diags {
                 if diag.range.contains(cursor) {
                     ctx.state.hover_info = Some(diag.message.clone());
+                    break;
                 }
             }
             Ok(())
@@ -478,10 +484,14 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             }
 
             let mut nearest_diag = None;
-            if let Some(nearest) = nearest_before_cursor && previous {
+            if let Some(nearest) = nearest_before_cursor
+                && previous
+            {
                 nearest_diag = Some(nearest.1);
             }
-            if let Some(nearest) = nearest_after_cursor && next {
+            if let Some(nearest) = nearest_after_cursor
+                && next
+            {
                 nearest_diag = Some(nearest.1);
             }
             if let Some(nearest_diag) = nearest_diag {

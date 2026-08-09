@@ -125,14 +125,14 @@ fn render_list_content(
     let mut content = Vec::new();
     let mut spans = Vec::new();
 
-    let file_list_is_empty = ctx.state.list_picker.items.is_empty();
+    let list_is_empty = ctx.state.list_picker.items.is_empty();
 
     for y in 0..size.row {
         let mut style = default_style;
-        if !file_list_is_empty && y as usize == ctx.state.list_picker.selected_item {
+        if !list_is_empty && y as usize == ctx.state.list_picker.selected_item {
             style.invert = true;
         }
-        let text = if file_list_is_empty && y == 0 {
+        let text = if list_is_empty && y == 0 {
             style.foreground_color = Some(Color::rgb(112, 112, 112));
             "nothing to see here"
         } else if let Some(item) = ctx.state.list_picker.items.get(y as usize) {
@@ -143,7 +143,10 @@ fn render_list_content(
                 style.foreground_color = text_color;
             }
 
-            &item.label
+            item.label
+                .split_once('\n')
+                .map(|(l, _)| l)
+                .unwrap_or(&item.label)
         } else {
             ""
         };

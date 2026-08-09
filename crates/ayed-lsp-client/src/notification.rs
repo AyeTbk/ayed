@@ -12,6 +12,9 @@ pub enum Notification {
         text_document: VersionedTextDocumentIdentifier,
         new_content: String,
     },
+    TextDocumentDidSave {
+        text_document: TextDocumentIdentifier,
+    },
     TextDocumentDidClose {
         text_document: TextDocumentIdentifier,
     },
@@ -43,6 +46,14 @@ pub fn convert_notification_to_json(notif: Notification) -> Value {
                 "contentChanges": [{
                     "text": new_content,
                 }],
+            },
+        }),
+        N::TextDocumentDidSave { text_document } => json!({
+            "jsonrpc": JSON_RPC_VERSION,
+            "method": "textDocument/didSave",
+            "params": {
+                "textDocument": text_document,
+                // TODO include "text" field
             },
         }),
         N::TextDocumentDidClose { text_document } => json!({

@@ -3,7 +3,7 @@ use crate::{
     config::Config,
     input::Input,
     selection::Selection,
-    state::{Highlight, regex_syntax_highlight},
+    state::{DiagnosticKind, Highlight, regex_syntax_highlight},
     ui::{Color, Style, style::UnderlineKind, ui_state::StyledRegion},
 };
 
@@ -82,12 +82,17 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
             if let Some(path) = buffer.path() {
                 for diag in ctx.state.diagnostics.for_file(path) {
                     let diag_sel = Selection::from_range(diag.range);
+                    let squiggle_color = match diag.kind {
+                        DiagnosticKind::Error => Color::ERROR,
+                        DiagnosticKind::Warning => Color::WARNING,
+                        _ => Color::INFO,
+                    };
                     highlights.push(Highlight {
                         styled_region: StyledRegion {
                             from: diag_sel.start(),
                             to: diag_sel.end(),
                             style: Style {
-                                underline_color: Some(Color::RED), // TODO based on color theme!
+                                underline_color: Some(squiggle_color),
                                 underlined: Some(UnderlineKind::Squiggle),
                                 ..Default::default()
                             },

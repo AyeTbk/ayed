@@ -451,7 +451,7 @@ impl LspClient {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct RequestMetadata {
     typ: RequestType,
     completion_item_id: CompletionItemId,

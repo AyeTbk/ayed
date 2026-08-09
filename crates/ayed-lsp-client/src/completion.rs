@@ -26,7 +26,6 @@ impl Completion {
 
     pub fn resolve_item(&mut self, idx: u32, generation: u32, item: CompletionItem) -> bool {
         if generation != self.generation {
-            log::warn!("ignored a stale completion item resolve.");
             return false;
         }
         let idx = idx as usize;

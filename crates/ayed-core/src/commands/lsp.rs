@@ -194,6 +194,30 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("lsp-doc-sync-save", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
+        let Some(client) = &mut ctx.state.lsp_client else {
+            return Ok(());
+        };
+
+        let buffer_path = Path::new(opt);
+        if opt.is_empty() {
+            return Ok(());
+        }
+
+        if ctx.resources.buffer_with_path(buffer_path).is_none() {
+            return Err(format!("no buffer with path '{}'", opt));
+        };
+
+        client.queue_notification(Notification::TextDocumentDidSave {
+            text_document: TextDocumentIdentifier {
+                uri: DocumentUri::new(buffer_path),
+            },
+        });
+
+        Ok(())
+    });
+
     cr.register("lsp-doc-sync-close", "nodoc", |opt, ctx| {
         let opt = opt.raw();
         let Some(client) = &mut ctx.state.lsp_client else {
@@ -364,6 +388,7 @@ fn lsp_diagnostic_to_diagnostic(diag: ayed_lsp_client::types::Diagnostic) -> Dia
     let kind = match diag.severity {
         Some(LspSeverity::ERROR) => DiagnosticKind::Error,
         Some(LspSeverity::WARNING) => DiagnosticKind::Warning,
+        Some(LspSeverity::HINT) => DiagnosticKind::ExtraInfo,
         _ => DiagnosticKind::Lint,
     };
 
