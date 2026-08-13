@@ -1,3 +1,9 @@
+# Priority
+- File list doesnt show src and doesnt ignore gitinore in cranelift-test toy repo
+- Need an open buffers list
+- diagnostics hover info box is often in the way
+
+# Uncatergorized
 - better, context aware, language aware, configurable indent handling
 - fix warpdrive mishandling of logical content (ie: when tabs are present)
 - fix saving messes up/loses file permissions (+x confirmed via dtm)

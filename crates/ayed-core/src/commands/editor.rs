@@ -13,7 +13,7 @@ use crate::{
     selection::{Selection, Selections},
     state::View,
     utils::{
-        path_ext::PathExt,
+        path::PathExt,
         string_utils::{
             byte_index_to_char_index, char_count,
             ops::{is_whitespace, take_while},

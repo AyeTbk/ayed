@@ -93,6 +93,7 @@ fn register_file_picker_commands(cr: &mut CommandRegistry) {
 }
 
 fn get_gitignore_ignores(cwd: &Path) -> Vec<PathBuf> {
+    // FIXME also need to check .git/info/exclude
     let Ok(gitignore) = std::fs::read_to_string(cwd.join(".gitignore")) else {
         return vec![];
     };
@@ -101,6 +102,7 @@ fn get_gitignore_ignores(cwd: &Path) -> Vec<PathBuf> {
         .map(str::trim)
         .chain([".git/", ".jj/"])
         .map(|p| Path::new(p).to_path_buf())
+        .filter(|p| p != Path::new(""))
         .collect()
 }
 
@@ -113,7 +115,6 @@ fn file_picker_fill_list(
     // denormalize_path method. Maybe denormalize could be a standalone util
     // and just pass the working_directory instead?
     let working_directory = state.working_directory.clone();
-
     fn aux(
         filters: &[&str],
         dir_path: &Path,
