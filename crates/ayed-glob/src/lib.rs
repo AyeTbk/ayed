@@ -1,3 +1,5 @@
+use std::path::Path;
+
 #[derive(Debug)]
 pub struct Glob {
     nodes: Vec<Node>,
@@ -8,19 +10,29 @@ impl Glob {
         compile(pattern)
     }
 
+    pub fn is_match_path(&self, p: impl AsRef<Path>, is_file: bool) -> bool {
+        // this is ugly
+        self.is_match_internal(p.as_ref().to_string_lossy().as_ref(), is_file)
+    }
+
     pub fn is_match(&self, s: &str) -> bool {
+        self.is_match_internal(s, false)
+    }
+
+    fn is_match_internal(&self, s: &str, is_file: bool) -> bool {
         // TODO rework this whole thing to match nodes to `s` directly,
         // instead of trying to split in components.
         // Make it less resilient wrt extraneous/duplicate '/'.
         // Document its expectations.
 
+        // this is ugly too. id rather the algo just works, if possible
         match (&self.nodes[..], s) {
-            (&[Node::PathSep], "/") => return true,
+            (&[Node::PathSep], "/") => return !is_file,
             (&[Node::PathSep], "") => return false,
             (&[], "") => return true,
             (&[], "/") => return false,
             (&[Node::Globstar], _) => return true,
-            (&[Node::Globstar, Node::PathSep], _) => return true,
+            (&[Node::Globstar, Node::PathSep], _) => return !is_file,
             _ => (),
         }
 
@@ -30,10 +42,16 @@ impl Glob {
             .filter(|(i, s)| *i == 0 || !s.is_empty())
             .map(|(_, s)| s)
             .collect::<Vec<_>>();
-        self.match_components(&components, 0, 0)
+        self.match_components(&components, 0, 0, is_file)
     }
 
-    fn match_components(&self, components: &[&str], i_comp: usize, i_node: usize) -> bool {
+    fn match_components(
+        &self,
+        components: &[&str],
+        i_comp: usize,
+        i_node: usize,
+        is_file: bool,
+    ) -> bool {
         let mut i_comp = i_comp;
         let mut i_node = i_node;
         loop {
@@ -44,7 +62,7 @@ impl Glob {
 
             if let Some(Node::Globstar) = self.nodes.get(i_node) {
                 for j_comp in i_comp..components.len() {
-                    if self.match_components(components, j_comp, i_node + 2) {
+                    if self.match_components(components, j_comp, i_node + 2, is_file) {
                         return true;
                     }
                 }
@@ -53,15 +71,18 @@ impl Glob {
                 i_node = next_i_node;
                 i_comp += 1;
 
-                // Check for PathSep between components.
-                let node_is_pathsep = matches!(self.nodes.get(i_node), Some(Node::PathSep));
+                // Note, because of self.match_component above, next_node is
+                // either None or Some(Node::PathSep).
+                let next_node = self.nodes.get(i_node);
+                let next_node_is_pathsep = matches!(next_node, Some(Node::PathSep));
                 let component_was_last = i_comp == components.len();
-                if node_is_pathsep {
+                let next_node_is_last = i_node + 1 >= self.nodes.len();
+
+                // Check for PathSep between components, and check for terminating PathSep.
+                if component_was_last && next_node_is_last {
+                    return next_node.is_none() || !is_file;
+                } else if next_node_is_pathsep {
                     i_node += 1;
-                } else if !component_was_last {
-                    // Components must be separated by PathSep, but it's
-                    // optional for the final component.
-                    return false;
                 }
             } else {
                 return false;
@@ -417,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn trailing_pathsep_is_optional() {
+    fn trailing_pathsep_is_optional_for_is_match() {
         assert!(Glob::new(".").is_match("."));
         assert!(Glob::new(".").is_match("./"));
 
@@ -552,6 +573,39 @@ mod tests {
         assert!(Glob::new("**/ebcdic").is_match("ebcdic"));
         assert!(Glob::new("**/ebcdic").is_match("haha/awd/aas/ebcdic"));
         assert!(Glob::new("**/**/ebcdic").is_match("haha/awd/aas/ebcdic"));
+    }
+
+    #[test]
+    fn globstar_works_with_is_file() {
+        // See test `is_file_works`
+        assert!(Glob::new("**").is_match_path("haha/awd/aas/ebcdic", true));
+        assert!(!Glob::new("**/").is_match_path("haha/awd/aas/ebcdic", true));
+
+        assert!(Glob::new("**").is_match_path("haha/awd/aas/ebcdic", false));
+        assert!(Glob::new("**/").is_match_path("haha/awd/aas/ebcdic", false));
+    }
+
+    #[test]
+    fn is_file_works() {
+        // A trailing pathsep in the pattern excludes files.
+        // Good
+        assert!(Glob::new("*").is_match_path("a-file", true));
+        assert!(Glob::new("*").is_match_path("a-file/", true));
+        // Bad
+        assert!(!Glob::new("*/").is_match_path("a-file", true));
+        assert!(!Glob::new("*/").is_match_path("a-file/", true));
+
+        // Dirs are unbothered, unchallenged, undefeated.
+        assert!(Glob::new("*").is_match_path("a-dir", false));
+        assert!(Glob::new("*").is_match_path("a-dir/", false));
+        assert!(Glob::new("*/").is_match_path("a-dir", false));
+        assert!(Glob::new("*/").is_match_path("a-dir/", false));
+    }
+
+    #[test]
+    fn should_match_completely_duh() {
+        assert!(!Glob::new("/crates/ayed-tui/stderr.txt").is_match_path("/crates/ayed-tui", false));
+        assert!(!Glob::new("**/ayed-tui/stderr.txt").is_match_path("/crates/ayed-tui", false));
     }
 
     // TODO

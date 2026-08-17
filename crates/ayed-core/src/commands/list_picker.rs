@@ -1,7 +1,10 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    path::Path,
 };
+
+use ayed_glob::Glob;
 
 use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
@@ -92,24 +95,35 @@ fn register_file_picker_commands(cr: &mut CommandRegistry) {
     });
 }
 
-fn get_gitignore_ignores(cwd: &Path) -> Vec<PathBuf> {
+fn get_gitignore_ignores(cwd: &Path) -> Vec<Glob> {
     // FIXME also need to check .git/info/exclude
     let Ok(gitignore) = std::fs::read_to_string(cwd.join(".gitignore")) else {
         return vec![];
     };
+    // NOTE In gitignore files, one can 'un-ignore' a file by prepending the
+    // pattern with a '!'. This is sensitive to the order in which the
+    // patterns are defined in the file (last one wins).
+    // TODO support this '!' stuff
     gitignore
         .split('\n')
         .map(str::trim)
+        .filter(|l| !l.is_empty())
         .chain([".git/", ".jj/"])
-        .map(|p| Path::new(p).to_path_buf())
-        .filter(|p| p != Path::new(""))
+        .map(|rule| {
+            let pattern = if rule.starts_with('/') {
+                Cow::Borrowed(rule)
+            } else {
+                Cow::Owned(format!("**/{rule}"))
+            };
+            Glob::new(pattern.as_ref())
+        })
         .collect()
 }
 
 fn file_picker_fill_list(
     state: &State,
     filter: &str,
-    ignore: &[PathBuf],
+    ignore: &[Glob],
 ) -> std::io::Result<Vec<ListPickerItem>> {
     // FIXME The state param is only used for the working dir and the
     // denormalize_path method. Maybe denormalize could be a standalone util
@@ -120,17 +134,28 @@ fn file_picker_fill_list(
         dir_path: &Path,
         list: &mut Vec<ListPickerItem>,
         state: &State,
-        ignore: &[PathBuf],
+        ignore: &[Glob],
     ) -> std::io::Result<()> {
-        if list.len() > 200 {
+        // FIXME This hardcoded limit really sucks
+        if list.len() > 500 {
             return Ok(());
         }
         'entry: for maybe_entry in std::fs::read_dir(dir_path)? {
             let Ok(entry) = maybe_entry else { continue };
             let path = state.denormalize_path(&entry.path());
-            if ignore.contains(&path) {
-                continue;
+
+            // Filter out stuff that matches rules in .*ignore files.
+            // TODO properly support making path 'rooted' at the level of their
+            // respective repo, rather than at the level of the cwd.
+            let path_is_file = entry.metadata().map(|m| m.is_file()).unwrap_or_default();
+            let mut path_for_ignoring = Path::new("/").to_path_buf();
+            path_for_ignoring.push(&path);
+            for ignore_pattern in ignore {
+                if ignore_pattern.is_match_path(&path_for_ignoring, path_is_file) {
+                    continue 'entry;
+                }
             }
+
             if entry.file_type()?.is_dir() {
                 aux(filters, &entry.path(), list, state, ignore)?;
             } else {
