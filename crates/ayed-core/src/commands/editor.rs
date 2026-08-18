@@ -117,6 +117,33 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Ok(())
     });
 
+    cr.register("buffer", "nodoc", |opt, ctx| {
+        let name = opt.remainder();
+        let Some(buffer_handle) = ctx.resources.buffer_with_name(name) else {
+            return Err(format!("no buffer named '{name}'"));
+        };
+
+        let view_handle = match ctx.resources.view_with_buffer(buffer_handle) {
+            Some(handle) => handle,
+            None => {
+                let view = ctx.resources.views.insert(View {
+                    top_left: Position::ZERO,
+                    buffer: buffer_handle,
+                });
+
+                ctx.resources
+                    .buffers
+                    .get_mut(buffer_handle)
+                    .set_view_selections(view, Selections::new());
+
+                view
+            }
+        };
+
+        ctx.state.active_editor_view = Some(view_handle);
+        Ok(())
+    });
+
     cr.register(
         "edit",
         Options::new().doc("nodoc").flag("scratch"),

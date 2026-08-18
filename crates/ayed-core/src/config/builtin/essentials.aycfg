@@ -232,15 +232,21 @@ panel list-picker {
     }
 }
 panel list-picker {
+    list-picker-mode buffer {
+        hooks {
+            state-modified:list-picker-mode buffer-picker-filter-list
+            buffer-modified buffer-picker-filter-list
+        }
+    }
     list-picker-mode file {
         hooks {
-            state-modified:panel file-picker-fill-list
+            state-modified:list-picker-mode $[ file-picker-fill-list ; file-picker-filter-list ]
             buffer-modified file-picker-filter-list
         }
     }
     list-picker-mode diagnostics {
         hooks {
-            state-modified:panel diagnostics-picker-filter-list
+            state-modified:list-picker-mode diagnostics-picker-filter-list
             buffer-modified diagnostics-picker-filter-list
         }
     }
@@ -431,12 +437,14 @@ hooks {
 
 mode combo-user {
     keybinds {
-        e $[ set list-picker-mode file ; panel-focus list-picker ]
-        d $[ set list-picker-mode diagnostics ; panel-focus list-picker ]
+        b $[ panel-focus list-picker ; set list-picker-mode buffer ]
+        e $[ panel-focus list-picker ; set list-picker-mode file ]
+        d $[ panel-focus list-picker ; set list-picker-mode diagnostics ]
         f set mode combo-file
         n message nothing
     }
     keybinds-doc {
+        b Buffer picker
         e File picker
         d Diagnostics
         f File management

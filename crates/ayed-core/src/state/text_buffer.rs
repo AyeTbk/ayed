@@ -30,6 +30,7 @@ use super::View;
 pub struct TextBuffer {
     pub lines: Vec<String>,
     pub selections: HashMap<Handle<View>, Selections>,
+    name: String,
     pub path: Option<PathBuf>,
     pub dirty: Cell<bool>, // Using Cell just to allow write_atomic and write_to_atomic to be non mut.
 
@@ -39,18 +40,23 @@ pub struct TextBuffer {
     pub content_version: Cell<i32>,
     /// File format the user set.
     pub forced_format: Option<String>,
+    pub internal_use_only: bool,
 }
 
 impl TextBuffer {
-    pub fn new_empty() -> Self {
+    pub fn new_internal(name: impl Into<String>) -> Self {
         Self {
-            lines: vec![String::new()], // Uphold #1.
-            selections: Default::default(),
-            path: None,
-            dirty: Default::default(),
-            history: Default::default(),
-            content_version: Default::default(),
-            forced_format: None,
+            name: name.into(),
+            internal_use_only: true,
+            ..Self::default()
+        }
+    }
+
+    pub fn new_named(name: impl Into<String>) -> Self {
+        Self {
+            lines: vec![String::new()],
+            name: name.into(),
+            ..Self::default()
         }
     }
 
@@ -61,13 +67,24 @@ impl TextBuffer {
         let lines = content.split('\n').map(str::to_string).collect();
         Ok(Self {
             lines,
-            selections: Default::default(),
             path: Some(path.to_path_buf()),
+            name: path.to_string_lossy().into_owned(),
+            ..Self::default()
+        })
+    }
+
+    fn default() -> Self {
+        Self {
+            lines: vec![String::new()], // Uphold #1.
+            selections: Default::default(),
+            name: Default::default(),
+            path: Default::default(),
             dirty: Default::default(),
             history: Default::default(),
             content_version: Default::default(),
-            forced_format: None,
-        })
+            forced_format: Default::default(),
+            internal_use_only: Default::default(),
+        }
     }
 
     /// Write the content of this buffer to its path.
@@ -156,6 +173,10 @@ impl TextBuffer {
     ) -> Option<Selections> {
         let val = self.selections.insert(view, selections);
         val
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn path(&self) -> Option<&Path> {

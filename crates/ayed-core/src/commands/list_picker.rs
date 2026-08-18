@@ -10,6 +10,7 @@ use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     panels::list_picker::{ListPickerItem, ListPickerItemKind},
     state::{Diagnostic, DiagnosticKind, State},
+    utils::path::PathExt,
 };
 
 pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
@@ -51,8 +52,61 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
         },
     );
 
+    register_buffer_picker_commands(cr);
     register_file_picker_commands(cr);
     register_diagnostics_picker_commands(cr);
+}
+
+// == Buffer picker stuff ==
+
+fn register_buffer_picker_commands(cr: &mut CommandRegistry) {
+    cr.register("buffer-picker-filter-list", "nodoc", |_opt, ctx| {
+        let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
+            return Ok(());
+        };
+        let view = ctx.resources.views.get(view_handle);
+        let buffer_handle = view.buffer;
+        let buffer = ctx.resources.buffers.get(buffer_handle);
+
+        let filter = buffer.line(0).unwrap_or_default();
+        let filters: Vec<&str> = filter.split_ascii_whitespace().collect();
+        let mut filtered_list = Vec::new();
+        'buffer: for (_, buffer) in ctx.resources.buffers.iter() {
+            if buffer.internal_use_only {
+                continue;
+            }
+
+            let mut label = String::new();
+            if buffer.is_dirty() {
+                label.push('*');
+            }
+            if let Some(path) = buffer.path() {
+                let denom = ctx.state.denormalize_path(path);
+                let extra = denom.to_str_or_err()?;
+                label.push_str(extra);
+            } else {
+                label.push_str(buffer.name());
+            }
+
+            for filter in &filters {
+                // TODO FEAT case insensitivity
+                if !label.contains(filter) {
+                    continue 'buffer;
+                }
+            }
+
+            filtered_list.push(ListPickerItem {
+                kind: ListPickerItemKind::Item,
+                label: label.to_string(),
+                command: format!("buffer {}", buffer.name()),
+                filter_text: Default::default(), // unused
+            });
+        }
+
+        ctx.state.list_picker.items = filtered_list; //file_list_to_file_tree(filtered_list);
+        ctx.state.list_picker.reselect();
+        Ok(())
+    });
 }
 
 // == File picker stuff ==
@@ -82,11 +136,11 @@ fn register_file_picker_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register("file-picker-fill-list", "nodoc", |_opt, ctx| {
+        // TODO Add a more generic alternative to 'ignore', to combine excluding and including, and de-emphasizing
         let ignore = get_gitignore_ignores(&ctx.state.working_directory); // FIXME make this "ignore paths source" configurable.
         match file_picker_fill_list(&ctx.state, "", &ignore) {
             Ok(list) => {
                 ctx.state.list_picker.raw_items = list.clone();
-                ctx.state.list_picker.items = file_list_to_file_tree(list);
             }
             Err(err) => return Err(err.to_string()),
         }

@@ -1,8 +1,8 @@
 # Priority
-- Need an open buffers list
 - diagnostics hover info box is often in the way
 
 # Uncatergorized
+- Refactor everything
 - list picker should auto select the item that most matches the filters, or something like that...
 - list picker hotkeys display. Idk, somehow display keybind with related keybind-doc maybe
 - better, context aware, language aware, configurable indent handling
@@ -14,6 +14,8 @@
 - system clipboard support
 - Buffer tracked positions ("markers") system
     - express selections in terms of markers? idk
+- history doesnt record selections when entering insert mode, instead recording them when
+    the first actual edit is made. Which I think might be weird but idk.
 
 # Config
 - better error message

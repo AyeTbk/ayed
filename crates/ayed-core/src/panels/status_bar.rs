@@ -37,7 +37,10 @@ impl Panel for StatusBar {
     }
 
     fn on_focus(&mut self, ctx: &mut PanelContext) {
-        let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
+        let buffer = ctx
+            .resources
+            .buffers
+            .insert(TextBuffer::new_internal("status-bar"));
         let view = ctx.resources.views.insert(View {
             top_left: Position::ZERO,
             buffer,

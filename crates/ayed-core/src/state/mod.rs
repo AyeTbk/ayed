@@ -153,15 +153,21 @@ impl State {
 
         if let Some(active_editor_buffer_handle) = self.active_editor_buffer(resources) {
             let buffer = resources.buffers.get(active_editor_buffer_handle);
-            // Path info
-            let display_path =
-                self.denormalize_path(buffer.path().unwrap_or(Path::new("<scratch>")));
-            let mut path_text = display_path.to_string_lossy().to_string();
+
+            let mut text = String::new();
             if buffer.is_dirty() {
-                path_text.push_str("*");
+                text.push('*');
             }
+
+            if let Some(path) = buffer.path() {
+                let display_path = self.denormalize_path(path);
+                text.push_str(&display_path.to_string_lossy());
+            } else {
+                text.push_str(buffer.name());
+            }
+
             let path_info = ModelineInfo {
-                text: path_text,
+                text,
                 style: Style::default(),
                 align: Align::Right,
             };

@@ -43,7 +43,10 @@ impl Panel for ListPicker {
     }
 
     fn on_focus(&mut self, ctx: &mut PanelContext) {
-        let buffer = ctx.resources.buffers.insert(TextBuffer::new_empty());
+        let buffer = ctx
+            .resources
+            .buffers
+            .insert(TextBuffer::new_internal("list-picker"));
         let view = ctx.resources.views.insert(View {
             top_left: Position::ZERO,
             buffer,

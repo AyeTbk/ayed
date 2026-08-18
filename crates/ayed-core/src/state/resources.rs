@@ -11,6 +11,8 @@ pub struct Resources {
 }
 
 impl Resources {
+    const SCRATCH_BUFFER_NAME: &str = "*scratch*";
+
     pub fn open_file(&mut self, absolute_path: &Path) -> Result<Handle<TextBuffer>, String> {
         debug_assert!(absolute_path.is_absolute());
         Ok(self
@@ -19,7 +21,8 @@ impl Resources {
     }
 
     pub fn open_scratch(&mut self) -> Handle<TextBuffer> {
-        self.buffers.insert(TextBuffer::new_empty())
+        self.buffers
+            .insert(TextBuffer::new_named(Self::SCRATCH_BUFFER_NAME))
     }
 
     pub fn open_file_or_scratch(
@@ -30,7 +33,7 @@ impl Resources {
         if let Ok(true) = std::fs::exists(absolute_path) {
             self.open_file(absolute_path)
         } else {
-            let mut buffer = TextBuffer::new_empty();
+            let mut buffer = TextBuffer::new_named(Self::SCRATCH_BUFFER_NAME);
             buffer.set_path(Some(absolute_path.to_path_buf()));
             Ok(self.buffers.insert(buffer))
         }
@@ -44,6 +47,13 @@ impl Resources {
         self.buffers
             .iter()
             .find(|(_, buf)| buf.path() == Some(absolute_path))
+            .map(|(handle, _)| handle)
+    }
+
+    pub fn buffer_with_name(&self, name: &str) -> Option<Handle<TextBuffer>> {
+        self.buffers
+            .iter()
+            .find(|(_, buf)| buf.name() == name)
             .map(|(handle, _)| handle)
     }
 
