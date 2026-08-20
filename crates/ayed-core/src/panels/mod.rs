@@ -52,8 +52,8 @@ impl Default for Panels {
 }
 
 impl Panels {
-    pub fn compute_layout(&mut self, viewport_size: Size) {
-        compute_layout(viewport_size, &mut self.panels);
+    pub fn compute_layout(&mut self, viewport_size: Size, state: &State, resources: &Resources) {
+        compute_layout(viewport_size, state, resources, &mut self.panels);
     }
 
     pub fn render(&self, ctx: &PanelContext) -> Vec<UiPanel> {
@@ -148,7 +148,9 @@ pub trait Panel: Any {
     }
 }
 
-pub struct LayoutContext {
+pub struct LayoutContext<'a> {
+    pub state: &'a State,
+    pub resources: &'a Resources,
     pub full_viewport_size: Size,
 }
 
@@ -165,6 +167,7 @@ pub enum LayoutPlace {
     #[default]
     Center,
     South,
+    FloatTop,
     FloatCenter,
     FloatBottom,
     FloatBottomRight,
@@ -179,9 +182,16 @@ pub struct Sides<T> {
     pub right: T,
 }
 
-pub fn compute_layout(viewport_size: Size, panels: &mut Vec<Box<dyn Panel>>) {
+pub fn compute_layout(
+    viewport_size: Size,
+    state: &State,
+    resources: &Resources,
+    panels: &mut Vec<Box<dyn Panel>>,
+) {
     let mut places: HashMap<LayoutPlace, Vec<(LayoutInfo, &mut dyn Panel)>> = Default::default();
     let ctx = LayoutContext {
+        state,
+        resources,
         full_viewport_size: viewport_size,
     };
     for panel in panels {
@@ -199,6 +209,7 @@ pub fn compute_layout(viewport_size: Size, panels: &mut Vec<Box<dyn Panel>>) {
     let mut viewport = Rect::new(0, 0, viewport_size.column, viewport_size.row);
     let layout_ordered_places = [
         LayoutPlace::South,
+        LayoutPlace::FloatTop,
         LayoutPlace::FloatCenter,
         LayoutPlace::FloatBottom,
         LayoutPlace::FloatBottomRight,
@@ -209,7 +220,9 @@ pub fn compute_layout(viewport_size: Size, panels: &mut Vec<Box<dyn Panel>>) {
 
         for (info, panel) in panels_infos {
             let (h_expand, v_expand) = match place {
-                LayoutPlace::South | LayoutPlace::FloatBottom => (true, false),
+                LayoutPlace::South | LayoutPlace::FloatBottom | LayoutPlace::FloatTop => {
+                    (true, false)
+                }
                 LayoutPlace::Center | LayoutPlace::FloatCenter => (true, true),
                 _ => (false, false),
             };
@@ -219,6 +232,10 @@ pub fn compute_layout(viewport_size: Size, panels: &mut Vec<Box<dyn Panel>>) {
             let height = info.height.unwrap_or(height_fallback);
             let (top, left);
             match place {
+                LayoutPlace::FloatTop => {
+                    top = viewport.top() + 1;
+                    left = viewport.left() + (viewport.width - width) / 2;
+                }
                 LayoutPlace::South | LayoutPlace::FloatBottom => {
                     top = viewport.bottom() - height + 1;
                     left = 0;

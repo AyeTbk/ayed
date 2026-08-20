@@ -1,5 +1,5 @@
 # Priority
-- diagnostics hover info box is often in the way
+- prioritize some todo stuff
 
 # Uncatergorized
 - Refactor everything

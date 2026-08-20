@@ -188,7 +188,8 @@ impl Core {
     fn update_viewport_size(&mut self, viewport_size: Size) {
         self.state.viewport_size = viewport_size;
 
-        self.panels.compute_layout(viewport_size);
+        self.panels
+            .compute_layout(viewport_size, &self.state, &self.resources);
 
         let editor_panel = self.panels.panel_of_type::<Editor>().unwrap();
         self.state.editor_rect = editor_panel.rect();

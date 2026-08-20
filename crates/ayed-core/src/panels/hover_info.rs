@@ -14,9 +14,23 @@ pub struct HoverInfo {
 }
 
 impl Panel for HoverInfo {
-    fn layout_info(&self, _ctx: &LayoutContext) -> LayoutInfo {
+    fn layout_info(&self, ctx: &LayoutContext) -> LayoutInfo {
+        let mut place = LayoutPlace::FloatBottom;
+        if let Some(view_handle) = ctx.state.active_editor_view {
+            let view = ctx.resources.views.get(view_handle);
+            let buffer = ctx.resources.buffers.get(view.buffer);
+            if let Some(sels) = buffer.view_selections(view_handle) {
+                let cursor = sels.primary_selection.cursor;
+                let diff = cursor.row - view.top_left.row;
+                let threshold = ctx.full_viewport_size.row / 2; // NOTE should actually be editor size but we
+                if diff > threshold {
+                    place = LayoutPlace::FloatTop;
+                }
+            }
+        }
+
         LayoutInfo {
-            place: LayoutPlace::FloatBottom,
+            place,
             height: Some(8),
             padding: Some(Sides {
                 left: 2,
