@@ -64,6 +64,6 @@ syntax-style {
     string              $[ #bb8866 ; priority:14 ]
     lifetime            $[ #cccccc ; priority:14 ]
     function            $[ #b8a4fc ; priority:13 ]
-    namespace           #55b89b
+    namespace           #0c9a9e
     comment             $[ #55887a ; priority:15 ]
 }

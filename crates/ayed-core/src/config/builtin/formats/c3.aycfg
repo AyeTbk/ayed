@@ -1,0 +1,23 @@
+file .*\.c3 {
+    hooks {
+        # FIXME this stinks, it's not declarative. Invent declarative config states now!
+        state-modified:file state-set format c3
+    }
+}
+
+format c3 {
+    syntax {
+        keyword \b(module|import|faultdef|fn|macro|asm|extern|struct|enum|union|bitstruct|inteface|typedef|alias)\b
+        keyword-statement \b(if|else|while|for|foreach|return|continue|break|defer|switch|case|nextcase|default|assert|unreachable)\b
+        builtin \b(Some|None|Ok|Err)\b
+        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|!|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
+        delimiter (\{|\}|\[|\]|\(|\)|<|>)
+        macro ((@|\$\$?)[a-zA-Z0-9_]+)
+        type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b(u?(short|int|long|int128|sz))\b ; \b(void|bool|ichar|char|float|double|iptr|uptr)\b ]
+        literal $[ (([0-9]*\.[0-9]+|[0-9]+\.|[0-9]+)(u?l?l?|[fFdD])?) ; \b(true|false|null)\b ]
+        string $[ (r?\"[^\"]*\") ; (r?'[^']') ]
+        function \b([a-z0-9_][a-zA-Z0-9_]*)\(
+        namespace \b([a-zA-Z0-9_]+)::
+        comment (//.*)
+    }
+}

@@ -332,9 +332,6 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
                     if !i.label.starts_with(&prefix) {
                         continue;
                     }
-                    if i.text == prefix {
-                        continue;
-                    }
 
                     items_by_labels
                         .entry(i.label.clone())

@@ -249,6 +249,7 @@ pub fn make_builtin_config() -> Config {
 
     builtin_cfg!("./builtin/essentials.aycfg");
     builtin_cfg!("./builtin/formats/rust.aycfg");
+    builtin_cfg!("./builtin/formats/c3.aycfg");
     builtin_cfg!("./builtin/keybinds/base.aycfg");
     builtin_cfg!("./builtin/themes/base.aycfg");
 

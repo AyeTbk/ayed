@@ -332,7 +332,7 @@ mode normal {
         ( selections-rotate --reversed
 
         o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char \n ]
-        <s-o> $[ move u ; set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char \n ]
+        <s-o> $[ set mode insert ; selections-flip --backward ; move-to-edge line-past-indent ; insert-char \n ; move u ]
 
         x $[ selections-flip --backward ; move-to-edge --anchored line-start ; selections-flip --forward ; move-to-edge --anchored line-past-end ]
 
