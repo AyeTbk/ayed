@@ -200,6 +200,13 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
         {
             editor.indent_size = indent_size as i32;
         }
+        if let Some(indent_char) = mapping
+            .get("indent-char")
+            .and_then(|v| v.first())
+            .and_then(|s| s.chars().next())
+        {
+            editor.indent_char = indent_char;
+        }
     }
 
     let theme = mappings
@@ -223,11 +230,15 @@ pub fn build_applied_config(modules: &Vec<ConfigModule>, state: &ConfigState) ->
 
 #[derive(Debug)]
 pub struct EditorConfig {
+    pub indent_char: char,
     pub indent_size: i32,
 }
 
 impl Default for EditorConfig {
     fn default() -> Self {
-        Self { indent_size: 4 }
+        Self {
+            indent_char: ' ',
+            indent_size: 4,
+        }
     }
 }

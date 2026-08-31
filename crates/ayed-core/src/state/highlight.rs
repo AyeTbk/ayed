@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use regex::Regex;
 
 use crate::{
+    config::Config,
     position::{Column, Position},
     ui::{Color, Style, style::SyntaxStyle, ui_state::StyledRegion},
 };
@@ -19,6 +20,7 @@ pub fn regex_syntax_highlight(
     buffer: &TextBuffer,
     syntax: &HashMap<String, Vec<regex::Regex>>,
     syntax_style: &HashMap<String, SyntaxStyle>,
+    config: &Config,
 ) -> Vec<Highlight> {
     let mut highlights = Vec::new();
 
@@ -55,10 +57,15 @@ pub fn regex_syntax_highlight(
                         .count() as Column;
                     let match_chars_end = (match_chars_start + match_chars_count).saturating_sub(1);
 
+                    let true_from = Position::new(match_chars_start, line_index);
+                    let true_to = Position::new(match_chars_end, line_index);
+                    let from = buffer.map_true_position_to_logical_position(true_from, config);
+                    let to = buffer.map_true_position_to_logical_position(true_to, config);
+
                     highlights.push(Highlight {
                         styled_region: StyledRegion {
-                            from: Position::new(match_chars_start, line_index),
-                            to: Position::new(match_chars_end, line_index),
+                            from,
+                            to,
                             style: Style {
                                 foreground_color: Some(*color),
                                 ..Default::default()

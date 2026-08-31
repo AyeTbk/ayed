@@ -76,7 +76,8 @@ pub fn register_config_commands(cr: &mut CommandRegistry) {
             let buffer = ctx.resources.buffers.get(buffer_handle);
             let syntax = ctx.state.config.get_syntax();
             let syntax_style = ctx.state.config.get_syntax_sytle();
-            let mut highlights = regex_syntax_highlight(buffer, syntax, syntax_style);
+            let mut highlights =
+                regex_syntax_highlight(buffer, syntax, syntax_style, &ctx.state.config);
 
             // FIXME improve this whole highlights mess and separate syntax from diagnostics etc
             if let Some(path) = buffer.path() {

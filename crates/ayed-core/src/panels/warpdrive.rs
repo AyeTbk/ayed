@@ -134,6 +134,9 @@ impl WarpdriveState {
         let render_left_padding = editor_ui_panel.position.column;
 
         let view = ctx.resources.views.get(view_handle);
+        let buffer = ctx.resources.buffers.get(view.buffer);
+        let config = &ctx.state.config;
+        
 
         // Gather jump points
         let mut jump_points = Vec::new();
@@ -146,8 +149,10 @@ impl WarpdriveState {
                 let end_column = match_end - 1;
                 let start_in_view = Position::new(start_column, row);
                 let end_in_view = Position::new(end_column, row);
-                let start = view.map_view_position_to_logical_position(start_in_view);
-                let end = view.map_view_position_to_logical_position(end_in_view);
+                let start_logical = view.map_view_position_to_logical_position(start_in_view);
+                let end_logical = view.map_view_position_to_logical_position(end_in_view);
+                let start = buffer.map_logical_position_to_true_position(start_logical, config);
+                let end = buffer.map_logical_position_to_true_position(end_logical, config);
                 let code = String::new();
                 jump_points_indices.push((i, (matsh.start(), matsh.end())));
                 jump_points.push(JumpPoint {

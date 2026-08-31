@@ -230,7 +230,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "format-set",
-        "nodoc",
+        "Force the given format on the active buffer.",
         focused_buffer_command(|opt, ctx| {
             let format = opt.raw().trim();
             ctx.buffer.forced_format = if format.is_empty() {
@@ -281,6 +281,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     );
 
     cr.register("look-keep-primary-cursor-in-view", "nodoc", |_opt, ctx| {
+        // Whats actually needed is to keep the primary SELECTION in view,
+        // while prioritizing the cursor.
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view_rect = ctx
                 .state
@@ -290,7 +292,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let cursor = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let selections = buffer.view_selections(view_handle).unwrap();
-                selections.primary().cursor
+                let cursor_true = selections.primary().cursor;
+                buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config)
             };
             let offset = view_rect.offset_from_position(cursor);
             view.top_left = view.top_left.offset(offset);
@@ -637,13 +640,10 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         "nodoc",
         focused_buffer_command(|opt, ctx| {
             let opt = opt.raw();
-            let the_char = if opt == r"\n" {
-                '\n'
-            } else {
-                opt.chars()
-                    .next()
-                    .ok_or_else(|| format!("not a char: {opt}"))?
-            };
+            let the_char = opt
+                .chars()
+                .next()
+                .ok_or_else(|| format!("not a char: {opt}"))?;
 
             let sel_count = ctx.selections.count();
 
@@ -830,7 +830,13 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 }
             }
 
-            let indent_size = ctx.state.config.get_editor().indent_size;
+            let indent_char = ctx.state.config.get_editor().indent_char;
+            let indent_char_str = ctx.state.config.get_editor().indent_char.to_string();
+            let indent_size = if indent_char == '\t' {
+                1
+            } else {
+                ctx.state.config.get_editor().indent_size
+            };
             for row in affected_lines {
                 let Some(line) = ctx.buffer.line(row) else { continue };
 
@@ -844,20 +850,20 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     }
                 }
 
-                let indentation = take_while(line, is_whitespace).0;
+                let indentation = take_while(line, |ch| ch == indent_char).0;
                 let indent_char_count = char_count(indentation) as i32;
                 let new_indent_char_count = if auto {
                     let Some(prev_line) = ctx.buffer.line(row - 1) else { continue };
                     if let Some('{') = prev_line.trim_end().chars().last() {
                         level_mod += 1;
                     }
-                    char_count(take_while(prev_line, is_whitespace).0) as i32
+                    char_count(take_while(prev_line, |ch| ch == indent_char).0) as i32
                 } else {
                     indent_char_count
                 };
                 let new_indent_level = i32::max(new_indent_char_count / indent_size + level_mod, 0);
                 let new_indent_char_count = new_indent_level * indent_size;
-                let new_indentation = " ".repeat(new_indent_char_count as usize);
+                let new_indentation = indent_char_str.repeat(new_indent_char_count as usize);
 
                 if indent_char_count > 0 {
                     let indent_sel = Selection::new()
@@ -880,8 +886,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     cr.register("__auto-indent-shim", "nodoc", |opt, ctx| {
         let opt = opt.raw();
         match opt {
-            // TODO find a way to not have to check for both of these (like avoid the raw string)
-            "\n" | r"\n" => ctx.queue.push("indent --auto"),
+            "\n" => ctx.queue.push("indent --auto"),
             // FIXME find a proper and cleaner way to handle nesting aware auto-indent/dedent
             "}" => ctx.queue.push("indent --auto --auto-dedent"),
             _ => (),

@@ -64,7 +64,7 @@ impl TextBuffer {
         let path = path.as_ref();
         let content =
             std::fs::read_to_string(path).map_err(|err| format!("can't read '{path:?}': {err}"))?;
-        let lines = content.split('\n').map(str::to_string).collect();
+        let lines = content.split('\n').map(str::to_string).collect::<Vec<_>>();
         Ok(Self {
             lines,
             path: Some(path.to_path_buf()),

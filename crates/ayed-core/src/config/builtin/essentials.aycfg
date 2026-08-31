@@ -118,6 +118,7 @@ mode combo-lsp {
 # Default config
 
 editor {
+    indent-char $" "
     indent-size 4
 }
 
@@ -331,8 +332,8 @@ mode normal {
         ) selections-rotate
         ( selections-rotate --reversed
 
-        o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char \n ]
-        <s-o> $[ set mode insert ; selections-flip --backward ; move-to-edge line-past-indent ; insert-char \n ; move u ]
+        o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char $n ]
+        <s-o> $[ set mode insert ; selections-flip --backward ; move-to-edge line-past-indent ; insert-char $n ; move u ]
 
         x $[ selections-flip --backward ; move-to-edge --anchored line-start ; selections-flip --forward ; move-to-edge --anchored line-past-end ]
 

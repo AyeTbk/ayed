@@ -1,12 +1,12 @@
 # Priority
-- prioritize some todo stuff
+- Fix look-keep-primary-cursor-in-view to keep SELECTION no cursor in view.
+- Command to center view on primary selection/cursor.
 
 # Uncatergorized
 - Refactor everything
 - list picker should auto select the item that most matches the filters, or something like that...
 - list picker hotkeys display. Idk, somehow display keybind with related keybind-doc maybe
 - better, context aware, language aware, configurable indent handling
-- fix warpdrive mishandling of logical content (ie: when tabs are present)
 - fix saving messes up/loses file permissions (+x confirmed via dtm)
 - fix tmux rendering whackiness (moving the terminal cursor too much?)
 - mouse support
@@ -45,4 +45,3 @@
 # Syntax highlight
 - return keyword
 - fix syntax highlighting weird on chars (sometimes works, sometimes not)
-- fix syntax highlighting not supporting lines with TAB indent
