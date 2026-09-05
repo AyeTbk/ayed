@@ -1,6 +1,5 @@
 # Priority
-- Fix look-keep-primary-cursor-in-view to keep SELECTION no cursor in view.
-- Command to center view on primary selection/cursor.
+- todo prioritze something
 
 # Uncatergorized
 - Refactor everything

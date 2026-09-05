@@ -10,7 +10,7 @@ hooks {
 }
 mode normal {
     keybinds {
-        v  message Current buffer is '$(file)'
+        <c-b>  message Current buffer is '$(file)'
     }
 }
 
@@ -22,7 +22,7 @@ hooks {
 
 # Essential for general editing
 hooks {
-    selections-modified $[ selections-merge-overlapping ; look-keep-primary-cursor-in-view ]
+    selections-modified $[ selections-merge-overlapping ; look-keep-primary-selection-in-view ]
     insert-char __auto-indent-shim
 }
 
@@ -159,6 +159,7 @@ mixin basic-movement {
         <sa-down> look d
         <sa-left> look l
         <sa-right> look r
+        v look-center-primary-selection
     }
 }
 
@@ -419,8 +420,8 @@ mode insert-append {
 ### View ###
 
 hooks {
-    buffer-modified look-keep-primary-cursor-in-view
-    resized look-keep-primary-cursor-in-view
+    buffer-modified look-keep-primary-selection-in-view
+    resized look-keep-primary-selection-in-view
 }
 
 

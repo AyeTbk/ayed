@@ -133,7 +133,7 @@ impl std::fmt::Display for Position {
 }
 
 // FIXME this is superfluous now that positions are using i32. Remove this
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Offset {
     pub column: i32,
     pub row: i32,

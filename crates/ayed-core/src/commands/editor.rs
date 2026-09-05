@@ -280,22 +280,59 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("look-keep-primary-cursor-in-view", "nodoc", |_opt, ctx| {
-        // Whats actually needed is to keep the primary SELECTION in view,
-        // while prioritizing the cursor.
+    cr.register(
+        "look-center-primary-selection",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let view_rect = ctx.state.editor_rect; // this is wrong but i cant be bothered to impl it correctly rn
+            let (cursor, anchor) = {
+                let cursor_true = ctx.selections.primary().cursor;
+                let anchor_true = ctx.selections.primary().anchor;
+                (ctx.buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config),
+                ctx.buffer.map_true_position_to_logical_position(anchor_true, &ctx.state.config),)
+            };
+            let avg_pos = Position::new(
+                cursor.column / 2 + anchor.column / 2,
+                cursor.row / 2 + anchor.row / 2,
+            );
+            let top_left = Position::new(
+                i32::max(0, avg_pos.column - view_rect.width / 2),
+                i32::max(0, avg_pos.row - view_rect.height / 2),
+            );
+
+            ctx.view.top_left = top_left;
+
+            Ok(())
+        }),
+    );
+
+    cr.register("look-keep-primary-selection-in-view", "nodoc", |_opt, ctx| {
+        // TODO im sure there's a less convoluted way to implement this
         if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
             let view_rect = ctx
                 .state
                 .focused_view_content_rect(&ctx.panels, &ctx.resources)
                 .unwrap();
+
             let view = ctx.resources.views.get_mut(view_handle);
-            let cursor = {
+            let (cursor, anchor) = {
                 let buffer = ctx.resources.buffers.get(view.buffer);
                 let selections = buffer.view_selections(view_handle).unwrap();
                 let cursor_true = selections.primary().cursor;
-                buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config)
+                let anchor_true = selections.primary().anchor;
+                (buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config),
+                buffer.map_true_position_to_logical_position(anchor_true, &ctx.state.config),)
             };
+
+            let offset = view_rect.offset_from_position(anchor);
+            view.top_left = view.top_left.offset(offset);
+
+            let view_rect = ctx
+                .state
+                .focused_view_content_rect(&ctx.panels, &ctx.resources)
+                .unwrap();
             let offset = view_rect.offset_from_position(cursor);
+            let view = ctx.resources.views.get_mut(view_handle);
             view.top_left = view.top_left.offset(offset);
         }
 
