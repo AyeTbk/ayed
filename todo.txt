@@ -1,5 +1,5 @@
 # Priority
-- todo prioritze something
+- todo prioritize something
 
 # Uncatergorized
 - Refactor everything
@@ -15,6 +15,7 @@
     - express selections in terms of markers? idk
 - history doesnt record selections when entering insert mode, instead recording them when
     the first actual edit is made. Which I think might be weird but idk.
+- terminate signal handling
 
 # Config
 - better error message

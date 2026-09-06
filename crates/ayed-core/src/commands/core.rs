@@ -1,5 +1,9 @@
 use crate::{
-    command::{CommandRegistry, helpers::alias, options::Options},
+    command::{
+        CommandRegistry,
+        helpers::{alias, focused_buffer_command},
+        options::Options,
+    },
     panels::PanelContext,
 };
 
@@ -89,6 +93,23 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+
+    cr.register(
+        "selection-exec",
+        "nodoc",
+        focused_buffer_command(|opt, ctx| {
+            let sel_text = ctx
+                .buffer
+                .selection_text(&ctx.selections.primary())
+                .unwrap_or_default();
+            let command = opt.raw().trim().replace("<PRIMARY_SELECTION>", &sel_text);
+            if !command.trim().is_empty() {
+                ctx.queue.push(command);
+            }
+
+            Ok(())
+        }),
+    );
 
     cr.register("prompt-exec", "nodoc", |opt, ctx| {
         let command_to_execute_override = opt.raw().trim();
