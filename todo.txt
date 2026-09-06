@@ -1,5 +1,5 @@
 # Priority
-- todo prioritze something
+- command for text search + list of results
 
 # Uncatergorized
 - Refactor everything

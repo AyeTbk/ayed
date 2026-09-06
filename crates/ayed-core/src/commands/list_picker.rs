@@ -10,7 +10,7 @@ use crate::{
     command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
     panels::list_picker::{ListPickerItem, ListPickerItemKind},
     state::{Diagnostic, DiagnosticKind, State},
-    utils::path::PathExt,
+    utils::{path::PathExt, string_utils::byte_index_to_char_index},
 };
 
 pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
@@ -53,6 +53,7 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
     );
 
     register_buffer_picker_commands(cr);
+    register_search_results_picker_commands(cr);
     register_file_picker_commands(cr);
     register_diagnostics_picker_commands(cr);
 }
@@ -104,6 +105,85 @@ fn register_buffer_picker_commands(cr: &mut CommandRegistry) {
         }
 
         ctx.state.list_picker.items = filtered_list; //file_list_to_file_tree(filtered_list);
+        ctx.state.list_picker.reselect();
+        Ok(())
+    });
+}
+
+// == Search results picker stuff ==
+
+fn register_search_results_picker_commands(cr: &mut CommandRegistry) {
+    cr.register(
+        "search-results-picker-filter-list",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let filter = ctx.buffer.line(0).unwrap_or_default();
+            let filters: Vec<&str> = filter.split_ascii_whitespace().collect();
+            let mut filtered_list = Vec::new();
+            'raw_item: for item in &ctx.state.list_picker.raw_items {
+                for filter in &filters {
+                    // TODO FEAT case insensitivity
+                    if !item.filter_text.contains(filter) {
+                        continue 'raw_item;
+                    }
+                }
+                filtered_list.push(item.clone());
+            }
+
+            ctx.state.list_picker.items = filtered_list;
+            ctx.state.list_picker.reselect();
+            Ok(())
+        }),
+    );
+
+    cr.register("search-results-picker-fill-list", "nodoc", |opt, ctx| {
+        let search_text = opt.remainder();
+
+        let output = std::process::Command::new("rg")
+            .args([
+                "-n",
+                "--column",
+                search_text,
+                &ctx.state.working_directory.to_str_or_err()?,
+            ])
+            .output()
+            .expect("failed to execute rg");
+        if !output.status.success() {
+            return Err(format!(
+                "rg exited with an error ({:?}): {:?}",
+                output.status.code(),
+                str::from_utf8(&output.stderr)
+            ));
+        }
+        let text_output = String::from_utf8_lossy(&output.stdout).into_owned();
+
+        let mut items = Vec::new();
+        for line in text_output.split_terminator('\n') {
+            let mut parts = line.splitn(4, ':');
+            let Some(path) = parts.next() else { continue };
+            let Some(line) = parts.next() else { continue };
+            let Some(column_byte) = parts.next() else { continue };
+            let Some(excerpt) = parts.next() else { continue };
+
+            let path = Path::new(path).to_path_buf();
+            let short_path = ctx.state.denormalize_path(&path);
+
+            let Ok(line) = line.parse::<i32>() else { continue };
+
+            let Ok(column_byte) = column_byte.parse::<usize>() else { continue };
+            let column = byte_index_to_char_index(excerpt, column_byte).unwrap_or_default();
+
+            let location = format!("{}:{line}:{column}", short_path.display());
+
+            items.push(ListPickerItem {
+                kind: ListPickerItemKind::Item,
+                label: format!("{location}:{excerpt}"),
+                command: format!("edit {location}"),
+                filter_text: excerpt.to_string(),
+            })
+        }
+
+        ctx.state.list_picker.raw_items = items;
         ctx.state.list_picker.reselect();
         Ok(())
     });

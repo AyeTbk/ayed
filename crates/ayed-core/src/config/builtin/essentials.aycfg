@@ -205,6 +205,11 @@ panel prompt {
             <ret> prompt-exec move-regex <PROMPT>
         }
     }
+    prompt-mode bigsearch {
+        keybinds {
+            <ret> $[ prompt-exec search-results-picker-fill-list <PROMPT> ; panel-focus list-picker ; set list-picker-mode search-results ]
+        }
+    }
     prompt-mode select {
         keybinds {
             <ret> prompt-exec select-regex <PROMPT>
@@ -238,6 +243,12 @@ panel list-picker {
         hooks {
             state-modified:list-picker-mode buffer-picker-filter-list
             buffer-modified buffer-picker-filter-list
+        }
+    }
+    list-picker-mode search-results {
+        hooks {
+            state-modified:list-picker-mode search-results-picker-filter-list
+            buffer-modified search-results-picker-filter-list
         }
     }
     list-picker-mode file {
@@ -364,6 +375,8 @@ mode normal {
 
         / $[ panel-focus prompt ; set prompt-mode search ]
         n $[ panel-focus prompt ; set prompt-mode search ; prompt-exec move-regex <PROMPT> ]
+
+        ? $[ panel-focus prompt ; set prompt-mode bigsearch ]
 
         <backtab> set mode insert
         i set mode insert

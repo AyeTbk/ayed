@@ -218,6 +218,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             let sel = Selection::new().with_start_and_end(position, position);
             ctx.queue.push(format!("selections-set {}", sel));
+            ctx.queue.push("look-center-primary-selection");
 
             if let Some(path) = buffer_opened_path {
                 ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
@@ -288,8 +289,12 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let (cursor, anchor) = {
                 let cursor_true = ctx.selections.primary().cursor;
                 let anchor_true = ctx.selections.primary().anchor;
-                (ctx.buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config),
-                ctx.buffer.map_true_position_to_logical_position(anchor_true, &ctx.state.config),)
+                (
+                    ctx.buffer
+                        .map_true_position_to_logical_position(cursor_true, &ctx.state.config),
+                    ctx.buffer
+                        .map_true_position_to_logical_position(anchor_true, &ctx.state.config),
+                )
             };
             let avg_pos = Position::new(
                 cursor.column / 2 + anchor.column / 2,
@@ -306,38 +311,46 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register("look-keep-primary-selection-in-view", "nodoc", |_opt, ctx| {
-        // TODO im sure there's a less convoluted way to implement this
-        if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
-            let view_rect = ctx
-                .state
-                .focused_view_content_rect(&ctx.panels, &ctx.resources)
-                .unwrap();
+    cr.register(
+        "look-keep-primary-selection-in-view",
+        "nodoc",
+        |_opt, ctx| {
+            // TODO im sure there's a less convoluted way to implement this
+            if let Some(view_handle) = ctx.state.focused_view(&ctx.panels) {
+                let view_rect = ctx
+                    .state
+                    .focused_view_content_rect(&ctx.panels, &ctx.resources)
+                    .unwrap();
 
-            let view = ctx.resources.views.get_mut(view_handle);
-            let (cursor, anchor) = {
-                let buffer = ctx.resources.buffers.get(view.buffer);
-                let selections = buffer.view_selections(view_handle).unwrap();
-                let cursor_true = selections.primary().cursor;
-                let anchor_true = selections.primary().anchor;
-                (buffer.map_true_position_to_logical_position(cursor_true, &ctx.state.config),
-                buffer.map_true_position_to_logical_position(anchor_true, &ctx.state.config),)
-            };
+                let view = ctx.resources.views.get_mut(view_handle);
+                let (cursor, anchor) = {
+                    let buffer = ctx.resources.buffers.get(view.buffer);
+                    let selections = buffer.view_selections(view_handle).unwrap();
+                    let cursor_true = selections.primary().cursor;
+                    let anchor_true = selections.primary().anchor;
+                    (
+                        buffer
+                            .map_true_position_to_logical_position(cursor_true, &ctx.state.config),
+                        buffer
+                            .map_true_position_to_logical_position(anchor_true, &ctx.state.config),
+                    )
+                };
 
-            let offset = view_rect.offset_from_position(anchor);
-            view.top_left = view.top_left.offset(offset);
+                let offset = view_rect.offset_from_position(anchor);
+                view.top_left = view.top_left.offset(offset);
 
-            let view_rect = ctx
-                .state
-                .focused_view_content_rect(&ctx.panels, &ctx.resources)
-                .unwrap();
-            let offset = view_rect.offset_from_position(cursor);
-            let view = ctx.resources.views.get_mut(view_handle);
-            view.top_left = view.top_left.offset(offset);
-        }
+                let view_rect = ctx
+                    .state
+                    .focused_view_content_rect(&ctx.panels, &ctx.resources)
+                    .unwrap();
+                let offset = view_rect.offset_from_position(cursor);
+                let view = ctx.resources.views.get_mut(view_handle);
+                view.top_left = view.top_left.offset(offset);
+            }
 
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 
     register_selection_movement(cr, "move", Options::new().doc("nodoc"), |opt, ctx| {
         let opt = opt.remainder();
