@@ -373,47 +373,31 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
         }),
     );
 
-    cr.register(
-        "completions-source-buffer",
-        "nodoc",
-        focused_buffer_command(|opt, ctx| {
-            let opt = opt.raw();
-            let selections_modified_source = opt.trim();
-            if selections_modified_source == "completions-select" {
-                return Ok(());
+    cr.register("completions-source-buffers", "nodoc", |opt, ctx| {
+        let opt = opt.raw();
+        let selections_modified_source = opt.trim();
+        if selections_modified_source == "completions-select" {
+            return Ok(());
+        }
+
+        let mut symbols = BTreeSet::new();
+        let mut items = Vec::new();
+        for (_, buffer) in ctx.resources.buffers.iter() {
+            if buffer.internal_use_only {
+                continue;
             }
+            extract_symbols(&buffer.content_to_string(), &mut items, &mut symbols);
+        }
 
-            let content = ctx.buffer.content_to_string();
-            let mut symbols = BTreeSet::new();
-            let mut items = Vec::new();
-            for matsh in RE_SYMBOL.find_iter(&content) {
-                let symbol = matsh.as_str();
-                if symbol.len() < 3 || symbols.contains(symbol) {
-                    continue;
-                }
-                symbols.insert(symbol.to_string());
-                items.push(CompletionItem {
-                    label: symbol.to_string(),
-                    text: symbol.to_string(),
-                    extra_edits: Vec::new(),
-                    kind: CompletionItemKind::Plaintext,
-                    source: CompletionSource::Buffer,
-                    source_idx: 0,
-                    type_annotation: None,
-                    documentation: None,
-                });
-            }
+        ctx.state
+            .completions
+            .source_items
+            .insert(CompletionSource::Buffer, CompletionSourceData { items });
 
-            ctx.state
-                .completions
-                .source_items
-                .insert(CompletionSource::Buffer, CompletionSourceData { items });
+        ctx.queue.emit("completion-sources-modified", "");
 
-            ctx.queue.emit("completion-sources-modified", "");
-
-            Ok(())
-        }),
-    );
+        Ok(())
+    });
 
     cr.register(
         "diagnostics-hover",
@@ -532,4 +516,28 @@ fn position_follows_a_separator(buffer: &TextBuffer, cursor: Position) -> bool {
         }
     }
     return false;
+}
+
+fn extract_symbols<'a>(
+    text: &'a str,
+    items: &mut Vec<CompletionItem>,
+    existing_symbols: &mut BTreeSet<String>,
+) {
+    for matsh in RE_SYMBOL.find_iter(&text) {
+        let symbol = matsh.as_str();
+        if symbol.len() < 3 || existing_symbols.contains(symbol) {
+            continue;
+        }
+        existing_symbols.insert(symbol.to_string());
+        items.push(CompletionItem {
+            label: symbol.to_string(),
+            text: symbol.to_string(),
+            extra_edits: Vec::new(),
+            kind: CompletionItemKind::Plaintext,
+            source: CompletionSource::Buffer,
+            source_idx: 0,
+            type_annotation: None,
+            documentation: None,
+        });
+    }
 }

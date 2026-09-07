@@ -1,5 +1,11 @@
 # Priority
-- todo prioritize something
+- fix dupe sel doesnt account for logical content
+- fix select should select in order such that primary is last
+- find and till backwards commands
+- add matching-pair movement 'm'
+- '_' support in num literals
+- bigsearch history
+- select symbol under cursor movement
 
 # Uncatergorized
 - Refactor everything
@@ -36,7 +42,6 @@
 - add keep/drop selection on match regex.
 - 'pending mode' commands
     - add surround selection with ' " or matching pairs
-- add matching-pair movement 'm'
 - add split selections à la kakoune
 - make "trim surrounding ws" an easier keybind compared to _
 - add force buffer-close command

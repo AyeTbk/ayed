@@ -44,11 +44,11 @@ hooks {
 # Essential for completions
 completions {
     placement cursor
-    source active-buffer
+    # source active-buffer # unused rn
 }
 hooks {
-    buffer-opened completions-source-buffer
-    state-modified:mode completions-source-buffer
+    buffer-opened completions-source-buffers
+    state-modified:mode completions-source-buffers
 }
 mode insert.* {
     hooks {
@@ -56,12 +56,6 @@ mode insert.* {
         completion-sources-modified completions-check
 
         state-before-modified:mode completions-clear
-    }
-}
-mode normal {
-    keybinds {
-        # DEBUG
-        m $[ message COMPLETIONS ; completions-gather ]
     }
 }
 @override
@@ -159,7 +153,6 @@ mixin basic-movement {
         <sa-down> look d
         <sa-left> look l
         <sa-right> look r
-        v look-center-primary-selection
     }
 }
 
@@ -345,7 +338,8 @@ mode normal {
         ( selections-rotate --reversed
 
         o $[ set mode insert ; selections-flip --forward ; move-to-edge line-past-end ; insert-char $n ]
-        <s-o> $[ set mode insert ; selections-flip --backward ; move-to-edge line-past-indent ; insert-char $n ; move u ]
+        # This doesn't work on the first row, but whatever for now
+        <s-o> $[ set mode insert ; selections-flip --backward ; move u ; move-to-edge line-past-end ; insert-char $n ]
 
         x $[ selections-flip --backward ; move-to-edge --anchored line-start ; selections-flip --forward ; move-to-edge --anchored line-past-end ]
 
@@ -364,6 +358,9 @@ mode normal {
         <gt> indent --more
         <a-lt> indent --reindent
         <a-gt> indent --auto
+        <tab> indent --auto
+
+        v look-center-primary-selection
 
         y yank
         p paste
@@ -383,7 +380,6 @@ mode normal {
                 set list-picker-mode search-results ;
             ]
 
-        <backtab> set mode insert
         i set mode insert
         <s-i> $[ move-to-edge line-past-indent ; set mode insert ]
 
