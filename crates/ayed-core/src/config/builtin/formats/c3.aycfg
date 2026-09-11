@@ -18,7 +18,7 @@ format c3 {
         delimiter (\{|\}|\[|\]|\(|\)|<|>)
         macro ((@|\$\$?)[a-zA-Z0-9_]+)
         type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b(u?(short|int|long|int128|sz))\b ; \b(void|bool|ichar|char|float|double|iptr|uptr)\b ]
-        literal $[ \b(([0-9]*\.[0-9]+|[0-9]+\.|0b[0-1]+|0o[0-7]+|0x[0-9a-fA-F]+|[0-9]+)(u?l?l?|[fFdD]?)) ; \b(true|false|null)\b ]
+        literal $[ \b(([_0-9]*\.[_0-9]+|[_0-9]+\.|0b[_0-1]+|0o[_0-7]+|0x[_0-9a-fA-F]+|[_0-9]+)(u?l?l?|[fFdD]?)) ; \b(true|false|null)\b ]
         string $[ (r?\"[^\"]*\") ; (r?'[^']') ]
         function \b([a-z0-9_][a-zA-Z0-9_]*)\(
         namespace \b([a-zA-Z0-9_]+)::
