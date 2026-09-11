@@ -149,10 +149,10 @@ mixin basic-movement {
         <c-end> move-to-edge line-end
         <cs-end> move-to-edge --anchored line-end
 
-        <sa-up> look u
-        <sa-down> look d
-        <sa-left> look l
-        <sa-right> look r
+        <as-up> look u
+        <as-down> look d
+        <as-left> look l
+        <as-right> look r
     }
 }
 
@@ -328,6 +328,8 @@ mode normal {
         b move-regex --reversed \w+\b\s*|[^\s\w]+\s*
         <s-b> move-regex --reversed --anchored \w+\b\s*|[^\s\w]+\s*
 
+        <a-up> $[ move l ; map-input e ; map-input b ; map-input e ]
+
         C selections-duplicate --down
         <a-C> selections-duplicate --up
         ; selections-shrink
@@ -375,7 +377,7 @@ mode normal {
 
         ? $[ panel-focus prompt ; set prompt-mode bigsearch ]
         <a-?> $[
-                selection-exec search-results-picker-fill-list <PRIMARY_SELECTION> ;
+                selection-exec --add-to-bigsearch-history search-results-picker-fill-list <PRIMARY_SELECTION> ;
                 panel-focus list-picker ;
                 set list-picker-mode search-results ;
             ]
@@ -392,9 +394,13 @@ mode normal {
 
         r set pending-command replace
         f set pending-command move-to-char --reanchored
+        <a-f> set pending-command move-to-char --reanchored --backward
         <s-f> set pending-command move-to-char --anchored
+        <as-f> set pending-command move-to-char --anchored --backward
         t set pending-command move-to-char --reanchored --before
+        <a-t> set pending-command move-to-char --reanchored --before --backward
         <s-t> set pending-command move-to-char --anchored --before
+        <as-t> set pending-command move-to-char --anchored --before --backward
 
         q warpdrive
     }

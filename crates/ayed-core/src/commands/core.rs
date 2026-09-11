@@ -96,15 +96,23 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "selection-exec",
-        "nodoc",
+        Options::new().doc("nodoc").flag("add-to-bigsearch-history"),
         focused_buffer_command(|opt, ctx| {
             let sel_text = ctx
                 .buffer
                 .selection_text(&ctx.selections.primary())
                 .unwrap_or_default();
-            let command = opt.raw().trim().replace("<PRIMARY_SELECTION>", &sel_text);
+            let command = opt
+                .remainder()
+                .trim()
+                .replace("<PRIMARY_SELECTION>", &sel_text);
             if !command.trim().is_empty() {
                 ctx.queue.push(command);
+
+                if opt.contains("add-to-bigsearch-history") {
+                    ctx.queue
+                        .push(format!("prompt-history-add bigsearch {sel_text}"));
+                }
             }
 
             Ok(())
@@ -143,6 +151,7 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
             }
 
             if !line.is_empty() {
+                // FIXME use prompt-history-add command
                 history.entries.push(unprocessed_command.clone());
                 history.selected_item = history.entries.len();
             }
@@ -161,6 +170,27 @@ pub fn register_core_commands(cr: &mut CommandRegistry) {
 
         Ok(())
     });
+
+    cr.register(
+        "prompt-history-add",
+        Options::new().doc("nodoc"),
+        |opt, ctx| {
+            let mut positionals = opt.remainder().split(' ');
+            let history_key = positionals.next().expect("plz provide history");
+            let entry = positionals.next().expect("plz provide entry");
+
+            let history = ctx
+                .state
+                .modeline
+                .histories
+                .entry(history_key.to_string())
+                .or_default();
+            history.entries.push(entry.to_string());
+            history.selected_item = history.entries.len();
+
+            Ok(())
+        },
+    );
 
     cr.register(
         "prompt-history",

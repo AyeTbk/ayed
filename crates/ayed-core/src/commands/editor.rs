@@ -406,9 +406,10 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
     register_selection_movement(
         cr,
         "move-to-char",
-        Options::new().doc("nodoc").flag("before"),
+        Options::new().doc("nodoc").flag("before").flag("backward"),
         |opt, ctx| {
             let before = opt.contains("before");
+            let backward = opt.contains("backward");
             let opt = opt.remainder();
             // FIXME in order to support options with pending commands,
             // hook arg substitution needs to be supported.
@@ -417,26 +418,69 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             };
             let mut selection = ctx.selection;
             let cursor = selection.cursor;
-            let start_row = cursor.row;
+            let (start_row, end_row, row_step) = if backward {
+                (cursor.row, 0, -1)
+            } else {
+                (cursor.row, ctx.buffer.line_count(), 1)
+            };
 
             let mut found_position = None;
-            let mut start_column = cursor.column + 1;
-            'find_pos: for row_i in start_row..ctx.buffer.line_count() {
-                let Some(line) = ctx.buffer.line(row_i) else { break };
+            let mut start_column = if backward {
+                cursor.column
+            } else {
+                cursor.column + 1
+            };
 
-                // Find ch in line
-                for (column, chr) in line.chars().enumerate().skip(start_column as _) {
-                    if chr == ch {
-                        found_position = Some(Position::new(column as i32, row_i));
-                        break 'find_pos;
+            let mut row_i = start_row;
+            'find_pos: while row_i != (end_row + row_step) {
+                let Some(line) = ctx.buffer.line(row_i) else { break };
+                let line_char_count = line.chars().count() as i32;
+                if row_i != start_row {
+                    if backward {
+                        start_column = line_char_count;
+                    } else {
+                        start_column = 0;
                     }
                 }
 
-                start_column = 0;
+                // Find ch in line
+                let mut chars = line.chars();
+                let mut column = start_column;
+                if backward {
+                    for _ in column..line_char_count {
+                        chars.next_back();
+                    }
+                    while let Some(chr) = chars.next_back() {
+                        column -= 1;
+                        if chr == ch {
+                            found_position = Some(Position::new(column, row_i));
+                            break 'find_pos;
+                        }
+                    }
+                } else {
+                    for _ in 0..column {
+                        chars.next();
+                    }
+                    while let Some(chr) = chars.next() {
+                        if chr == ch {
+                            found_position = Some(Position::new(column, row_i));
+                            break 'find_pos;
+                        }
+                        column += 1;
+                    }
+                }
+
+                row_i += row_step;
             }
 
             if let Some(pos) = found_position {
-                let offset = if before { -1 } else { 0 };
+                let offset = if before && backward {
+                    1
+                } else if before {
+                    -1
+                } else {
+                    0
+                };
                 let new_cursor = ctx
                     .buffer
                     .move_position_horizontally(pos, offset)
@@ -675,7 +719,9 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 return Err("no selections left".to_string());
             }
             let mut sels = Selections::new();
-            sels.primary_selection = new_selections.remove(0);
+            sels.primary_selection = new_selections
+                .pop()
+                .expect("should not be empty given above check");
             sels.extra_selections = new_selections;
             ctx.buffer.set_view_selections(ctx.view_handle, sels);
 
@@ -1059,9 +1105,20 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             let mut selections = buffer.view_selections(view_handle).unwrap().clone();
 
             let make_dupe = |sel: Selection, offset| {
+                let anchor_logical =
+                    buffer.map_true_position_to_logical_position(sel.anchor, &ctx.state.config);
+                let cursor_logical =
+                    buffer.map_true_position_to_logical_position(sel.cursor, &ctx.state.config);
+                let dupe_anchor = buffer.map_logical_position_to_true_position(
+                    anchor_logical.offset(offset),
+                    &ctx.state.config,
+                );
+                let dupe_cursor = buffer.map_logical_position_to_true_position(
+                    cursor_logical.offset(offset),
+                    &ctx.state.config,
+                );
                 buffer.limit_selection_to_content(
-                    &sel.with_anchor(sel.anchor.offset(offset))
-                        .with_cursor(sel.cursor.offset(offset)),
+                    &sel.with_anchor(dupe_anchor).with_cursor(dupe_cursor),
                 )
             };
 

@@ -276,8 +276,8 @@ impl Modifiers {
             (false, false, true) => "a",
             (true, true, false) => "cs",
             (true, false, true) => "ca",
-            (false, true, true) => "sa",
-            (true, true, true) => "csa",
+            (false, true, true) => "as",
+            (true, true, true) => "cas",
         }
     }
 }

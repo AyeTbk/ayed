@@ -1,11 +1,5 @@
 # Priority
-- fix dupe sel doesnt account for logical content
-- fix select should select in order such that primary is last
-- find and till backwards commands
 - add matching-pair movement 'm'
-- '_' support in num literals
-- bigsearch history
-- select symbol under cursor movement
 
 # Uncatergorized
 - Refactor everything
