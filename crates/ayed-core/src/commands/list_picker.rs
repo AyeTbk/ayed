@@ -7,10 +7,7 @@ use std::{
 use ayed_glob::Glob;
 
 use crate::{
-    command::{CommandRegistry, helpers::focused_buffer_command, options::Options},
-    panels::list_picker::{ListPickerItem, ListPickerItemKind},
-    state::{Diagnostic, DiagnosticKind, State},
-    utils::{path::PathExt, string_utils::byte_index_to_char_index},
+    command::{CommandRegistry, ExecuteCommandContext, helpers::focused_buffer_command, options::{Options, ParsedOptions}}, panels::list_picker::{ListPickerItem, ListPickerItemKind}, state::{Diagnostic, DiagnosticKind, State}, utils::{path::PathExt, string_utils::byte_index_to_char_index},
 };
 
 pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
@@ -60,8 +57,9 @@ pub fn register_list_picker_commands(cr: &mut CommandRegistry) {
 
 // == Buffer picker stuff ==
 
+
 fn register_buffer_picker_commands(cr: &mut CommandRegistry) {
-    cr.register("buffer-picker-filter-list", "nodoc", |_opt, ctx| {
+    fn filter_impl(_opt: &ParsedOptions, ctx: &mut ExecuteCommandContext) -> Result<(), String> {
         let Some(view_handle) = ctx.state.focused_view(&ctx.panels) else {
             return Ok(());
         };
@@ -69,10 +67,12 @@ fn register_buffer_picker_commands(cr: &mut CommandRegistry) {
         let buffer_handle = view.buffer;
         let buffer = ctx.resources.buffers.get(buffer_handle);
 
+        let active_editor_buffer = ctx.state.active_editor_buffer(&ctx.resources);
+
         let filter = buffer.line(0).unwrap_or_default();
         let filters: Vec<&str> = filter.split_ascii_whitespace().collect();
         let mut filtered_list = Vec::new();
-        'buffer: for (_, buffer) in ctx.resources.buffers.iter() {
+        'buffer: for (handle, buffer) in ctx.resources.buffers.iter() {
             if buffer.internal_use_only {
                 continue;
             }
@@ -96,18 +96,39 @@ fn register_buffer_picker_commands(cr: &mut CommandRegistry) {
                 }
             }
 
+            // Ugly hack to preselect the active editor buffer easily, for the *-fill command.
+            let filter_text = if let Some(aeb) = &active_editor_buffer && *aeb == handle {
+                "<<ACTIVE_EDITOR_BUFFER>>".to_string()
+            } else {
+                String::new()
+            };
+
             filtered_list.push(ListPickerItem {
                 kind: ListPickerItemKind::Item,
                 label: label.to_string(),
                 command: format!("buffer {}", buffer.name()),
-                filter_text: Default::default(), // unused
+                filter_text,
             });
         }
 
         ctx.state.list_picker.items = filtered_list; //file_list_to_file_tree(filtered_list);
         ctx.state.list_picker.reselect();
         Ok(())
+    }
+
+    cr.register("buffer-picker-fill-list", "nodoc", |opt, mut ctx| {
+        filter_impl(opt, &mut ctx)?;
+        for (i, item) in ctx.state.list_picker.items.iter().enumerate() {
+            if item.filter_text.contains("<<ACTIVE_EDITOR_BUFFER>>") {
+                ctx.state.list_picker.selected_item = i;
+                break;
+            }
+        }
+
+        Ok(())
     });
+
+    cr.register("buffer-picker-filter-list", "nodoc", |opt, mut ctx| filter_impl(opt, &mut ctx));
 }
 
 // == Search results picker stuff ==

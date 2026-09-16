@@ -4,7 +4,6 @@
 - jump points
 - <a-up>: helix-treesitter like selection extension
 - goto line extend
-- preselect current buffer in buffer picker
 
 # Uncatergorized
 - Refactor everything

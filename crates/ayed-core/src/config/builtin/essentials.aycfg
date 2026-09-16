@@ -236,7 +236,7 @@ panel list-picker {
 panel list-picker {
     list-picker-mode buffer {
         hooks {
-            state-modified:list-picker-mode buffer-picker-filter-list
+            state-modified:list-picker-mode buffer-picker-fill-list
             buffer-modified buffer-picker-filter-list
         }
     }
