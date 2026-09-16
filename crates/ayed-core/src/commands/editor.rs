@@ -677,11 +677,19 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
     cr.register(
         "line",
-        "nodoc",
+        Options::new().doc("nodoc").flag("extend"),
         focused_buffer_command(|opt, ctx| {
-            let row_number = opt.raw().parse::<i32>().map_err(|e| e.to_string())?;
+            let row_number = opt.remainder().parse::<i32>().map_err(|e| e.to_string())?;
             let row = (row_number - 1).clamp(0, ctx.buffer.last_row());
-            let sels = Selections::new_with(Selection::with_position(Position::new(0, row)), &[]);
+            
+            let line_pos = Position::new(0, row);
+            let mut sels = ctx.selections.clone();
+            for sel in sels.iter_mut() {
+                *sel = sel.with_cursor(line_pos);
+                if !opt.contains("extend") {
+                    *sel = sel.with_anchor(line_pos);
+                }
+            }
             ctx.buffer.set_view_selections(ctx.view_handle, sels);
 
             ctx.queue.emit("selections-modified", "");

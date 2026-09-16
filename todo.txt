@@ -3,7 +3,6 @@
     - extra: add text object movements
 - jump points
 - <a-up>: helix-treesitter like selection extension
-- goto line extend
 
 # Uncatergorized
 - Refactor everything

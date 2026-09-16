@@ -392,7 +392,8 @@ mode normal {
 
         <space> set mode combo-user
         g set mode combo-goto
-        <c-g> $[ map-input : ; insert-str $"line " ]
+        <a-g> $[ map-input : ; insert-str $"line " ]
+        <as-g> $[ map-input : ; insert-str $"line --extend " ]
 
         r set pending-command replace
         f set pending-command move-to-char --reanchored
