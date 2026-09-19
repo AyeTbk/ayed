@@ -149,21 +149,23 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         Options::new().doc("nodoc").flag("scratch"),
         |opt, ctx| {
             let scratch = opt.contains("scratch");
-            let mut position = Position::ZERO;
+            let mut position = None;
             let path = if opt.remainder().is_empty() {
                 "".into()
             } else {
                 let mut path_str = opt.remainder();
-                // Parse :line:column notation - TODO make this better, and probably a seperate function too
+                // Parse :line:column notation - TODO make this better, and probably a seperate function too, and selection support?
                 if let Some((stem1, suffix1)) = path_str.rsplit_once(':') {
                     path_str = stem1;
+                    let mut pos = Position::ZERO;
                     if let Some((stem2, suffix2)) = path_str.rsplit_once(':') {
                         path_str = stem2;
-                        position.column = suffix1.parse::<Column>().unwrap() - 1;
-                        position.row = suffix2.parse::<Row>().unwrap() - 1;
+                        pos.column = suffix1.parse::<Column>().unwrap_or(1) - 1;
+                        pos.row = suffix2.parse::<Row>().unwrap_or(1) - 1;
                     } else {
-                        position.row = suffix1.parse::<Column>().unwrap() - 1;
+                        pos.row = suffix1.parse::<Column>().unwrap_or(1) - 1;
                     }
+                    position = Some(pos);
                 }
                 ctx.state.normalize_path(Path::new(path_str))
             };
@@ -206,7 +208,6 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             ctx.state.active_editor_view = Some(view_handle);
 
             let buffer = ctx.resources.buffers.get(buffer_handle);
-            position = buffer.limit_position_to_content(position);
             if let Some(format) = buffer.forced_format.as_ref() {
                 ctx.queue.set_state(ConfigState::FORMAT, format);
             }
@@ -216,9 +217,12 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
             ctx.queue
                 .set_state(ConfigState::FILE, path.to_str_or_err()?);
 
-            let sel = Selection::new().with_start_and_end(position, position);
-            ctx.queue.push(format!("selections-set {}", sel));
-            ctx.queue.push("look-center-primary-selection");
+            if let Some(mut position) = position {
+                position = buffer.limit_position_to_content(position);
+                let sel = Selection::new().with_start_and_end(position, position);
+                ctx.queue.push(format!("selections-set {}", sel));
+                ctx.queue.push("look-center-primary-selection");
+            }
 
             if let Some(path) = buffer_opened_path {
                 ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
@@ -402,16 +406,6 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
         Ok(Some(selection))
     });
-
-    register_selection_movement(
-        cr,
-        "move-to-pair",
-        Options::new().doc("nodoc").flag("backward"),
-        |opt, ctx| {
-            //.
-            todo!()
-        },
-    );
 
     register_selection_movement(
         cr,
@@ -681,7 +675,7 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         focused_buffer_command(|opt, ctx| {
             let row_number = opt.remainder().parse::<i32>().map_err(|e| e.to_string())?;
             let row = (row_number - 1).clamp(0, ctx.buffer.last_row());
-            
+
             let line_pos = Position::new(0, row);
             let mut sels = ctx.selections.clone();
             for sel in sels.iter_mut() {

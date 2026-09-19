@@ -3,6 +3,7 @@ use crate::command::CommandRegistry;
 mod config;
 mod core;
 mod editor;
+mod jump_points;
 mod list_picker;
 mod lsp;
 mod misc;
@@ -14,4 +15,5 @@ pub fn register_builtin_commands(cr: &mut CommandRegistry) {
     misc::register_misc_commands(cr);
     lsp::register_lsp_commands(cr);
     list_picker::register_list_picker_commands(cr);
+    jump_points::register_jump_points_commands(cr);
 }

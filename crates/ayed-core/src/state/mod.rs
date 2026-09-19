@@ -44,11 +44,15 @@ pub use completions::{
 mod modeline;
 pub use modeline::{Align, ModelineInfo, ModelineState};
 
+mod jump_points;
+pub use jump_points::JumpPoints;
+
 #[derive(Default)]
 pub struct State {
     pub is_async_task_ready: Arc<AtomicBool>,
     pub active_editor_view: Option<Handle<View>>,
     pub per_buffer: HashMap<Handle<TextBuffer>, PerBufferState>,
+    pub jump_points: JumpPoints,
     pub diagnostics: Diagnostics,
     pub completions: Completions,
     pub register: Register,

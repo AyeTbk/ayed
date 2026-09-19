@@ -405,6 +405,13 @@ mode normal {
         <s-t> set pending-command move-to-char --anchored --before
         <as-t> set pending-command move-to-char --anchored --before --backward
 
+        z jump-restore
+        <a-z> set pending-command jump-restore
+        <s-z> jump-save
+        <as-z> set pending-command jump-save
+        <c-z> jump-extend
+        <ca-z> set pending-command jump-extend
+
         q warpdrive
     }
 }
