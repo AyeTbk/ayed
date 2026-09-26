@@ -26,12 +26,14 @@ use serde_json::Value;
 use crate::{
     notification::convert_notification_to_json,
     request::{
-        PendingRequest, RequestType, build_definition_request_json, build_hover_request_json,
+        PendingRequest, RequestType, build_definition_request_json,
+        build_format_document_request_json, build_hover_request_json,
         build_initialize_request_json, build_resolve_completion_request_json,
         build_signature_help_request_json, build_suggest_completion_request_json,
     },
     types::{
-        CompletionItem, CompletionItemId, Location, Position, SignatureHelp, TextDocumentIdentifier,
+        CompletionItem, CompletionItemId, DocumentUri, FormattingOptions, Location, Position,
+        SignatureHelp, TextDocumentIdentifier, TextEdit,
     },
 };
 
@@ -167,6 +169,21 @@ impl LspClient {
         self.queue_request(PendingRequest {
             id,
             typ: RequestType::Definition,
+            json,
+        });
+    }
+
+    pub fn queue_format_document_request(
+        &mut self,
+        text_document: TextDocumentIdentifier,
+        options: FormattingOptions,
+    ) {
+        let id = self.take_request_id();
+        self.request_metadata_mut(id).file = Some(text_document.uri.clone());
+        let json = build_format_document_request_json(id, text_document, options);
+        self.queue_request(PendingRequest {
+            id,
+            typ: RequestType::FormatDocument,
             json,
         });
     }
@@ -376,8 +393,18 @@ impl LspClient {
                 let loc: Vec<Location> = serde_json::from_value(Value::Array(results)).ok()?;
                 Some(loc)
             };
+            let get_format_document_result = |result: &mut Value| -> Option<Vec<TextEdit>> {
+                let result = result.take();
+                let results = match result {
+                    Value::Array(results) => results,
+                    Value::Null => vec![],
+                    _ => unimplemented!("bad goto location: {result:?}"),
+                };
+                let loc: Vec<TextEdit> = serde_json::from_value(Value::Array(results)).ok()?;
+                Some(loc)
+            };
 
-            let Some(request_metadata) = self.request_metadata.remove(&resp.id) else {
+            let Some(mut request_metadata) = self.request_metadata.remove(&resp.id) else {
                 log::debug!("lsp response without associated request. id {}", resp.id);
                 continue;
             };
@@ -440,6 +467,17 @@ impl LspClient {
                         unimplemented!("{resp_result:?}");
                     }
                 }
+                RequestType::FormatDocument => {
+                    if let Some(text_edits) = get_format_document_result(&mut resp_result) {
+                        let file = request_metadata
+                            .file
+                            .take()
+                            .expect("this should have been set before the request was sent");
+                        responses.push(Response::FormatDocumentEdits { file, text_edits });
+                    } else {
+                        unimplemented!("{resp_result:?}");
+                    }
+                }
             }
         }
 
@@ -455,6 +493,7 @@ impl LspClient {
 struct RequestMetadata {
     typ: RequestType,
     completion_item_id: CompletionItemId,
+    file: Option<DocumentUri>,
 }
 
 #[derive(Debug, PartialEq)]

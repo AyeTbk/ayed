@@ -1,5 +1,5 @@
 # Priority
-- LSP format whole document, on save
+- jump history (only specific motions like goto def, bigsearch, line...) g;b go back, g;f go forward
 - paste in insert mode, <c-r> (maybe this could be more of a 'allow one normal-mode command' type thing)
 - bigsearch should select the chosen result
 - add alt-alphabet warpdrive for braces and operators, <a-q>

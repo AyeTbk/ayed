@@ -102,10 +102,12 @@ mode combo-lsp {
     keybinds {
         s lsp-signature-help
         h lsp-hover
+        f lsp-format-document
     }
     keybinds-doc {
         s Signature help
         h Hover information
+        f Format document
     }
 }
 

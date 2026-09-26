@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
@@ -148,6 +148,13 @@ pub enum Documentation {
     MarkupContent { kind: String, value: String },
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormattingOptions {
+    pub tab_size: u32,
+    pub insert_spaces: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextEdit {
@@ -193,12 +200,17 @@ pub struct TextDocumentPositionParams {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DocumentUri(pub String);
+pub struct DocumentUri(String);
 
 impl DocumentUri {
     pub fn new(absolute_filepath: &Path) -> Self {
         debug_assert!(absolute_filepath.is_absolute());
         Self(format!("file://{}", absolute_filepath.to_string_lossy()))
+    }
+
+    pub fn into_path(mut self) -> PathBuf {
+        self.0.drain(0.."file://".len());
+        PathBuf::from(self.0)
     }
 }
 

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use ayed_lsp_client::{
     LspClient, Notification, Response,
     types::{
-        DocumentUri, LanguageId, TextDocumentIdentifier, TextDocumentItem,
+        DocumentUri, FormattingOptions, LanguageId, TextDocumentIdentifier, TextDocumentItem,
         VersionedTextDocumentIdentifier,
     },
 };
@@ -28,7 +28,7 @@ use crate::{
 pub fn register_lsp_commands(cr: &mut CommandRegistry) {
     cr.register("lsp-start", "nodoc", |_opt, ctx| {
         let Ok(server_command) = ctx.state.config.get_entry_value("lsp", "server-command") else {
-            info!("no lsp server command set, skipping lsp-start");
+            // info!("no lsp server command set, skipping lsp-start");
             return Ok(());
         };
 
@@ -131,6 +131,21 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
 
                     // FIXME this smells
                     ctx.queue.push("generate-highlights");
+                }
+                Response::FormatDocumentEdits { file, text_edits } => {
+                    let path = file.into_path();
+                    let Some(buffer_handle) = ctx.resources.buffer_with_path(&path) else {
+                        continue;
+                    };
+                    let buffer = ctx.resources.buffers.get_mut(buffer_handle);
+                    let there_are_edits = !text_edits.is_empty();
+                    let text_edits = text_edits.into_iter().map(lsp_text_edit_to_text_edit);
+                    for text_edit in text_edits {
+                        buffer.apply_edit(&text_edit)?;
+                    }
+                    if there_are_edits {
+                        ctx.queue.emit("buffer-modified", &path.to_string_lossy());
+                    }
                 }
             }
         }
@@ -339,6 +354,32 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
+
+    cr.register(
+        "lsp-format-document",
+        "nodoc",
+        focused_buffer_command(|_opt, ctx| {
+            let Some(client) = &mut ctx.state.lsp_client else {
+                return Err("lsp client not started".into());
+            };
+
+            let Some(path) = ctx.buffer.path() else {
+                return Err("save the file before you can format".into());
+            };
+
+            let editor_conf = ctx.state.config.get_editor();
+
+            client.queue_format_document_request(
+                TextDocumentIdentifier::new(path),
+                FormattingOptions {
+                    tab_size: editor_conf.indent_size.try_into().unwrap(),
+                    insert_spaces: editor_conf.indent_char == ' ',
+                },
+            );
+
+            Ok(())
+        }),
+    );
 }
 
 fn position_to_lsp_position(pos: Position) -> ayed_lsp_client::types::Position {
@@ -368,10 +409,7 @@ fn lsp_range_to_range(range: ayed_lsp_client::types::Range) -> Range {
 }
 
 fn lsp_uri_to_filepath(uri: ayed_lsp_client::types::DocumentUri) -> PathBuf {
-    let Some(path) = uri.0.strip_prefix("file://") else {
-        unimplemented!("unknown lsp uri format: {uri:?}");
-    };
-    PathBuf::from(path)
+    uri.into_path()
 }
 
 fn lsp_diagnostics_to_diagnostics(
@@ -439,12 +477,7 @@ fn lsp_completion_item_to_completion_item(
 ) -> CompletionItem {
     let extra_edits = item
         .additional_text_edits
-        .map(|edits| {
-            edits
-                .into_iter()
-                .map(lsp_text_edit_to_completion_edit)
-                .collect()
-        })
+        .map(|edits| edits.into_iter().map(lsp_text_edit_to_text_edit).collect())
         .unwrap_or_default();
     let kind = item
         .kind
@@ -482,7 +515,7 @@ fn lsp_completion_item_kind_to_completion_item_kind(kind: i32) -> CompletionItem
     }
 }
 
-fn lsp_text_edit_to_completion_edit(edit: ayed_lsp_client::types::TextEdit) -> TextEdit {
+fn lsp_text_edit_to_text_edit(edit: ayed_lsp_client::types::TextEdit) -> TextEdit {
     TextEdit {
         range: lsp_range_to_range(edit.range),
         text: edit.new_text,

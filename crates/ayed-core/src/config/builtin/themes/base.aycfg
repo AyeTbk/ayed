@@ -55,7 +55,7 @@ syntax-style {
     keyword             #4488cf
     keyword-statement   #aa77cc
     builtin             $[ #62b0fb ; priority:11 ]
-    operator            #bbccde
+    operator            $[ #bbccde ; priority:8 ]
     delimiter           $[ #ccaa11 ; priority:9 ]
     macro               $[ #3377cc ; priority:11 ]
     type                $[ #55b89b ; priority:12 ]

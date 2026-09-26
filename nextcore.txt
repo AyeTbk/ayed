@@ -1,0 +1,15 @@
+# Nextcore analysis
+
+Commands
+Soft/Hard command failure
+Async commands
+Message passing text buffer
+Plugins
+Panels
+Config
+Multieditor
+Workspaces
+Logical content 
+Buffer content properties
+UI/UX
+Rendering Api

@@ -1,7 +1,8 @@
 use serde_json::{Value, json};
 
 use crate::types::{
-    CompletionItem, DiagnosticTag, Position, TextDocumentIdentifier, TextDocumentPositionParams,
+    CompletionItem, DiagnosticTag, FormattingOptions, Position, TextDocumentIdentifier,
+    TextDocumentPositionParams,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -13,6 +14,7 @@ pub enum RequestType {
     SignatureHelp,
     Hover,
     Definition,
+    FormatDocument,
 }
 
 #[derive(Debug)]
@@ -149,6 +151,22 @@ pub fn build_definition_request_json(
         "params": TextDocumentPositionParams {
             text_document: text_document,
             position: position,
+        },
+    })
+}
+
+pub fn build_format_document_request_json(
+    request_id: i32,
+    text_document: TextDocumentIdentifier,
+    options: FormattingOptions,
+) -> Value {
+    json!({
+        "jsonrpc": JSON_RPC_VERSION,
+        "id": request_id,
+        "method": "textDocument/formatting",
+        "params": {
+            "textDocument": text_document,
+            "options": options,
         },
     })
 }

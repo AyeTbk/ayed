@@ -1,4 +1,4 @@
-use crate::types::{Diagnostic, DocumentUri, Location};
+use crate::types::{Diagnostic, DocumentUri, Location, TextEdit};
 
 #[derive(Debug)]
 pub enum Response {
@@ -18,5 +18,9 @@ pub enum Response {
     FileDiagnostics {
         file: DocumentUri,
         diagnostics: Vec<Diagnostic>,
+    },
+    FormatDocumentEdits {
+        file: DocumentUri,
+        text_edits: Vec<TextEdit>,
     },
 }
