@@ -351,6 +351,9 @@ pub fn register_lsp_commands(cr: &mut CommandRegistry) {
                 position_to_lsp_position(cursor),
             );
 
+            // FIXME this should be before-hooked to this command in config instead, but this feature doesnt exist yet.
+            ctx.queue.push("jump-history-checkpoint");
+
             Ok(())
         }),
     );

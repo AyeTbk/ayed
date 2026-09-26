@@ -1,15 +1,23 @@
 # Nextcore analysis
 
-Commands
+
+## Commands
+
 Soft/Hard command failure
 Async commands
+Hooking before/after execution
+Invocation substitutions
+
+
+## Uncategorized
+
 Message passing text buffer
 Plugins
 Panels
 Config
 Multieditor
 Workspaces
-Logical content 
+Logical content
 Buffer content properties
 UI/UX
 Rendering Api

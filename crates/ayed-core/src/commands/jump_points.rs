@@ -90,4 +90,60 @@ pub fn register_jump_points_commands(cr: &mut CommandRegistry) {
             Ok(())
         }),
     );
+
+    cr.register(
+        "jump-history-checkpoint",
+        Options::new().doc("Records the current selections as an entry in the jump history."),
+        focused_buffer_command(|_opt, ctx| {
+            if !ctx.state.jump_points.stack.is_empty() {
+                let cursor = ctx.state.jump_points.stack_cursor.unwrap_or(0);
+                let next_cursor = ctx
+                    .state
+                    .jump_points
+                    .stack_cursor
+                    .map(|c| c + 1)
+                    .unwrap_or(0);
+                if next_cursor < ctx.state.jump_points.stack.len() {
+                    ctx.state.jump_points.stack.drain(cursor..);
+                } else {
+                }
+            }
+
+            ctx.state.jump_points.stack_cursor = Some(ctx.state.jump_points.stack.len());
+            ctx.state
+                .jump_points
+                .stack
+                .push((ctx.buffer.path_str().to_string(), ctx.selections));
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "jump-history-back",
+        Options::new().doc("nodoc"),
+        focused_buffer_command(|_opt, ctx| {
+            if ctx.state.jump_points.stack.is_empty() {
+                return Err("jump history is empty".into());
+            }
+
+            let Some(cursor) = &mut ctx.state.jump_points.stack_cursor else {
+                ctx.queue.push("message can't jump further back");
+                return Ok(());
+            };
+            let (path_str, jump_sels) = ctx.state.jump_points.stack.get(*cursor).unwrap();
+
+            if *cursor == 0 {
+                ctx.state.jump_points.stack_cursor = None;
+            } else {
+                *cursor -= 1;
+            }
+
+            ctx.queue.push(format!("edit {}", path_str));
+            ctx.queue
+                .push(format!("selections-set {}", jump_sels.to_string()));
+
+            Ok(())
+        }),
+    );
 }

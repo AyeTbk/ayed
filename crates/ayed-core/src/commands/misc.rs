@@ -477,6 +477,10 @@ pub fn register_misc_commands(cr: &mut CommandRegistry) {
             }
             if let Some(nearest_diag) = nearest_diag {
                 let sel = Selection::with_position(nearest_diag.range.start);
+
+                // FIXME this should be before-hooked to this command in config instead, but this feature doesnt exist yet.
+                ctx.queue.push("jump-history-checkpoint");
+
                 ctx.queue.push(format!("selections-set {}", sel));
             } else {
                 return Err("no further diagnostics found".to_string());

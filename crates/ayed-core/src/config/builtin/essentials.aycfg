@@ -507,10 +507,11 @@ mode combo-goto {
         K move-to-edge --anchored buffer-start
         j move-to-edge buffer-end
         J move-to-edge --anchored buffer-end
-        h move-to-edge line-start
-        H move-to-edge --anchored line-start
+        h move-to-edge line-past-indent
+        H move-to-edge --anchored line-past-indent
         l move-to-edge line-past-end
         L move-to-edge --anchored line-past-end
+        b jump-history-back
         n diagnostics-move-to
         p diagnostics-move-to --previous
         d lsp-goto
@@ -524,6 +525,7 @@ mode combo-goto {
         H Line start (anchored)
         l Line end
         L Line end (anchored)
+        b Jump back
         n Next diagnostic
         p Previous diagnostic
         d Goto definition (LSP)

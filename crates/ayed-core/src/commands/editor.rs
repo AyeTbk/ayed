@@ -725,9 +725,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                     *sel = sel.with_anchor(line_pos);
                 }
             }
-            ctx.buffer.set_view_selections(ctx.view_handle, sels);
 
-            ctx.queue.emit("selections-modified", "");
+            // FIXME this should be before-hooked to this command in config instead, but this feature doesnt exist yet.
+            ctx.queue.push("jump-history-checkpoint");
+
+            ctx.queue.push(format!("selections-set {sels}"));
 
             Ok(())
         }),

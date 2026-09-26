@@ -14,7 +14,7 @@ format c3 {
         keyword \b(module|import|faultdef|fn|macro|asm|extern|struct|enum|union|bitstruct|inteface|const|typedef|alias)\b
         keyword-statement \b(if|else|while|for|foreach|return|continue|break|defer|switch|case|nextcase|default|assert|unreachable)\b
         builtin \b(Some|None|Ok|Err)\b
-        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|~|!|<|<<|>|>>|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
+        operator (==|=|!=|\+|\+=|\-|\-=|\*|\*=|/|/=|~|!|>=|<=|<|<<|>|>>|\|\||&&|\||&|::|:|;|,|\.\.|\.|\?)
         delimiter (\{|\}|\[|\]|\(|\)|<|>)
         macro ((@|\$\$?)[a-zA-Z0-9_]+)
         type $[ \b([A-Z][a-zA-Z0-9_]*)\b ; \b(u?(short|int|long|int128|sz))\b ; \b(void|bool|ichar|char|float|double|iptr|uptr)\b ]

@@ -3,8 +3,7 @@ use ayed_core::core::Core;
 mod tui;
 
 fn main() {
-    let mut core =
-    Core::with_builtins();
+    let mut core = Core::with_builtins();
 
     let mut any_path_specified = false;
     let mut args = std::env::args().skip(1);
