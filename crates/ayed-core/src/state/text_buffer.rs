@@ -1,7 +1,9 @@
 use std::{
     cell::Cell,
     collections::HashMap,
+    io::Write,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 use crate::{
@@ -38,6 +40,8 @@ pub struct TextBuffer {
 
     /// Version for the buffer's content. Must increment for every change, including undos. For LSP.
     pub content_version: Cell<i32>,
+    pub on_disk_modified_time: Cell<SystemTime>,
+
     /// File format the user set.
     pub forced_format: Option<String>,
     pub internal_use_only: bool,
@@ -65,12 +69,41 @@ impl TextBuffer {
         let content =
             std::fs::read_to_string(path).map_err(|err| format!("can't read '{path:?}': {err}"))?;
         let lines = content.split('\n').map(str::to_string).collect::<Vec<_>>();
+        let on_disk_modified_time = query_on_disk_modified_time(path)?;
         Ok(Self {
             lines,
             path: Some(path.to_path_buf()),
             name: path.to_string_lossy().into_owned(),
+            on_disk_modified_time: Cell::new(on_disk_modified_time),
             ..Self::default()
         })
+    }
+
+    pub fn reload(&mut self) -> Result<(), String> {
+        let Some(path) = self.path() else {
+            return Err("buffer doesn't have a path".into());
+        };
+        let mut new_self = Self::new_from_path(path)?;
+        let mut new_sels = HashMap::new();
+
+        for (&view, sels) in &self.selections {
+            new_sels.insert(view, new_self.limit_selections_to_content(sels));
+        }
+        new_self.selections = new_sels;
+
+        new_self.content_version = self.content_version.clone();
+        new_self.forced_format = self.forced_format.clone();
+        new_self.internal_use_only = self.internal_use_only;
+
+        *self = new_self;
+
+        Ok(())
+    }
+
+    pub fn changed_on_disk(&self) -> Result<bool, String> {
+        let Some(path) = &self.path else { return Ok(false) };
+        let on_disk_modified_time = query_on_disk_modified_time(path)?;
+        Ok(self.on_disk_modified_time.get() != on_disk_modified_time)
     }
 
     fn default() -> Self {
@@ -82,6 +115,7 @@ impl TextBuffer {
             dirty: Default::default(),
             history: Default::default(),
             content_version: Default::default(),
+            on_disk_modified_time: Cell::new(SystemTime::UNIX_EPOCH),
             forced_format: Default::default(),
             internal_use_only: Default::default(),
         }
@@ -107,14 +141,21 @@ impl TextBuffer {
         // Rename tmp file to intended name.
 
         let tmp_path = path.with_added_extension(".ayed-tmp");
-        let tmp_file = std::fs::OpenOptions::new()
+        let mut tmp_file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&tmp_path)
             .map_err(map_io_err)?;
 
-        let mut buf_tmp_file = std::io::BufWriter::new(tmp_file);
-        self.write_content(&mut buf_tmp_file).map_err(map_io_err)?;
+        {
+            let mut buf_tmp_file = std::io::BufWriter::new(&mut tmp_file);
+            self.write_content(&mut buf_tmp_file).map_err(map_io_err)?;
+            buf_tmp_file.flush().map_err(map_io_err)?;
+        }
+
+        let now = SystemTime::now();
+        tmp_file.set_modified(now).map_err(map_io_err)?;
+        self.on_disk_modified_time.set(now);
 
         std::fs::rename(tmp_path, path).map_err(map_io_err)?;
 
@@ -372,6 +413,14 @@ impl TextBuffer {
             char_count += row_char_count;
         }
         char_count
+    }
+
+    pub fn limit_selections_to_content(&self, selections: &Selections) -> Selections {
+        let mut sels = selections.clone();
+        for sel in sels.iter_mut() {
+            *sel = self.limit_selection_to_content(sel)
+        }
+        sels
     }
 
     pub fn limit_selection_to_content(&self, selection: &Selection) -> Selection {
@@ -802,4 +851,10 @@ fn logical_char_char_count(ch: char, config: &Config) -> i32 {
 
 fn map_io_err(err: std::io::Error) -> String {
     err.to_string()
+}
+
+fn query_on_disk_modified_time(path: &Path) -> Result<SystemTime, String> {
+    let path_metadata = path.metadata().map_err(map_io_err)?;
+    let on_disk_modified_time = path_metadata.modified().map_err(map_io_err)?;
+    Ok(on_disk_modified_time)
 }

@@ -139,8 +139,11 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
                 view
             }
         };
-
         ctx.state.active_editor_view = Some(view_handle);
+
+        // FIXME this should hook to a buffer-switched-to event that this command would emit
+        ctx.queue.push("reload-check");
+
         Ok(())
     });
 
@@ -148,6 +151,8 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
         "edit",
         Options::new().doc("nodoc").flag("scratch"),
         |opt, ctx| {
+            // FIXME edit should call the 'buffer' command when the file is already opened
+
             let scratch = opt.contains("scratch");
             let mut position = None;
             let path = if opt.remainder().is_empty() {
@@ -226,12 +231,48 @@ pub fn register_editor_commands(cr: &mut CommandRegistry) {
 
             if let Some(path) = buffer_opened_path {
                 ctx.queue.emit("buffer-opened", path.to_str_or_err()?);
+            } else {
+                // FIXME this should hook to a buffer-switched-to event that this command would emit
+                ctx.queue.push("reload-check");
             }
 
             Ok(())
         },
     );
     cr.register("e", "nodoc", alias("edit"));
+
+    cr.register(
+        "reload",
+        Options::new().doc("nodoc").flag("force"),
+        focused_buffer_command(|opt, ctx| {
+            let force = opt.contains("force");
+
+            if ctx.buffer.is_dirty() && !force {
+                return Err("will not reload because buffer is dirty".into());
+            }
+
+            if ctx.buffer.changed_on_disk()? || force {
+                ctx.buffer.reload()?;
+                ctx.queue.emit("buffer-modified", "");
+                ctx.queue.push("message buffer reloaded");
+            } else {
+                ctx.queue.push("message buffer hasn't changed on disk");
+            }
+
+            Ok(())
+        }),
+    );
+
+    cr.register(
+        "reload-check",
+        Options::new().doc("nodoc"),
+        focused_buffer_command(|_opt, ctx| {
+            if ctx.buffer.changed_on_disk()? {
+                ctx.queue.set_state("mode", "combo-reload-confirm");
+            }
+            Ok(())
+        }),
+    );
 
     cr.register(
         "format-set",
