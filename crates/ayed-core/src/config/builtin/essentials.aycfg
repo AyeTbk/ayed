@@ -378,6 +378,7 @@ mode normal {
 
         / $[ panel-focus prompt ; set prompt-mode search ]
         n $[ panel-focus prompt ; set prompt-mode search ; prompt-exec move-regex <PROMPT> ]
+        * $[ selection-exec prompt-history-add search <PRIMARY_SELECTION> ; message updated search register ]
 
         ? $[ panel-focus prompt ; set prompt-mode bigsearch ]
         <a-?> $[

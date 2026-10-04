@@ -11,7 +11,6 @@ Invocation substitutions
 ### Uncategorized
 
 Registers
-Message passing text buffer
 Plugins
 Panels
 Config
@@ -20,6 +19,7 @@ Workspaces
 Logical content
 Buffer content properties
 UI/UX
+UI layout
 Rendering Api
 
 
@@ -38,6 +38,11 @@ Rendering Api
         - AppliedConfigs
         - Buffers
         - Plugin registered data
+
+
+## Buffers
+
+TODO
 
 
 ## Commands

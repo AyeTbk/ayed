@@ -1,6 +1,5 @@
 # Priority
 - check dedent stuff, allow dedent regardless of indent type / mixed indent
-- add '*' input to put the primary selection in the 'search register' (like kak)
 - paste in insert mode, <c-r> (maybe this could be more of a 'allow one normal-mode command' type thing)
 - bigsearch should select the chosen result
 - add alt-alphabet warpdrive for braces and operators, <a-q>
