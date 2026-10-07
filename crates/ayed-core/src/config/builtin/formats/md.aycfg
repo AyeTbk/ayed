@@ -1,0 +1,19 @@
+file .*\.md {
+    hooks {
+        # FIXME this stinks, it's not declarative. Invent declarative config states now!
+        state-modified:file state-set format md
+    }
+}
+
+format md {
+    editor {
+        indent-char $t
+    }
+
+    syntax {
+        keyword (# .+)
+        type (## .+)
+        function (### .+)
+        comment (####+ .+)
+    }
+}
