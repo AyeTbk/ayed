@@ -81,7 +81,7 @@ one must query the buffer.
 
 Ranges will represent [start, end) static position pairs.
 Selections are like ranges but with markers instead of positions, augmented with
-whatever necessary for comfortable editing.
+whatever necessary for comfortable editing, like `desired_column`.
 
 Positioning of the following elements will be handled by markers:
 syntax highlighting, inline virtual content, ...
@@ -132,6 +132,16 @@ TODO?
 
 Entirely expressed as modules that can be loaded or unloaded cleanly.
 Modules may come from disk or from memory.
+
+Contexts: focused-view, view, etc. How to represent?
+ex maybe: config.for_view(ViewId) -> &AppliedConfig
+Are there other contexts than views? maybe global? workspace?
+- Anything that could be seen simultaneously while needing separate
+  config, like two editors open side by side with files of different
+  languages. Would require competing syntax mappings => different contexts.
+- Can multiple different things need to respond to input differently and
+  simultaneously? (No? focus kinda makes it not a possibility?)
+- Background processing of sorts? (like what??)
 
 
 ### Data representation
