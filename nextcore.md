@@ -81,7 +81,7 @@ one must query the buffer.
 
 Ranges will represent [start, end) static position pairs.
 Selections are like ranges but with markers instead of positions, augmented with
-whatever necessary for comfortable editing.
+whatever necessary for comfortable editing, like `desired_column`.
 
 Positioning of the following elements will be handled by markers:
 syntax highlighting, inline virtual content, ...
