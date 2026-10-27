@@ -7,6 +7,9 @@ mod iofacade;
 mod plugin;
 mod position;
 mod range;
+mod rect;
+mod render;
+mod style;
 mod util;
 
 pub use core::Core;

@@ -16,6 +16,10 @@ impl<K: IdMapKey, V> IdMap<K, V> {
         self.inner.insert(key, value);
         key
     }
+
+    pub fn remove(&mut self, key: K) -> Option<V> {
+        self.inner.remove(&key)
+    }
 }
 
 impl<K: IdMapKey, V> std::default::Default for IdMap<K, V> {
@@ -37,9 +41,15 @@ macro_rules! impl_IdMapKey {
         impl crate::util::id_map::IdMapKey for $ty {
             fn next(&self) -> Self {
                 let mut next = *self;
-                next.id += 1;
+                next.id = next.id.checked_add(1).unwrap();
                 next
             }
         }
     };
+}
+
+impl IdMapKey for u16 {
+    fn next(&self) -> Self {
+        *self + 1
+    }
 }

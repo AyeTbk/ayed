@@ -1,6 +1,6 @@
 use crate::{impl_IdMapKey, util::id_map::IdMap};
 
-pub use selection::{Selection, SelectionSet};
+pub use selection::SelectionSet;
 pub use text_buffer::TextBuffer;
 pub use text_edit::TextEdit;
 pub use view::View;
@@ -22,9 +22,9 @@ pub type ViewStorage = IdMap<ViewId, View>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct ViewId {
-    id: u32,
+    id: u16,
+    buffer: BufferId,
 }
-impl_IdMapKey!(for ViewId);
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct MarkerId {

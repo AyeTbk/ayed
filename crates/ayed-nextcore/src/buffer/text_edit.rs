@@ -1,4 +1,4 @@
-use crate::{Position, Range};
+use crate::{Range, position::PPosition};
 
 #[derive(Debug, Clone)]
 pub struct TextEdit {
@@ -7,14 +7,14 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
-    pub fn insert_str_at(s: impl Into<String>, at: Position) -> Self {
+    pub fn insert_str_at(s: impl Into<String>, at: PPosition) -> Self {
         Self {
             range: Range::new(at, at),
             text: s.into(),
         }
     }
 
-    pub fn insert_char_at(ch: char, at: Position) -> Self {
+    pub fn insert_char_at(ch: char, at: PPosition) -> Self {
         let mut buf = [0u8; char::MAX_LEN_UTF8];
         let s = ch.encode_utf8(&mut buf);
         Self::insert_str_at(s, at)
@@ -27,7 +27,7 @@ impl TextEdit {
         }
     }
 
-    pub fn delete_at(at: Position) -> Self {
+    pub fn delete_at(at: PPosition) -> Self {
         Self::delete_range(Range::new(at, at.offset((1, 0))))
     }
 
