@@ -1,3 +1,4 @@
+mod asyn;
 mod buffer;
 mod command;
 mod config;
@@ -12,6 +13,7 @@ mod render;
 mod style;
 mod util;
 
+pub use asyn::{Asyn, AsynTask};
 pub use core::Core;
 pub use data::Storage;
 pub use plugin::{Plugin, PluginLoadCtx};

@@ -1,8 +1,9 @@
-use crate::{Plugin, PluginLoadCtx, Storage, command::CommandRegistry};
+use crate::{Asyn, Plugin, PluginLoadCtx, Storage, command::CommandRegistry};
 
 pub struct Core {
     commands: CommandRegistry,
     data: Storage,
+    asyn: Asyn,
 }
 
 impl Core {
