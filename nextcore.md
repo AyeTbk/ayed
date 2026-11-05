@@ -4,7 +4,6 @@
 
 ### Commands
 
-Soft/Hard command failure
 Hooking before/after execution
 Invocation substitutions
 
@@ -116,16 +115,53 @@ either the command worked and its effects have happened, or it failed and only
 an error message is emitted.
 
 Scripted commands should be able to handle/ignore sub-command failures.
-[TODO elaborate how.]
-$[ cmd ; cmd-fails ; final-cmd ]
-$[ cmd ; $try[ cmd-fails ] $catch[ cmd-else ] ; final-cmd ]
-The above has implications for the config data format,
-going from list of strs to list of (str|list of strs)s
+Example:
+implicitly define anon command in config:
+<s-o> ${
+  cmd; cmd2;
+  $try{ move u } $catch{ move d };
+  $if state regex {
+    cmd3; cmd4
+  }
+}
+
+ becomes
+
+defcmd __cmd_annon23947823 {
+  cmd; cmd2;
+  $try{ move u } $catch{ move d }; # catch block is optional
+  $if state regex { # if is an in-script selector basically
+    cmd3; cmd4
+  }
+}
+<s-o> $[ __cmd_annon23947823 ]
+
+Ive meant to have some kind of defcmd for a while, and this allows keeping
+configs as lists of strings while allowing more complex scripting constructs.
+This implies a more advanced script executor to handle constructs.
+Command queueing still 'nests' command execution though.
+defcmd scripts should be affected by selectors, that is: a defcmd in an
+inactive selector is not accessible/executable.
+
+TODO $(substitutions) in commands
+
+
+### More advanced script executor
+
+Needs:
+- Can run command sequences.
+- Can run nested command sequences.
+- Can handle $if state regex { etc }
+- Can handle $try{} $catch{}
+- Can handle executing hooked commands before, after and nested-after
+- Updated live as the config changes, of course.
 
 
 ### Async commands
 
-TODO?
+There shouldn't be async commands, and anything that would greatly benefit
+from them should just be purpose built in native code. Plugins should allow
+this with hooks.
 
 
 ## Config
