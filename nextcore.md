@@ -4,14 +4,11 @@
 
 ### Commands
 
-Soft/Hard command failure
-Hooking before/after execution
-Invocation substitutions
-
 ### Uncategorized
 
 Registers
 Multieditor
+Support for diffing
 Workspaces
 Logical content
 Buffer content properties
@@ -116,16 +113,57 @@ either the command worked and its effects have happened, or it failed and only
 an error message is emitted.
 
 Scripted commands should be able to handle/ignore sub-command failures.
-[TODO elaborate how.]
-$[ cmd ; cmd-fails ; final-cmd ]
-$[ cmd ; $try[ cmd-fails ] $catch[ cmd-else ] ; final-cmd ]
-The above has implications for the config data format,
-going from list of strs to list of (str|list of strs)s
+Example:
+implicitly define anon command in config:
+<s-o> ${
+  cmd; cmd2;
+  $try{ move u } $catch{ move d };
+  $if state regex {
+    cmd3; cmd4
+  }
+}
+
+ becomes
+
+defcmd __cmd_annon23947823 {
+  cmd; cmd2;
+  $try{ move u } $catch{ move d }; # catch block is optional
+  $if state regex { # if is an in-script selector basically
+    cmd3; cmd4
+  }
+}
+<s-o> $[ __cmd_annon23947823 ]
+
+Ive meant to have some kind of defcmd for a while, and this allows keeping
+configs as lists of strings while allowing more complex scripting constructs.
+This implies a more advanced script executor to handle constructs.
+Command queueing still 'nests' command execution though.
+defcmd scripts should be affected by selectors, that is: a defcmd in an
+inactive selector is not accessible/executable.
+
+For $(substitutions) (ex: in commands and modeline), see config section.
+
+
+### More advanced script executor
+
+Needs:
+- Can run command sequences.
+- Can run nested command sequences.
+- Can handle $if state regex { etc }
+- Can handle $try{} $catch{}
+- Can handle executing hooked commands before, after and nested-after
+  - How does that look like in config file? ex: hook { before:set  mycmd } . This can replace 'state-modified' and co. magic hooks by hooking around 'set'.
+- Updated live as the config changes, of course.
 
 
 ### Async commands
 
-TODO?
+There shouldn't be async commands, and anything that would greatly benefit
+from them should just be purpose built in native code. Plugins should allow
+this with hooks.
+
+There should be an async executor included in core to avoid having every plugin
+that might need one to bring one.
 
 
 ## Config
@@ -143,8 +181,30 @@ Are there other contexts than views? maybe global? workspace?
   simultaneously? (No? focus kinda makes it not a possibility?)
 - Background processing of sorts? (like what??)
 
+### Substitutions
 
-### Data representation
+Config should expand $(substitutions) as they are queried. This allows
+substitutions to be late binding.
 
-Old entry data representation is basically Vec<String>.
-New entry data representation would become [TODO consider commands needs]
+How should data be represented in config internally?:
+- structured template strings
+- as is text + records of substitution indices
+- etc..?
+
+In any case, the config's internal representation will no longer be a simple
+Vec<String>, but config's public api can still present it as such.
+
+
+### defcmd
+
+Add a defcmd keyword to config format to allow defining scripted commands in
+config. (See also Commands section)
+
+Braces syntax ${} will be used to define inline an anonymous scripted command.
+The config parser should support parsing $if and $try{} $catch{} constructs (
+see Commands section).
+
+
+## LSP
+
+Do it better plz tyvm. also use asyn.
