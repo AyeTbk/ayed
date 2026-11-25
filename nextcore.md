@@ -7,10 +7,7 @@
 ### Uncategorized
 
 Registers
-Multieditor
-Support for diffing
 Workspaces
-Logical content
 Buffer content properties
 Panels
 UI/UX
@@ -61,6 +58,13 @@ Dynamic, dynamic registration, think typeid hashmap.
 TODO Should buffer be big and contain a lot, or should stuff be spread out
 	 in storage? Like, markers. Should they be in the buffer struct?
 
+
+## Multieditor
+
+This implies concept of focus, layouting, config contexts...
+TODO elaborate
+
+
 ## Buffers
 
 Buffers will be addressed uniquely with monotonically increasing ids.
@@ -90,9 +94,19 @@ plugins?), or some automatic scheme is used (ref counting).
 
 ### Virtual content
 
-Virtual lines. Insert themselves between lines. Positioned by a marker with 0-column.
-Virtual inline spans. Insert themselves within a line. Positioned by a marker.
+Virtual lines: insert themselves between lines. Positioned by a marker with 0-column.
+Virtual inline spans: insert themselves within a line. Positioned by a marker.
 Motions/cursors/selections ignore them. Line number display needs to adapt.
+Virtual lines and spans can be used to implement a code diff view for example.
+
+TODO other stuff to elaborate:
+Hiding lines: for code folding?
+Also, I feel like tabs should be handled separately as a different kind of virtual content, because they are also physical content.
+
+
+### Diffing
+
+TODO how should this be done
 
 
 ### Different buffer types?
